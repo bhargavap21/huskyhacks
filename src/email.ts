@@ -123,6 +123,14 @@ export async function draftReply(subject: string, body: string, attachNames: str
   return { forwarded, found, reply, source };
 }
 
+// Ask only for what the member's own note didn't already say. Their name and number are on file (linked member).
+function followUps(note: string) {
+  const ask: string[] = [];
+  if (!/\b(sent|paid|wired|transferred|bought|gave|didn.?t (send|pay)|haven.?t (sent|paid)|no money)\b/i.test(note)) ask.push('whether you’ve sent any money');
+  if (!/\b(code|password|pin|card number|account number|ssn|social security|didn.?t (share|give)|shared nothing|clicked|typed)\b/i.test(note)) ask.push('whether you shared any codes, passwords or card numbers');
+  return ask.length ? ` If you can, also tell me ${ask.join(' and ')}.` : '';
+}
+
 const FOOTER = `\n\n—\nSecond Look never asks for codes or passwords and never moves money. This is a concept demo for HuskyHack 2026.`;
 
 // File a fraud report for a forwarded email (also used by the app's "Report to Sound" button).
@@ -193,7 +201,7 @@ async function handle(m: any, keyFor: (sid: string) => string) {
   const askedToReport = /\b(report (it|this)|tell sound|let sound know|notify sound|flag (it|this))\b/i.test(own);
   const worth = found.tactics.length > 0 || found.links.some(l => l.note && !l.note.startsWith('This is')) || forwarded;
   const extra = askedToReport ? '\n\nYou asked me to report this, so I’ve passed it to Sound’s fraud team. A Sound team member will call you on the number on file.'
-    : worth ? '\n\nWant me to tell Sound’s fraud team? Reply YES to this email and I’ll pass it on with what I found. If you can, add your name, the best number to reach you, and whether you’ve sent any money or shared any codes. Someone from Sound will call you.' : '';
+    : worth ? `\n\nWant me to tell Sound’s fraud team? Reply YES to this email and I’ll pass it on with what I found.${followUps(own)} Someone from Sound will call you on the number on file.` : '';
 
   let sent = false;
   try { await send(reply + extra); sent = true; } catch (e) { console.error('email: reply failed:', (e as Error).message); }

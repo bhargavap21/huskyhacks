@@ -21,7 +21,7 @@ export type FraudCase = {
   case_id: string; filed_at: number; channel: Channel; priority: Priority; priority_reason: string;
   member: { name: string; phone: string; email: string; member_id: string; linked: boolean; safe_to_call: string };
   threat: { type: string; claimed_identity: string; contact_method: string; first_contact: string; scammer_phone: string; scammer_email: string; scammer_website: string; scammer_name: string; asked_for: string; amount_requested: string; payment_method: string; deadline: string; tactics: string[] };
-  exposure: { money_sent: boolean | null; amount_sent: string; sent_method: string; sent_when: string; sent_to: string; info_shared: string[]; remote_access: boolean | null; still_in_contact: boolean | null };
+  exposure: { money_sent: boolean | null; amount_sent: string; sent_method: string; sent_when: string; sent_to: string; info_shared: string[]; shared_nothing: boolean; remote_access: boolean | null; still_in_contact: boolean | null };
   summary: string; quotes: string[]; next_steps: string[]; missing: string[];
   // Flat fields the console list already reads.
   asked_for: string; money_sent: boolean; tactics: string[]; contact: string;
@@ -47,6 +47,7 @@ export const INTAKE_SCHEMA = {
     money_sent: B('True if the member said money already went out; false if they said it did not. Omit if unknown.'),
     amount_sent: S('Amount already sent.'), sent_method: S('How it was sent.'), sent_when: S('When it was sent.'), sent_to: S('Recipient name, handle, or where it went (never a full account number).'),
     info_shared: { type: 'array', items: { type: 'string' }, description: 'What the member shared about themselves, by type only: one-time code, password, bank card number, account number, SSN, date of birth, address, photo ID. Never the values. Gift card numbers or PINs read to the contact are payment (money_sent), not shared information. Leave empty if the member said they shared nothing.' },
+    shared_nothing: B('True if the member said they did not share any codes, passwords, card or account numbers or other personal details.'),
     remote_access: B('True if they let someone into their computer or phone (e.g. installed AnyDesk). Omit if unknown.'),
     still_in_contact: B('True if the contact is still messaging or on the line, or is expected back. Omit if unknown.'),
     quotes: { type: 'array', items: { type: 'string' }, description: 'Up to 3 short, informative quotes from the member (not “yeah” or “okay”).' },
@@ -103,7 +104,7 @@ function missingOf(c: FraudCase): string[] {
   if (!c.threat.asked_for) m.push('what they asked for');
   if (c.exposure.money_sent === null) m.push('whether any money was sent');
   if (c.exposure.money_sent && !c.exposure.amount_sent) m.push('amount and method of what was sent');
-  if (!c.exposure.info_shared.length) m.push('whether any codes, passwords or card numbers were shared');
+  if (!c.exposure.info_shared.length && !c.exposure.shared_nothing) m.push('whether any codes, passwords or card numbers were shared');
   if (c.exposure.remote_access === null) m.push('whether anyone got remote access to a device');
   return m;
 }
@@ -115,7 +116,7 @@ export function normalize(raw: any, channel: Channel, known: Partial<FraudCase['
     case_id: '', filed_at: Date.now(), channel, priority: 'standard', priority_reason: '',
     member: { name: t(raw.member_name, 80) || t(known.name, 80), phone: phone(raw.member_phone) || phone(known.phone), email: t(raw.member_email, 120) || t(known.email, 120), member_id: t(known.member_id, 40), linked: !!known.linked, safe_to_call: t(raw.safe_to_call, 120) },
     threat: { type: t(raw.threat_type, 60), claimed_identity: t(raw.claimed_identity, 100), contact_method: t(raw.contact_method, 60), first_contact: t(raw.first_contact, 60), scammer_phone: phone(raw.scammer_phone), scammer_email: t(raw.scammer_email, 120), scammer_website: t(raw.scammer_website, 160), scammer_name: t(raw.scammer_name, 80), asked_for: t(raw.asked_for, 200), amount_requested: t(raw.amount_requested, 40), payment_method: t(raw.payment_method, 60), deadline: t(raw.deadline, 80), tactics: list(raw.tactics, 8, 60) },
-    exposure: { money_sent: bool(raw.money_sent), amount_sent: t(raw.amount_sent, 40), sent_method: t(raw.sent_method, 60), sent_when: t(raw.sent_when, 60), sent_to: t(raw.sent_to, 120), info_shared: list(raw.info_shared, 6, 40).filter(x => !/\d{4,}/.test(x) && !/gift/i.test(x)), remote_access: bool(raw.remote_access), still_in_contact: bool(raw.still_in_contact) },
+    exposure: { money_sent: bool(raw.money_sent), amount_sent: t(raw.amount_sent, 40), sent_method: t(raw.sent_method, 60), sent_when: t(raw.sent_when, 60), sent_to: t(raw.sent_to, 120), info_shared: list(raw.info_shared, 6, 40).filter(x => !/\d{4,}/.test(x) && !/gift/i.test(x)), shared_nothing: raw.shared_nothing === true, remote_access: bool(raw.remote_access), still_in_contact: bool(raw.still_in_contact) },
     summary: t(raw.summary, 700) || 'The member asked Second Look to report a possible scam.',
     quotes: list(raw.quotes, 3, 220).filter(q => q.split(' ').length >= 3), // "Yeah." is not evidence
     next_steps: [], missing: [], asked_for: '', money_sent: false, tactics: [], contact: '',
@@ -157,7 +158,7 @@ function sections(c: FraudCase): [string, [string, string][]][] {
   return [
     ['Member affected', [['Name', m.name || 'Not given'], ['Callback number', m.phone ? `${m.phone}${c.channel === 'phone' && !m.linked ? ' (caller ID; member confirmed on the call if asked)' : ''}` : (m.linked ? 'On file' : 'Not given')], ['Email', m.email || 'Not given'], ['Member ID', m.member_id || (m.linked ? 'Linked in app' : 'Not linked')], ['Safe to call back', m.safe_to_call || 'Not stated']]],
     ['Threat', [['Type', th.type || 'Not yet known'], ['Claimed to be', th.claimed_identity || 'Not yet known'], ['Contacted by', [th.contact_method, th.first_contact].filter(Boolean).join(', ') || 'Not yet known'], ['Contact’s details', theirs || 'None collected'], ['Asked for', askedFor(th) || 'Not yet known'], ['Deadline', th.deadline || 'None stated'], ['Pressure tactics', th.tactics.join(', ') || 'None noted']]],
-    ['Exposure', [['Money sent', e.money_sent ? [e.amount_sent || 'Yes', e.sent_method && `by ${e.sent_method}`, e.sent_when, e.sent_to && `to ${e.sent_to}`].filter(Boolean).join(', ') : yn(e.money_sent)], ['Information shared', e.info_shared.join(', ') || 'None reported'], ['Remote access to a device', yn(e.remote_access)], ['Still in contact', yn(e.still_in_contact)]]],
+    ['Exposure', [['Money sent', e.money_sent ? [e.amount_sent || 'Yes', e.sent_method && `by ${e.sent_method}`, e.sent_when, e.sent_to && `to ${e.sent_to}`].filter(Boolean).join(', ') : yn(e.money_sent)], ['Information shared', e.info_shared.join(', ') || (e.shared_nothing ? 'Nothing (member said so)' : 'Not yet known')], ['Remote access to a device', yn(e.remote_access)], ['Still in contact', yn(e.still_in_contact)]]],
   ];
 }
 const esc = (s: string) => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
@@ -173,7 +174,7 @@ function emailText(c: FraudCase) {
 }
 function emailHtml(c: FraudCase) {
   const color = c.priority === 'critical' ? '#b42318' : c.priority === 'high' ? '#9a6700' : '#1f5f8b';
-  const table = (rows: [string, string][]) => `<table style="border-collapse:collapse;width:100%;font-size:14px">${rows.map(([k, v]) => `<tr><td style="padding:6px 12px 6px 0;color:#555;width:190px;vertical-align:top;border-top:1px solid #e5e5e5">${esc(k)}</td><td style="padding:6px 0;border-top:1px solid #e5e5e5;${/^(Not|None|Unknown)/.test(v) ? 'color:#888' : 'color:#111'}">${esc(v)}</td></tr>`).join('')}</table>`;
+  const table = (rows: [string, string][]) => `<table style="border-collapse:collapse;width:100%;font-size:14px">${rows.map(([k, v]) => `<tr><td style="padding:6px 12px 6px 0;color:#555;width:190px;vertical-align:top;border-top:1px solid #e5e5e5">${esc(k)}</td><td style="padding:6px 0;border-top:1px solid #e5e5e5;${/^(Not |None|Unknown)/.test(v) ? 'color:#888' : 'color:#111'}">${esc(v)}</td></tr>`).join('')}</table>`;
   const h = (s: string) => `<h3 style="margin:22px 0 6px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#333">${esc(s)}</h3>`;
   return `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:680px;color:#111;line-height:1.45">
   <p style="margin:0 0 4px;font-size:13px;color:#555">Second Look fraud case · ${esc(c.case_id)}</p>
