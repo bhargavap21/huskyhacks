@@ -11,6 +11,9 @@ const MEMBER_PAGES = ['home', 'inbox', 'settings', 'onboarding', 'profile'];
 const sess = k => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sessSet = (k, v) => { try { sessionStorage.setItem(k, v); } catch {} };
 let signedIn = sess('sl-signed-in') !== '0', obStep = 0;
+// Home shows a 'Finish setting up' card until setup is finished or dismissed in this tab.
+let setupDone = sess('sl-setup') === '1';
+const markSetupDone = () => { setupDone = true; sessSet('sl-setup', '1'); };
 // The chat follows a held payment until the member picks "Something feels off" themselves.
 let chatAuto = true;
 const $ = s => document.querySelector(s);
@@ -50,7 +53,7 @@ function keep(fn) {
 
 // Only rebuild when something other than the clock changed; clock and countdowns update in place.
 let lastKey = '';
-function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, showMore, sideCollapsed, copilotOpen, signedIn, obStep]); }
+function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, showMore, sideCollapsed, copilotOpen, signedIn, obStep, setupDone]); }
 function tickText() {
   $('#clock').textContent = S.sim_text;
   document.querySelectorAll('[data-expires]').forEach(el => { const t = hm(Number(el.dataset.expires) - S.sim); el.textContent = t; el.setAttribute('aria-label', 'Time left ' + t); });
@@ -77,7 +80,7 @@ function render(force = false) {
   $('#side-toggle').setAttribute('aria-label', sideCollapsed ? 'Expand page list' : 'Collapse page list');
   $('#copilot-toggle').setAttribute('aria-expanded', String(copilotOpen));
   $('#copilot-toggle').textContent = copilotOpen ? 'Hide chat' : 'Second Look chat';
-  document.querySelectorAll('[data-page]').forEach(b => b.dataset.page === page || (page === 'onboarding' && b.dataset.page === 'settings') ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  document.querySelectorAll('[data-page]').forEach(b => b.dataset.page === page ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   // Account button at the bottom of the page list (member identity, sign-in state).
   const m = S.member;
   $('#acct-initial').textContent = signedIn ? m.name.trim()[0].toUpperCase() : '?';
@@ -85,7 +88,7 @@ function render(force = false) {
   $('#acct-name').textContent = signedIn ? `${m.name} · ${m.id}` : 'Signed out of the demo';
   $('#acct-sign').dataset.act = signedIn ? 'sign_out' : 'sign_in';
   $('#acct-sign-lbl').textContent = signedIn ? 'Sign out' : `Sign in as ${m.name} (demo)`;
-  $('#acct-btn').classList.toggle('current', ['profile', 'settings', 'onboarding'].includes(page));
+  $('#acct-btn').classList.toggle('current', ['profile', 'settings'].includes(page));
   const openCases = S.cases.filter(c => c.status === 'open').length;
   $('#count-console').textContent = openCases + S.callbacks.filter(x => x.status === 'waiting').length || '';
   $('#count-inbox').textContent = S.cases.length || '';
@@ -128,6 +131,7 @@ function homeView() {
   if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   if (active) out += activePayment(active, caseById(active.case_id));
+  if (!setupDone) out += `<div class="card setup-card"><p class="eyebrow">3 short steps</p><h3>Finish setting up your app</h3><p class="small">Choose scam protection, how often we alert you, and an optional trusted contact.</p><div class="row"><button data-act="onboarding">Start setup</button><button class="quiet" data-act="setup_dismiss">Not now</button></div></div>`;
   out += `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money or contacts anyone for you.</p><button class="primary" data-act="chat_general">Talk to Second Look</button></div>`;
   const recent = S.payments.slice(0, 4);
   out += `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
@@ -425,7 +429,8 @@ document.addEventListener('click', async e => {
     case 'ob_back': obStep = Math.max(obStep - 1, 0); return render();
     case 'ob_on': await post('member/enroll', { on: true }); obStep = 2; return render();
     case 'ob_skip': await post('member/enroll', { on: false }); obStep = 4; return render();
-    case 'ob_done': page = 'home'; obStep = 0; return render();
+    case 'ob_done': markSetupDone(); page = 'home'; obStep = 0; return render();
+    case 'setup_dismiss': markSetupDone(); return render();
     case 'enroll_on': page = 'home'; await post('member/enroll', { on: true }); return toast('Second Look is on. Turn it off any time in Settings.');
     case 'enroll_skip': page = 'home'; await post('member/enroll', { on: false }); return;
     case 'sens': return post('member/alert_settings', { sensitivity: b.dataset.v });

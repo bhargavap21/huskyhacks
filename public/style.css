@@ -288,3 +288,6 @@ td:nth-child(2), td:nth-child(4), td:nth-child(5) { white-space: nowrap; }
 .acct-pill { margin-left: auto; padding: 0 var(--space-2); border-radius: var(--radius-pill); box-shadow: inset 0 0 0 1px var(--line-strong); font: 500 12px/22px var(--font-sans); color: var(--ink); }
 .acct-sep { height: 1px; margin: var(--space-1) 0; background: var(--line); }
 @media (max-width: 900px) { .side-foot { margin: 0 0 0 auto; padding: 0 0 0 var(--space-2); border-top: 0; border-left: 1px solid var(--line); } }
+
+.setup-card { border-left: 4px solid var(--accent); }
+.setup-card .row { margin-top: var(--space-3); }
