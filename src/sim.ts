@@ -5,6 +5,7 @@ import { memberEvents, historyUpTo, type KitEvent } from './kit.ts';
 import { score, primary, type Finding, HOLDABLE } from './rules.ts';
 import { newPayment, transition, TERMINAL, TransitionError, type Payment, type Gate } from './payments.ts';
 import { audit, db } from './db.ts';
+import { newPolicy, decide, dismiss, type PolicyState, type Decision, type Sensitivity } from './alerts.ts';
 
 export type Mode = 'as_is' | 'second_look';
 export type Scene = { id: string; member: string; name: string; mode: Mode; start: string; title: string; blurb: string };
@@ -27,6 +28,7 @@ export type CaseRec = {
   evidence: Finding['evidence']; findings: Finding[]; status: 'open' | 'closed'; created_sim: number; created_real: number;
   member_label: 'none' | 'looks_fine' | 'reported'; label_seconds: number | null; callback_requested: boolean;
   actions: { ts: number; actor: string; action: string; detail: string }[];
+  alert: Decision | null;
 };
 export type PayRec = {
   pid: string; rail: string; amount: number; recipient: string; channel: string; initiated_sim: number;
@@ -43,6 +45,7 @@ type World = {
   payments: Map<string, PayRec>; cases: CaseRec[]; awaiting: string | null; member: Member;
   confirm_code: { code: string; pid: string; sent_to: string; why: string } | null; ended: boolean;
   next_case: number; seen: number;
+  policy: PolicyState; notifications: { ts: number; text: string; case_id: number }[];
 };
 
 // One simulation per browser session so viewers don't interfere with each other.
@@ -79,7 +82,7 @@ function blank(scene: Scene): World {
   const start = toMs(scene.start);
   const w0: World = {
     scene, mode: scene.mode, sim: start, speed: NORMAL_SPEED, running: false, cursor: 0, events, timeline: [],
-    payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null, next_case: 1, seen: Date.now(),
+    payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null, next_case: 1, seen: Date.now(), policy: newPolicy(), notifications: [],
     member: { id: scene.member, name: scene.name, enrolled: scene.mode === 'second_look', trusted_contact: null, contact_changed_sim: null, pre_change_contact: 'phone ending 4471 (on file since 2019)', current_contact: 'phone ending 4471' },
   };
   // Fast-forward silently to the scene start so balances, recipients and flags are in place.
@@ -157,12 +160,17 @@ function openCase(W: World, p: PayRec, e: KitEvent) {
   } else {
     c = {
       id: W.next_case++, pid: p.pid, pids: [p.pid], recipient: p.recipient, rule: f.rule, title: f.title, tier: f.tier, output: f.output, evidence: f.evidence, findings,
-      status: 'open', created_sim: W.sim, created_real: Date.now(), member_label: 'none', label_seconds: null, callback_requested: false, actions: [],
+      status: 'open', created_sim: W.sim, created_real: Date.now(), member_label: 'none', label_seconds: null, callback_requested: false, actions: [], alert: null,
     };
     W.cases.unshift(c);
     act(c, 'system', 'case_opened', `${f.rule} → ${f.output}; tier ${f.tier}; promoted because: ${f.evidence.map(x => x.value).join(' + ')}`);
   }
   p.case_id = c.id;
+  // Alert policy: how the member is told (T0/T1/T2). The in-session banner always shows; interruptions are budgeted.
+  const d = decide(W.policy, { key: `${f.rule}:${c.recipient}`, ts: W.sim, tier: f.tier, evidence: f.evidence.map(x => x.value), evidence_types: findings.map(x => x.rule), amount: p.amount, recipient: p.recipient, payment_active: true, rule: f.rule });
+  c.alert = d;
+  act(c, 'system', 'alert_decision', `${d.tier}${d.interrupt ? ', interrupt' : ''}${d.banner_in_place ? ', banner in place' : ''}${d.suppressed ? `; ${d.suppressed}` : ''}; ${d.why}`);
+  if (d.interrupt) W.notifications.unshift({ ts: W.sim, case_id: c.id, text: f.output === 'HOLD' ? 'Sound: a payment is paused. Open the app to review.' : 'Sound: a payment needs a quick check before it goes.' });
   if (f.output === 'HOLD') { p.state = transition(p.state, { kind: 'hold', now: W.sim }); act(c, 'system', 'hold_placed', 'up to 4 hours; employee notified'); }
   w = prev;
   W.awaiting = p.pid;
@@ -221,6 +229,11 @@ const caseFor = (p: PayRec) => caseOf(p.case_id!);
 /** Member-side actions (the member app). */
 export function member(action: string, b: any) {
   if (action === 'enroll') { w.member.enrolled = !!b.on; audit('member', b.on ? 'second_look_on' : 'second_look_off', w.member.id); return; }
+  if (action === 'alert_settings') {
+    if (['fewer', 'standard', 'more'].includes(b.sensitivity)) w.policy.sensitivity = b.sensitivity as Sensitivity;
+    if (b.quiet !== undefined) w.policy.quiet = b.quiet ? { start_hour: 21, end_hour: 7 } : null;
+    audit('member', 'alert_settings', `${w.policy.sensitivity}; quiet hours ${w.policy.quiet ? 'on' : 'off'}`); return;
+  }
   if (action === 'trusted_contact') { w.member.trusted_contact = b.remove ? null : { name: String(b.name || '').slice(0, 60), relation: String(b.relation || '').slice(0, 40), when: 'a payment is held' }; audit('member', b.remove ? 'trusted_contact_revoked' : 'trusted_contact_enrolled', w.member.id); return; }
   const p = pay(b.pid); const c = caseFor(p);
   switch (action) {
@@ -228,6 +241,7 @@ export function member(action: string, b: any) {
       p.state = transition(p.state, { kind: 'clear_gate', actor: 'member' });
       p.state = transition(p.state, { kind: 'submit' });
       c.member_label = 'looks_fine'; c.label_seconds = Math.round((Date.now() - c.created_real) / 100) / 10;
+      dismiss(w.policy, `${c.rule}:${c.recipient}`);
       act(c, 'member', 'this_is_fine', `confirmed in ${c.label_seconds}s; recorded as member feedback, not silent training`);
       break;
     case 'cancel':
@@ -240,7 +254,7 @@ export function member(action: string, b: any) {
     case 'override_release':
       if (!w.confirm_code || w.confirm_code.pid !== p.pid || String(b.code) !== w.confirm_code.code) throw new TransitionError('That code does not match. Request a new one.');
       p.state = transition(p.state, { kind: 'release', actor: 'member', reason: 'Member override after step-up confirmation' });
-      w.confirm_code = null; c.member_label = 'looks_fine'; c.label_seconds = Math.round((Date.now() - c.created_real) / 100) / 10;
+      w.confirm_code = null; c.member_label = 'looks_fine'; dismiss(w.policy, `${c.rule}:${c.recipient}`); c.label_seconds = Math.round((Date.now() - c.created_real) / 100) / 10;
       act(c, 'member', 'override_release', `member's decision, confirmed in ${c.label_seconds}s`); break;
     case 'reconfirm':
       p.state = transition(p.state, { kind: 'reconfirm' }); act(c, 'member', 'reconfirmed', 'send when the hold window ends'); break;
@@ -303,6 +317,7 @@ export function snapshot() {
   return {
     scene: w.scene, scenes: SCENES.map(s => ({ id: s.id, title: s.title })), mode: w.mode, sim: w.sim, sim_text: fmt(w.sim),
     speed: w.speed, running: w.running, ended: w.ended, awaiting: w.awaiting, member: w.member,
+    alerts: { sensitivity: w.policy.sensitivity, quiet: !!w.policy.quiet }, notifications: w.notifications.slice(0, 5).map(n => ({ ...n, ts_text: fmt(n.ts) })),
     timeline: w.timeline.slice(-40).map(t => ({ ...t, ts_text: fmt(t.ts) })), payments: pays.reverse(), cases: w.cases,
     confirm_code: w.confirm_code ? { sent_to: w.confirm_code.sent_to, why: w.confirm_code.why, pid: w.confirm_code.pid, demo_code: w.confirm_code.code } : null,
   };

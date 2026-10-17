@@ -30,6 +30,18 @@ test('M1037: one standard banner, one tap, completed', () => {
   assert.equal(snapshot().awaiting, 'P1037-002');
   member('looks_fine', { pid: 'P1037-002' });
   const s = snapshot();
-  assert.equal(s.payments.find((p: any) => p.pid === 'P1037-002').status, 'Completed');
+  assert.equal(s.payments.find((p: any) => p.pid === 'P1037-002')?.status, 'Completed');
   assert.equal(s.cases[0].rule, 'STD');
+});
+
+test('alert policy in the sim: Linda’s hold interrupts once (content-safe); M1037’s standard banner never notifies', () => {
+  useWorld('n'); loadScene('linda-sl', 'n'); control('play', 'n'); run(); useWorld('n');
+  const s = snapshot();
+  assert.equal(s.notifications.length, 1);
+  assert.doesNotMatch(s.notifications[0].text, /\$|8,500|R1001|Linda/);
+  assert.equal(s.cases[0]?.alert?.interrupt, true);
+  useWorld('m'); loadScene('m1037', 'm'); control('play', 'm'); run(); useWorld('m');
+  const t = snapshot();
+  assert.equal(t.notifications.length, 0);
+  assert.equal(t.cases[0]?.alert?.banner_in_place, true);
 });

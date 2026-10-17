@@ -78,6 +78,7 @@ function homeView() {
   const m = S.member;
   let out = `<div class="card"><div class="muted small">Welcome back</div><h2>${esc(m.name)}</h2>
     <div class="row small"><span class="chip">Second Look: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="chip">Kit replay: Second Look not in use</span>' : ''}</div></div>`;
+  if (S.notifications.length) out = `<div class="card small" aria-label="Notifications (simulated lock screen)"><b>Notifications</b> <span class="muted">(simulated lock screen: no amounts or names shown)</span>${S.notifications.map(n => `<div>${esc(n.ts_text)} · ${esc(n.text)}</div>`).join('')}</div>` + out;
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   if (active) out += activePayment(active, caseById(active.case_id));
   const recent = S.payments.slice(0, 4);
@@ -127,7 +128,7 @@ function inboxView() {
     const p = payOf(c);
     return `<div class="card"><div class="row small"><span class="chip">${c.tier === 'T2' ? 'Needs a look now' : c.tier === 'T1' ? 'Worth a second look' : 'Quiet'}</span><span class="chip">${esc(p.status)}</span>${c.member_label === 'looks_fine' ? `<span class="chip">You marked this fine${c.label_seconds != null ? ` (${c.label_seconds}s)` : ''}</span>` : ''}</div>
       <h3>${usd(p.amount)} ${esc(p.rail)} to ${esc(p.recipient)}</h3>${plainEvidence(c)}
-      <details><summary>Why did I get this?</summary><p class="small">${esc(c.actions.find(a => a.action === 'case_opened')?.detail || '')}</p></details>
+      <details><summary>Why did I get this?</summary><p class="small">${esc(c.actions.find(a => a.action === 'case_opened')?.detail || '')}</p>${c.alert ? `<p class="small">How we told you: ${c.alert.interrupt ? 'a notification, because money was about to move' : c.alert.banner_in_place ? 'a note in the payment screen only, no notification' : 'quietly, here only'}${c.alert.suppressed ? ` (${esc(c.alert.suppressed)})` : ''}.</p>` : ''}</details>
       <div class="row">${'<button data-act="chat" data-case="' + c.id + '">Talk to Second Look</button>'}<button class="quiet" data-act="report" data-pid="${p.pid}">Report a scam</button></div></div>`;
   }).join('');
 }
@@ -138,6 +139,9 @@ function settingsView() {
     <div class="switch"><label for="enroll">Watch for signs someone may be manipulating me, and let a Sound employee step in before money moves</label><input type="checkbox" id="enroll" ${m.enrolled ? 'checked' : ''}></div>
     <details><summary>What we use / what we never do</summary><p class="small"><b>We use</b> the payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes. <b>We never</b> read your texts, calls, email or browsing, never freeze your account, and never make a decision about your own payment for you.</p></details>
     <button class="quiet" data-act="onboarding">See the onboarding screen</button></div>
+    <div class="card"><h2>Alerts</h2><p class="small">We stay quiet unless something is worth a look. When money is about to move, we always show it in the payment screen.</p>
+    <fieldset style="border:0;padding:0;margin:0"><legend class="small muted">How many alerts</legend><div class="row">${['fewer', 'standard', 'more'].map(v => `<button data-act="sens" data-v="${v}" aria-pressed="${S.alerts.sensitivity === v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div></fieldset>
+    <div class="switch" style="margin-top:8px"><label for="quiet">Quiet hours, 9 pm to 7 am (a paused payment still reaches you)</label><input type="checkbox" id="quiet" ${S.alerts.quiet ? 'checked' : ''}></div></div>
     <div class="card"><h2>Trusted contact <span class="chip">optional</span></h2>
     ${t ? `<p>${esc(t.name)} (${esc(t.relation)}) is told when a payment is paused. They never see your balances and can never act on your account.</p><button data-act="tc_remove">Remove trusted contact</button>`
       : `<p class="small">Choose someone you trust who is <b>not involved</b> in your payments. They’re only informed, never given access or control. You can remove them any time.</p>
@@ -237,6 +241,7 @@ document.addEventListener('click', async e => {
     case 'onboarding': screen = 'onboarding'; return render();
     case 'enroll_on': await post('member/enroll', { on: true }); screen = 'home'; return toast('Second Look is on. Turn it off any time in Settings.');
     case 'enroll_skip': await post('member/enroll', { on: false }); screen = 'home'; return;
+    case 'sens': return post('member/alert_settings', { sensitivity: b.dataset.v });
     case 'tc_add': return post('member/trusted_contact', { name: $('#tcname').value, relation: $('#tcrel').value });
     case 'tc_remove': return post('member/trusted_contact', { remove: true });
     case 'release': return post('member/override_release', { pid, code: $('#code').value });
@@ -258,7 +263,10 @@ document.addEventListener('click', async e => {
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('tr[data-act]')) e.target.click(); });
-document.addEventListener('change', e => { if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked }); });
+document.addEventListener('change', e => {
+  if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked });
+  if (e.target.id === 'quiet') post('member/alert_settings', { quiet: e.target.checked });
+});
 $('#scene').addEventListener('change', async e => { selCase = null; chatCase = null; screen = 'home'; showMore = {}; await post('scene/' + e.target.value); });
 $('#play').addEventListener('click', () => post('control/' + (S.running ? 'pause' : 'play')));
 $('#next').addEventListener('click', () => post('control/next'));
