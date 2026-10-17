@@ -83,3 +83,31 @@ tr.click { cursor: pointer; }
 .switch input { width: 52px; height: 30px; }
 input[type=text], textarea { width: 100%; min-height: 44px; border-radius: 10px; border: 1px solid var(--line); padding: 8px 10px; background: var(--panel); color: var(--ink); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* Readability pass: hierarchy, plain reasons, signal cards, steps */
+.eyebrow { margin: 0 0 4px; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.banner .eyebrow { color: inherit; opacity: .8; }
+.banner h2 { font-size: 22px; line-height: 1.25; }
+.banner p { margin: 6px 0 10px; }
+.reasons { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-direction: column; gap: 6px; }
+.reasons li { padding-left: 26px; position: relative; }
+.reasons li::before { content: ""; position: absolute; left: 6px; top: .55em; width: 9px; height: 9px; border-radius: 50%; background: var(--brand); }
+.countdown-inline { font-variant-numeric: tabular-nums; }
+details { margin-top: 10px; }
+details > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--brand); font-weight: 600; }
+.lock { border-radius: 16px; padding: 10px 14px; background: var(--brand-soft); border: 1px solid var(--line); }
+.lock-app { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+.lock-cap { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.case-summary h2 { font-size: 26px; margin: 0; }
+.lede { font-size: 17px; margin: 4px 0 12px; }
+.signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 8px 0 12px; }
+.signal { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--bg); }
+.signal-label { font-size: 13px; color: var(--muted); }
+.signal-value { font-size: 19px; font-weight: 700; }
+.steps { padding-left: 22px; margin: 8px 0 0; display: flex; flex-direction: column; gap: 14px; }
+.steps > li::marker { font-weight: 700; color: var(--brand); }
+.questions { margin: 6px 0; padding-left: 18px; }
+.questions li { margin: 4px 0; }
+.presets { margin: 6px 0; }
+.chipbtn { min-height: 36px; padding: 4px 10px; border-radius: 999px; font-size: 14px; background: var(--brand-soft); }
+.card h2 { font-size: 20px; }

@@ -62,6 +62,7 @@ app.post('/api/chat/:caseId', async c => {
 const page = (f: string) => readFileSync(join(import.meta.dirname, '..', 'public', f), 'utf8');
 app.get('/', c => c.html(page('index.html')));
 app.get('/about', c => c.html(page('about.html')));
+app.use('/ds/*', serveStatic({ root: './design-system', rewriteRequestPath: p => p.replace(/^\/ds/, '') }));
 app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: p => p.replace(/^\/static/, '') }));
 
 let last = Date.now();

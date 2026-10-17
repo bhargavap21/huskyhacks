@@ -1,4 +1,5 @@
 // Second Look demo UI. Plain JS; polls /api/state and renders the member app + employee console.
+const openDet = new Map();
 let S = null, csrf = '', view = 'both', screen = 'home', selCase = null, chatCase = null, chatLog = [], showMore = {}, busy = false;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -78,47 +79,74 @@ function homeView() {
   const m = S.member;
   let out = `<div class="card"><div class="muted small">Welcome back</div><h2>${esc(m.name)}</h2>
     <div class="row small"><span class="chip">Second Look: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="chip">Kit replay: Second Look not in use</span>' : ''}</div></div>`;
-  if (S.notifications.length) out = `<div class="card small" aria-label="Notifications (simulated lock screen)"><b>Notifications</b> <span class="muted">(simulated lock screen: no amounts or names shown)</span>${S.notifications.map(n => `<div>${esc(n.ts_text)} · ${esc(n.text)}</div>`).join('')}</div>` + out;
+  if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">SOUND · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   if (active) out += activePayment(active, caseById(active.case_id));
   const recent = S.payments.slice(0, 4);
-  out += `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail)} to ${esc(p.recipient || '—')}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
+  out += `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
   return out;
 }
 
+// Plain-language reasons from rule evidence (member) and short signal cards (employee).
+const usd0 = n => Number(n) % 1 === 0 ? '$' + Number(n).toLocaleString('en-US') : usd(n);
+const ago = d => d >= 730 ? `over ${Math.floor(d / 365)} years` : d >= 365 ? 'over a year' : `${d} days`;
+function reasons(c) {
+  const p = payOf(c), rail = p.rail.toLowerCase();
+  return c.evidence.map(e => {
+    const n = parseFloat(String(e.value).replace(/,/g, ''));
+    switch (e.field) {
+      case 'recipient_status': return { label: 'Recipient', value: 'New', plain: 'This recipient is new to you' };
+      case 'days_since_last_same_rail': return isNaN(n) ? { label: `Last ${rail}`, value: 'Never', plain: `Your first-ever ${rail}` } : { label: `Last ${rail}`, value: `${ago(n)} ago`, plain: `Your first ${rail} in ${ago(n)}` };
+      case 'amount_to_baseline_ratio': return { label: 'Amount', value: `≈ ${Math.round(n)}× usual`, plain: `About ${Math.round(n)}× what you usually send` };
+      case 'amount_vs_member_baseline': return { label: 'Amount', value: e.value.split(' (')[0], plain: e.value.startsWith('Typical') ? 'The amount is in line with your usual' : 'Larger than you usually take out' };
+      case 'event_type': return { label: e.value.split(' (')[0], value: (e.value.match(/\(([^)]+)\)/) || [])[1] || '', plain: e.why };
+      case 'payment_rail': return { label: 'Payment type', value: e.value, plain: e.why };
+      case 'P2P series': return { label: 'Pattern', value: 'Growing payments', plain: 'Payments to one person kept getting bigger' };
+      case 'amount': return { label: 'This payment', value: e.value, plain: '' };
+      default: return { label: 'Call topic', value: 'Asked about limits', plain: e.why };
+    }
+  });
+}
+const reasonList = c => `<ul class="reasons">${reasons(c).filter(r => r.plain).map(r => `<li>${esc(r.plain)}</li>`).join('')}</ul>`;
+const det = (id, summary, body, dflt = false) => `<details id="${id}" ${(openDet.has(id) ? openDet.get(id) : dflt) ? 'open' : ''}><summary>${summary}</summary>${body}</details>`;
+
 function activePayment(p, c) {
-  const what = `${usd(p.amount)} ${p.rail === 'P2P' ? 'payment' : p.rail.toLowerCase()} to ${esc(p.recipient)}`;
-  const more = showMore[c.id] ? `<div class="card small"><b>What we noticed</b>${plainEvidence(c)}<b>What we can’t tell</b><p>Who you are really dealing with, or whether the story you were told is true. These signals often have good explanations.</p></div>` : '';
-  const talk = `<button data-act="chat" data-case="${c.id}">Talk to Second Look</button>`;
+  const kind = p.rail === 'P2P' ? 'payment' : p.rail === 'Cash' ? 'cash withdrawal' : p.rail.toLowerCase();
+  const talk = (primary = false) => `<button ${primary ? 'class="primary"' : ''} data-act="chat" data-case="${c.id}">Talk it through</button>`;
   if (p.status === 'Held') {
     const left = p.hold_expires_at - S.sim;
-    const code = S.confirm_code && S.confirm_code.pid === p.pid ? `<div class="card small"><b>Confirm it’s you</b><p>We sent a code to your ${esc(S.confirm_code.sent_to)}. ${esc(S.confirm_code.why)}</p><p class="muted">Demo: the code is ${esc(S.confirm_code.demo_code)}.</p><label for="code">Code</label><input type="text" id="code" data-keep inputmode="numeric" autocomplete="one-time-code"><div class="row" style="margin-top:8px"><button class="primary" data-act="release" data-pid="${p.pid}">Release my payment</button></div></div>` : '';
-    return `<div class="banner urgent" role="region" aria-label="Payment paused">
-      <h2>We paused your ${what}</h2>
-      <p>Some things about this payment are worth a second look. A Sound team member will reach out. Nothing has been sent.</p>
-      ${plainEvidence(c)}
-      <div><span class="small">Time left in the pause</span><div class="countdown" data-expires="${p.hold_expires_at}" aria-label="Time left ${hm(left)}">${hm(left)}</div>
-      <p class="small">At 4 hours: if you’ve told us to proceed, it sends then. Otherwise it comes back to you unsent and you can resend whenever you’re ready. It is never held longer than 4 hours.</p></div>
-      <div class="stack">
-        <button class="primary" data-act="request_code" data-pid="${p.pid}">This is me. Release it now</button>
-        <button data-act="reconfirm" data-pid="${p.pid}" ${p.reconfirmed ? 'disabled' : ''}>${p.reconfirmed ? 'Will send when the pause ends' : 'Send when the pause ends'}</button>
-        <button data-act="cancel" data-pid="${p.pid}">Cancel this payment</button>
-        ${talk}
-        <button data-act="callback" data-pid="${p.pid}" ${c.callback_requested ? 'disabled' : ''}>${c.callback_requested ? 'Sound will call you' : 'Pause and talk to Sound'}</button>
-        <button class="quiet" data-act="report" data-pid="${p.pid}">Report a scam</button>
-      </div></div>${code}`;
+    const code = S.confirm_code && S.confirm_code.pid === p.pid ? `<div class="card"><h3>Confirm it’s you</h3><p class="small">We sent a code to your ${esc(S.confirm_code.sent_to)}. ${esc(S.confirm_code.why)}</p><p class="small muted">Demo code: ${esc(S.confirm_code.demo_code)}</p><label for="code">Code</label><input type="text" id="code" data-keep inputmode="numeric" autocomplete="one-time-code"><div class="row" style="margin-top:8px"><button class="primary" data-act="release" data-pid="${p.pid}">Send my payment</button></div></div>` : '';
+    return `<div class="banner urgent" role="region" aria-label="Payment on hold">
+      <p class="eyebrow">On hold · nothing has been sent</p>
+      <h2>Your ${usd0(p.amount)} ${kind} is paused</h2>
+      <p>A few things look different from usual, so we paused it to check with you. A Sound team member will call you. If it’s right, you can still send it.</p>
+      ${reasonList(c)}
+      <p class="small">Paused for up to <b class="countdown-inline" data-expires="${p.hold_expires_at}">${hm(left)}</b> more.</p>
+      <div class="stack">${talk(true)}
+        <button data-act="request_code" data-pid="${p.pid}">It’s me, send it now</button>
+        <button data-act="cancel" data-pid="${p.pid}">Cancel this payment</button></div>
+      ${det('m-more-' + p.pid, 'More options', `<div class="stack" style="margin-top:8px">
+        <button data-act="callback" data-pid="${p.pid}" ${c.callback_requested ? 'disabled' : ''}>${c.callback_requested ? 'Sound will call you' : 'Ask Sound to call me now'}</button>
+        <button data-act="reconfirm" data-pid="${p.pid}" ${p.reconfirmed ? 'disabled' : ''}>${p.reconfirmed ? 'It will send when the pause ends' : 'Send it when the pause ends'}</button>
+        <button class="quiet" data-act="report" data-pid="${p.pid}">Report a scam</button></div>`)}
+      ${det('m-next-' + p.pid, 'What happens next?', `<p class="small">We never hold a payment longer than 4 hours. If you’ve told us to go ahead, it sends then. If not, it comes back to you unsent and you can send it again whenever you’re ready. It’s always your decision.</p>`)}
+    </div>${code}`;
   }
-  if (p.gate === 'banner_confirm') return `<div class="banner" role="region" aria-label="Before you send">
-      <h2>Before you send ${what}</h2><p>${c.rule === 'STD' ? 'You haven’t paid this recipient before. Just a quick check.' : 'Some things about this payment are worth a second look.'}</p>
-      <div class="stack"><button class="primary" data-act="looks_fine" data-pid="${p.pid}">This is fine, send it</button>
-      <button data-act="more" data-case="${c.id}">${showMore[c.id] ? 'Hide details' : 'Tell me more'}</button>${talk}
-      <button data-act="cancel" data-pid="${p.pid}">Cancel payment</button></div></div>${more}`;
-  if (p.gate === 'presubmit_review') return `<div class="banner urgent" role="region" aria-label="Checking before it goes">
-      <h2>We’re checking ${what} with you before it goes</h2>
-      <p>Your sign-in or contact details changed recently. To make sure it’s really you, we’re contacting you at the details you had <b>before</b> the change: ${esc(S.member.pre_change_contact)}.</p>
-      ${plainEvidence(c)}<p class="small">Nothing is sent until this check is done. Person-to-person payments can’t be pulled back once sent.</p>
-      <div class="stack">${talk}<button data-act="report" data-pid="${p.pid}">I didn’t make these changes</button><button data-act="cancel" data-pid="${p.pid}">Cancel payment</button></div></div>`;
-  if (p.gate === 'branch_conversation') return `<div class="banner" role="region" aria-label="Branch conversation"><h2>A team member will talk with you about this ${what}</h2><p>It’s a short, private conversation. You decide what happens next.</p>${talk}</div>`;
+  if (p.gate === 'banner_confirm') return `<div class="banner" role="region" aria-label="Quick check">
+      <p class="eyebrow">Quick check</p>
+      <h2>Sending ${usd0(p.amount)} to someone new?</h2>
+      <p>${c.rule === 'STD' ? 'You haven’t paid this person before. If you know them, you’re all set.' : 'A few things about this payment are worth a second look.'}</p>
+      <div class="stack"><button class="primary" data-act="looks_fine" data-pid="${p.pid}">Yes, send it</button>${talk()}
+      <button class="quiet" data-act="cancel" data-pid="${p.pid}">Cancel</button></div>
+      ${det('m-why-' + p.pid, 'Why am I seeing this?', `${reasonList(c)}<p class="small">What we can’t tell: who you’re really dealing with. These signs often have good explanations.</p>`)}</div>`;
+  if (p.gate === 'presubmit_review') return `<div class="banner urgent" role="region" aria-label="Checking it’s you">
+      <p class="eyebrow">Waiting for a quick check · nothing has been sent</p>
+      <h2>Let’s make sure this ${usd0(p.amount)} payment is yours</h2>
+      <p>Your sign-in or contact details changed recently. We’re reaching you at the details you had <b>before</b> that change: ${esc(S.member.pre_change_contact)}.</p>
+      ${reasonList(c)}
+      <div class="stack">${talk(true)}<button data-act="report" data-pid="${p.pid}">I didn’t make these changes</button><button class="quiet" data-act="cancel" data-pid="${p.pid}">Cancel payment</button></div>
+      ${det('m-next-' + p.pid, 'Why wait?', `<p class="small">Person-to-person payments can’t be pulled back once sent, so we check first.</p>`)}</div>`;
+  if (p.gate === 'branch_conversation') return `<div class="banner" role="region" aria-label="Branch conversation"><p class="eyebrow">At the branch</p><h2>A team member will talk this through with you</h2><p>It’s a short, private conversation about this ${usd0(p.amount)} ${kind}. You decide what happens next.</p>${talk()}</div>`;
   return '';
 }
 
@@ -186,41 +214,63 @@ function employeeView() {
   const c = caseById(selCase);
   const afterHours = p => { if (!p.hold_started_at) return false; const d = new Date(p.hold_started_at); const h = d.getUTCHours(), wd = d.getUTCDay(); return h < 9 || h >= 18 || wd === 0 || wd === 6; };
   const rowHtml = x => { const p = payOf(x); const left = p.status === 'Held' ? `<span data-expires="${p.hold_expires_at}">${hm(p.hold_expires_at - S.sim)}</span>` : '—';
-    return `<tr class="click ${x.id === selCase ? 'sel' : ''}" data-act="select" data-case="${x.id}" tabindex="0"><td>${esc(S.member.id)}</td><td>${usd(p.amount)} ${esc(p.rail)}</td><td>${esc(x.rule)} · ${esc(x.title)}</td><td>${esc(p.status)}${p.gate !== 'none' && p.status === 'Pending' ? ' · ' + esc(p.gate.replace('_', ' ')) : ''}${x.callback_requested ? ' · <b>member asked to talk</b>' : ''}${afterHours(p) ? ' · after hours' : ''}</td><td class="countdown" style="font-size:18px">${left}</td></tr>`; };
+    return `<tr class="click ${x.id === selCase ? 'sel' : ''}" data-act="select" data-case="${x.id}" tabindex="0"><td>${esc(S.member.id)}</td><td>${usd0(p.amount)} ${esc(p.rail)}</td><td>${esc(x.title)}</td><td>${esc(p.status === 'Held' ? 'On hold' : p.gate === 'presubmit_review' && p.status === 'Pending' ? 'Waiting: verify first' : p.gate === 'branch_conversation' && p.status === 'Pending' ? 'Branch conversation' : p.gate === 'banner_confirm' && p.status === 'Pending' ? 'Member confirming' : p.status)}${x.callback_requested ? ' · <b>member asked to talk</b>' : ''}${afterHours(p) ? ' · after hours' : ''}</td><td class="countdown" style="font-size:18px">${left}</td></tr>`; };
   let out = `<div class="card"><div class="console-head"><h1>Sound employee console <span class="chip">simulated</span></h1><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
     <div class="table-wrap"><table><thead><tr><th>Member</th><th>Payment</th><th>Why</th><th>Status</th><th>Hold left</th></tr></thead><tbody>
     ${open.map(rowHtml).join('') || '<tr><td colspan="5" class="muted">No open items.</td></tr>'}
     ${closed.length ? `<tr><td colspan="5" class="muted small">Closed</td></tr>` + closed.map(rowHtml).join('') : ''}</tbody></table></div></div>`;
   if (c) out += caseDetail(c);
-  out += `<div class="card"><h3>Kit timeline (${S.mode === 'as_is' ? 'as it happened' : 'with Second Look'})</h3><div class="timeline">${S.timeline.slice().reverse().map(t => `<div class="${t.kind}">${esc(t.ts_text)} · ${esc(t.text)}</div>`).join('') || '<div class="muted">Press Play to start the replay.</div>'}</div></div>`;
+  const tl = S.timeline.slice().reverse();
+  out += `<div class="card">${det('kit-tl', `Kit timeline, ${S.mode === 'as_is' ? 'as it happened' : 'with Second Look'} <span class="muted small">(${tl.length} events${tl[0] ? ` · latest ${esc(tl[0].ts_text.split(' ')[1])}` : ''})</span>`, `<div class="timeline">${tl.map(t => `<div class="${t.kind}">${esc(t.ts_text)} · ${esc(t.text)}</div>`).join('') || '<div class="muted">Press Play to start the replay.</div>'}</div>`, S.mode === 'as_is')}</div>`;
   return out;
 }
 
+const PRESETS = { Held: ['Member confirmed by phone: legitimate', 'Verified with a contact the member already had', 'Member reconfirmed in branch'] };
+
 function caseDetail(c) {
   const p = payOf(c), r = p.row, open = c.status === 'open';
-  const can = { release: p.status === 'Held', stop: open, review: p.gate === 'presubmit_review' && p.status === 'Pending', branch: p.gate === 'branch_conversation' && p.status === 'Pending', verify: c.rule === 'R2' && open && !p.ato_verified };
-  return `<div class="two"><div class="card"><h2>Case ${c.id}: ${esc(c.title)}</h2>
-      <div class="row small"><span class="chip">${esc(c.rule)}</span><span class="chip">Output: ${esc(c.output.replace('_', ' ').toLowerCase())}</span><span class="chip">Tier ${esc(c.tier)}</span></div>
-      ${c.pids.length > 1 ? `<p class="small"><b>One case, ${c.pids.length} payments in the same situation:</b> ${c.pids.map(id => { const q = S.payments.find(x => x.pid === id); return `${esc(id)} ${usd(q.amount)} (${esc(q.status)})`; }).join(', ')}</p>` : ''}
-      <h3 style="margin-top:10px">Evidence (kit fields)</h3><ul>${c.evidence.map(e => `<li><code>${esc(e.field)}</code>: <b>${esc(e.value)}</b> — ${esc(e.why)}</li>`).join('')}</ul>
-      <h3>History comparison</h3><dl class="kv"><dt>Amount vs usual</dt><dd>${r.ratio ?? '—'}x (${esc(r.band)})</dd><dt>Days since last ${esc(p.rail.toLowerCase())}</dt><dd>${r.gap ?? 'never'}</dd><dt>Recipient</dt><dd>${esc(r.recipient_status)}${r.recipient_age_days != null ? `, ${r.recipient_age_days} days old` : ''}</dd>
-      <dt>Profile change (30d)</dt><dd>${esc(r.profile_change_recent)}</dd><dt>Password reset (7d)</dt><dd>${esc(r.password_reset_recent)}</dd><dt>Trusted contact</dt><dd>${S.member.trusted_contact ? 'Enrolled' : 'Not enrolled'}</dd>
-      <dt>Member’s view</dt><dd>${c.member_label === 'looks_fine' ? `Marked fine${c.label_seconds != null ? ` in ${c.label_seconds}s` : ''}` : c.member_label === 'reported' ? 'Reported a scam' : '—'}</dd></dl>
-      <p class="small muted">Signals are proposals to validate, not proof. For the member’s own payment, Sound can delay and advise; the member decides.</p></div>
-    <div class="card"><h3>Conversation guide</h3><ol>${(GUIDE[c.rule] || GUIDE.STD).map(q => `<li>${esc(q)}</li>`).join('')}</ol><p class="small">${esc(CUES)}</p>
-      <h3>Actions</h3><label for="reason">Reason / notes (required to release)</label><input type="text" id="reason" data-keep>
-      <div class="row" style="margin-top:8px">
-        <button data-act="e_outreach" ${open ? '' : 'disabled'}>Log outreach call</button>
-        <button class="primary" data-act="e_release" ${can.release ? '' : 'disabled'}>Release hold</button>
-        ${can.branch ? `<button data-act="e_branch_go">Member chose to proceed</button><button data-act="e_branch_cancel">Member chose not to</button>` : ''}
-        ${can.review ? `<button class="primary" data-act="e_clear">Verified, member in control: allow</button>` : ''}
-        ${can.verify ? `<button data-act="e_verify">Takeover confirmed (scripted premise)</button>` : ''}
-        <button class="danger" data-act="e_stop" ${can.stop ? '' : 'disabled'} title="Only for verified account takeover">Stop payment (ATO only)</button>
-        <button data-act="e_escalate" ${open ? '' : 'disabled'}>Escalate</button>
+  const can = { release: p.status === 'Held', review: p.gate === 'presubmit_review' && p.status === 'Pending', branch: p.gate === 'branch_conversation' && p.status === 'Pending', verify: c.rule === 'R2' && open && !p.ato_verified, stop: open && p.ato_verified, cancel: open && (p.status === 'Held' || p.status === 'Pending') };
+  const sig = reasons(c).filter(x => x.value);
+  const kind = p.rail === 'P2P' ? 'P2P payment' : p.rail === 'Cash' ? 'cash withdrawal' : p.rail.toLowerCase();
+  const state = !open ? `Closed: ${p.status}` : p.status === 'Held' ? 'On hold' : p.gate === 'presubmit_review' ? 'Waiting before submit' : p.gate === 'branch_conversation' ? 'Branch conversation' : p.gate === 'banner_confirm' ? 'Member is confirming' : p.status;
+  const memberView = c.member_label === 'looks_fine' ? `Member marked it fine${c.label_seconds != null ? ` in ${c.label_seconds}s` : ''}` : c.member_label === 'reported' ? 'Member reported a scam' : c.callback_requested ? 'Member asked to talk' : '';
+  const q = GUIDE[c.rule] || GUIDE.STD;
+  let step2 = '';
+  if (can.release) step2 = `<li><b>Record the outcome</b>
+      <div class="row presets">${PRESETS.Held.map(t => `<button class="chipbtn" data-act="preset" data-text="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+      <label for="reason" class="small muted">Reason (required to release)</label><input type="text" id="reason" data-keep>
+      <div class="row" style="margin-top:8px"><button class="primary" data-act="e_release">Release hold</button><button data-act="e_member_cancel">Member chose to cancel</button></div></li>`;
+  else if (can.review) step2 = `<li><b>Verify using the pre-change contact</b><div class="row" style="margin-top:6px"><button class="primary" data-act="e_clear">Member is in control: allow</button>${can.verify ? `<button data-act="e_verify">Takeover confirmed (scripted)</button>` : ''}${can.stop ? `<button class="danger" data-act="e_stop">Stop payment</button>` : ''}</div></li>`;
+  else if (can.branch) step2 = `<li><b>Record the member’s decision</b><div class="row" style="margin-top:6px"><button class="primary" data-act="e_branch_go">Member chose to proceed</button><button data-act="e_branch_cancel">Member chose not to</button></div></li>`;
+  else if (open) step2 = `<li><b>No action needed</b> <span class="small muted">The member is confirming in the app.</span></li>`;
+  return `<div class="two">
+    <div class="card case-summary">
+      <p class="eyebrow">Case ${c.id} · ${esc(S.member.id)} · ${state}</p>
+      <h2>${usd0(p.amount)} ${esc(kind)}</h2>
+      <p class="lede">${esc(c.title)}.</p>
+      ${c.pids.length > 1 ? `<p class="small"><b>${c.pids.length} payments, one situation:</b> ${c.pids.map(id => { const x = S.payments.find(y => y.pid === id); return `${usd0(x.amount)} (${esc(x.status)})`; }).join(' · ')}</p>` : ''}
+      <div class="signals">${sig.map(x => `<div class="signal"><div class="signal-label">${esc(x.label)}</div><div class="signal-value">${esc(x.value)}</div></div>`).join('')}</div>
+      ${memberView ? `<p class="small"><span class="chip">${esc(memberView)}</span></p>` : ''}
+      <p class="small muted">Signals to check, not proof. For the member’s own payment, Sound can delay and advise; the member decides.</p>
+      ${det('e-fields-' + c.id, 'Kit fields and history', `<ul class="small">${c.evidence.map(e => `<li><code>${esc(e.field)}</code>: ${esc(e.value)}</li>`).join('')}</ul>
+        <dl class="kv small"><dt>Amount vs usual</dt><dd>${r.ratio ?? '—'}x (${esc(r.band)})</dd><dt>Days since last ${esc(p.rail.toLowerCase())}</dt><dd>${r.gap ?? 'never'}</dd><dt>Recipient age</dt><dd>${r.recipient_age_days ?? '—'} days</dd><dt>Profile change (30d)</dt><dd>${esc(r.profile_change_recent)}</dd><dt>Password reset (7d)</dt><dd>${esc(r.password_reset_recent)}</dd><dt>Trusted contact</dt><dd>${S.member.trusted_contact ? 'Enrolled' : 'Not enrolled'}</dd><dt>Rule</dt><dd>${esc(c.rule)} · ${esc(c.output.replace('_', ' ').toLowerCase())} · tier ${esc(c.tier)}</dd></dl>`)}
+    </div>
+    <div class="card">
+      <h2>What to do next</h2>
+      <ol class="steps">
+        ${open && c.rule !== 'STD' ? `<li><b>Call the member</b> <span class="small muted">on the number on file, not one given to you now</span>
+          <ul class="questions">${q.slice(0, 2).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+          ${q.length > 2 ? det('e-q-' + c.id, `${q.length - 2} more questions and red flags`, `<ul class="questions">${q.slice(2).map(x => `<li>${esc(x)}</li>`).join('')}</ul><p class="small">${esc(CUES)}</p>`) : ''}
+          <div class="row" style="margin-top:6px"><button data-act="e_outreach">Log the call</button></div></li>` : ''}
+        ${step2}
+      </ol>
+      ${det('e-more-' + c.id, 'More actions', `<div class="row" style="margin-top:8px">
+        <button data-act="e_escalate" ${open ? '' : 'disabled'}>Escalate to fraud team</button>
         <button data-act="e_trusted" ${open ? '' : 'disabled'}>Notify trusted contact</button>
-        <button data-act="e_recovery">Recovery request</button>
-      </div>
-      <h3 style="margin-top:12px">Audit</h3><div class="timeline">${c.actions.slice().reverse().map(a => `<div>${esc(new Date(a.ts).toISOString().slice(5, 16).replace('T', ' '))} · <b>${esc(a.actor)}</b> · ${esc(a.action)}${a.detail ? ' — ' + esc(a.detail) : ''}</div>`).join('')}</div></div></div>`;
+        <button data-act="e_recovery">Start recovery request</button>
+        <button class="danger" data-act="e_stop" ${can.stop ? '' : 'disabled'} title="Only after a verified account takeover">Stop payment (takeover only)</button></div>`)}
+      ${det('e-log-' + c.id, `Activity log (${c.actions.length})`, `<div class="timeline">${c.actions.slice().reverse().map(a => `<div>${esc(new Date(a.ts).toISOString().slice(11, 16))} · <b>${esc(a.actor)}</b> · ${esc(a.action.replace(/_/g, ' '))}${a.detail ? ' — ' + esc(a.detail) : ''}</div>`).join('')}</div>`)}
+    </div></div>`;
 }
 
 /* ---------------- Events ---------------- */
@@ -250,6 +300,8 @@ document.addEventListener('click', async e => {
       if (j && j.ok && a === 'report') toast('Reported. A case is open and Sound will contact you.');
       if (j && j.ok && a === 'callback') toast('A Sound team member will call you at the number on file.');
       return; }
+    case 'preset': { const el = $('#reason'); if (el) { el.value = b.dataset.text; el.focus(); } return; }
+    case 'e_member_cancel': return E('member_cancel');
     case 'e_outreach': return E('outreach');
     case 'e_release': return E('release');
     case 'e_branch_go': return E('branch_outcome', { outcome: 'proceed' });
@@ -262,6 +314,7 @@ document.addEventListener('click', async e => {
     case 'e_recovery': return E('recovery');
   }
 });
+document.addEventListener('toggle', e => { if (e.target.id) openDet.set(e.target.id, e.target.open); }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('tr[data-act]')) e.target.click(); });
 document.addEventListener('change', e => {
   if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked });
@@ -273,4 +326,12 @@ $('#next').addEventListener('click', () => post('control/next'));
 $('#faster').addEventListener('click', () => post('control/faster'));
 $('#reset').addEventListener('click', () => { selCase = null; chatCase = null; screen = 'home'; post('control/reset'); });
 
-poll(); setInterval(() => { if (!busy) poll(); }, 800);
+// Deep links for slides: /?scene=m1057&play=1&view=employee
+(async () => {
+  const q = new URLSearchParams(location.search);
+  if (['both', 'member', 'employee'].includes(q.get('view'))) view = q.get('view');
+  await poll();
+  if (q.get('scene') && S.scenes.some(x => x.id === q.get('scene'))) { await post('scene/' + q.get('scene')); if (q.get('jump') === '1') for (let i = 0; i < 60 && !S.awaiting && !S.ended; i++) await post('control/next');
+    if (q.get('play') === '1') await post('control/play'); }
+  setInterval(() => { if (!busy) poll(); }, 800);
+})();

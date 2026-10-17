@@ -277,6 +277,8 @@ export function employee(action: string, b: any) {
   switch (action) {
     case 'outreach': act(c, 'employee', 'outreach', reason || 'called member using the conversation guide'); break;
     case 'escalate': act(c, 'employee', 'escalated', reason || 'escalated to fraud team'); break;
+    case 'member_cancel': // employee records the member's own decision (the member decides)
+      p.state = transition(p.state, { kind: 'cancel' }); act(c, 'employee', 'member_cancelled', reason || 'member chose to cancel during the call'); break;
     case 'release':
       p.state = transition(p.state, { kind: 'release', actor: 'employee', reason }); act(c, 'employee', 'released', reason); break;
     case 'clear_review': // after verification shows the member is in control

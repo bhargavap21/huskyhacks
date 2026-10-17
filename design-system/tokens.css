@@ -1,0 +1,90 @@
+/* Instinct design tokens. Generated from tokens.json. Set data-theme="dark" on <html> for dark mode. */
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500&family=Newsreader:opsz,wght@6..72,400&display=swap");
+:root, [data-theme="light"] {
+  --navy: #00205b;
+  --blue: #1f79af;
+  --blue-deep: #1f5589;
+  --sky: #71c4e8;
+  --gold: #efc025;
+  --signal: #ef5025;
+  --ice: #e6f1f4;
+  --surface: #f2fafc;
+  --surface-raised: #ffffff;
+  --surface-band: #e6f1f4;
+  --line: #dfedf0;
+  --line-strong: #707070;
+  --ink: var(--navy);
+  --ink-body: #262e38;
+  --ink-muted: #707070;
+  --accent: var(--blue);
+  --accent-hover: var(--blue-deep);
+  --on-accent: #ffffff;
+  --highlight: var(--gold);
+  --on-highlight: var(--navy);
+  --risk: var(--signal);
+  --risk-text: #bf3a12;
+  --risk-soft: #fdebe5;
+  --safe-soft: var(--ice);
+  --focus: var(--blue);
+}
+[data-theme="dark"] {
+  --surface: #001233;
+  --surface-raised: #00205b;
+  --surface-band: #0a2a66;
+  --line: #1a4672;
+  --line-strong: #5bb0d4;
+  --ink: #f2fafc;
+  --ink-body: #dfedf0;
+  --ink-muted: #a9bfd0;
+  --accent: var(--sky);
+  --accent-hover: #5bb0d4;
+  --on-accent: var(--navy);
+  --risk-text: #ff8a66;
+  --risk-soft: #3a1408;
+  --safe-soft: #0a2a66;
+  --focus: var(--gold);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --surface: #001233;
+  --surface-raised: #00205b;
+  --surface-band: #0a2a66;
+  --line: #1a4672;
+  --line-strong: #5bb0d4;
+  --ink: #f2fafc;
+  --ink-body: #dfedf0;
+  --ink-muted: #a9bfd0;
+  --accent: var(--sky);
+  --accent-hover: #5bb0d4;
+  --on-accent: var(--navy);
+  --risk-text: #ff8a66;
+  --risk-soft: #3a1408;
+  --safe-soft: #0a2a66;
+  --focus: var(--gold);
+} }
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 80px;
+  --radius-none: 0;
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-pill: 999px;
+  --measure: 1540px;
+  --header-height: 100px;
+  --font-serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Instrument Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+.display { font-family: var(--font-serif); font-size: 56px; line-height: 60px; font-weight: 400; letter-spacing: -0.5px; }
+.title { font-family: var(--font-serif); font-size: 34px; line-height: 40px; font-weight: 400; letter-spacing: -0.2px; }
+.section { font-family: var(--font-serif); font-size: 32px; line-height: 40px; font-weight: 400; letter-spacing: -0.2px; }
+.meta { font-family: var(--font-serif); font-size: 16px; line-height: 24px; font-weight: 400; }
+.lead { font-family: var(--font-sans); font-size: 19px; line-height: 32px; font-weight: 400; }
+.body { font-family: var(--font-sans); font-size: 17px; line-height: 30px; font-weight: 400; }
+.numeral { font-family: var(--font-sans); font-size: 17px; line-height: 30px; font-weight: 400; }
+.small { font-family: var(--font-sans); font-size: 14px; line-height: 22px; font-weight: 400; }
+.label { font-family: var(--font-sans); font-size: 15px; line-height: 20px; font-weight: 500; }
