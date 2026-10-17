@@ -16,6 +16,8 @@ let setupDone = sess('sl-setup') === '1';
 const markSetupDone = () => { setupDone = true; sessSet('sl-setup', '1'); };
 // The chat follows a held payment until the member picks "Something feels off" themselves.
 let chatAuto = true;
+// Attachments waiting in the composer (photos, PDFs, voice notes) and the voice note being recorded.
+let pendingAtt = [], rec = null;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -53,7 +55,7 @@ function keep(fn) {
 
 // Only rebuild when something other than the clock changed; clock and countdowns update in place.
 let lastKey = '';
-function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, showMore, sideCollapsed, copilotOpen, signedIn, obStep, setupDone]); }
+function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, pendingAtt.length, !!rec, showMore, sideCollapsed, copilotOpen, signedIn, obStep, setupDone]); }
 function tickText() {
   $('#clock').textContent = S.sim_text;
   document.querySelectorAll('[data-expires]').forEach(el => { const t = hm(Number(el.dataset.expires) - S.sim); el.textContent = t; el.setAttribute('aria-label', 'Time left ' + t); });
@@ -289,12 +291,67 @@ const RECOVERY = `If money already went out, every hour matters:
 - You can also report it to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).
 You did the right thing by speaking up.`;
 
+/* ---------------- Chat attachments ---------------- */
+const mmss = s => `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}`;
+const attLabel = a => a.kind === 'audio' ? `Voice note · ${mmss(a.seconds || 0)}` : a.kind === 'pdf' ? `PDF · ${a.name}` : a.name || 'Photo';
+function attBlock(att) {
+  return `<div class="msg-att">${att.map(a => a.kind === 'image' ? (a.src ? `<img src="${a.src}" alt="Photo you shared: ${esc(a.name)}">` : `<span class="att-file">Photo · ${esc(a.name)}</span>`)
+    : a.kind === 'pdf' ? `<span class="att-file">${esc(attLabel(a))}</span>`
+    : `<div class="att-voice"><span class="att-file">${esc(attLabel(a))}</span>${a.transcript ? `<p class="att-heard">“${esc(a.transcript)}”</p>` : a.transcript === '' ? '<p class="att-heard">Couldn’t make out the words.</p>' : ''}</div>`).join('')}</div>`;
+}
+const readB64 = blob => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = no; r.readAsDataURL(blob); });
+// Screenshots are scaled to 1600px on the long edge: plenty for Claude to read text, small enough to send fast.
+async function shrinkImage(file) {
+  const img = await createImageBitmap(file);
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  const url = c.toDataURL('image/jpeg', 0.85);
+  return { kind: 'image', name: file.name || 'Screenshot', media_type: 'image/jpeg', data: url.split(',')[1], preview: url };
+}
+const audioSeconds = url => new Promise(ok => { const a = new Audio(); a.onloadedmetadata = () => ok(isFinite(a.duration) ? a.duration : 0); a.onerror = () => ok(0); a.src = url; });
+async function addFiles(files) {
+  for (const f of files) {
+    if (pendingAtt.length >= 3) { toast('You can add up to 3 files to one message.'); break; }
+    try {
+      if (f.type.startsWith('image/')) pendingAtt.push(await shrinkImage(f));
+      else if (f.type === 'application/pdf') { if (f.size > 8e6) { toast('That PDF is too large (8 MB max).'); continue; } pendingAtt.push({ kind: 'pdf', name: f.name, media_type: f.type, data: (await readB64(f)).split(',')[1] }); }
+      else if (f.type.startsWith('audio/') || /\.(m4a|mp3|wav|ogg|aac)$/i.test(f.name)) {
+        if (f.size > 12e6) { toast('That recording is too large (12 MB max).'); continue; }
+        const url = URL.createObjectURL(f); const seconds = await audioSeconds(url); URL.revokeObjectURL(url);
+        pendingAtt.push({ kind: 'audio', name: f.name, seconds, data: (await readB64(f)).split(',')[1] });
+      } else toast('Add a photo, a PDF or an audio file.');
+    } catch { toast('Couldn’t read that file.'); }
+  }
+  render(true); $('#chatin')?.focus();
+}
+async function startRec() {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast('Recording isn’t available in this browser. You can add an audio file instead.');
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { return toast('Microphone access is blocked. Allow it in your browser settings, or add an audio file.'); }
+  const mr = new MediaRecorder(stream), chunks = [];
+  rec = { mr, stream, start: Date.now(), keep: true };
+  mr.ondataavailable = e => e.data.size && chunks.push(e.data);
+  mr.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop()); clearInterval(rec?.timer);
+    const r = rec; rec = null;
+    if (r?.keep && chunks.length) {
+      const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
+      pendingAtt.push({ kind: 'audio', name: 'Voice note', seconds: (Date.now() - r.start) / 1000, data: (await readB64(blob)).split(',')[1] });
+    }
+    render(true);
+  };
+  mr.start();
+  rec.timer = setInterval(() => { const s = (Date.now() - rec.start) / 1000; const el = $('#rec-time'); if (el) el.textContent = mmss(s); if (s >= 180) mr.stop(); }, 250);
+  render(true); $('[data-act="rec_stop"]')?.focus();
+}
+
 function chatView() {
   const general = chatCase === 'general';
   const c = general ? null : caseById(chatCase);
   if (!general && !c) { chatCase = 'general'; chatLog = []; return chatView(); }
   const asked = kind => S.callbacks.some(x => x.status === 'waiting' && x.source.includes(general ? 'feels off' : `case ${chatCase}`) && x.reason.toLowerCase().includes({ talk: 'talk to a person', sent: 'money already', report: 'reporting' }[kind]));
-  const intro = general ? 'I’m here to help you think it through. What happened? For example: who contacted you, and what are they asking you to do?' : 'I’m here to help you think this through. You decide. What would you like to check first?';
+  const intro = general ? 'I’m here to help you think it through. What happened? For example: who contacted you, and what are they asking you to do? You can also add a screenshot of the text or email, or record a voice note.' : 'I’m here to help you think this through. You decide. What would you like to check first?';
   const subject = general ? 'Something feels off' : `About your ${usd0(payOf(c).amount)} ${esc(payOf(c).rail.toLowerCase())}`;
   const help = [['talk', 'Talk to a person at Sound', 'A person at Sound will call you'], ['sent', 'I already sent money', 'Recovery team notified'], ['report', 'Report a scam', 'Reported']];
   const starters = general ? ['Someone says they’re from my bank', 'I’m being asked to pay with gift cards', 'Someone I met online needs money'] : ['Who should I check this with?', 'Is this a common scam?', 'I know this person'];
@@ -304,13 +361,17 @@ function chatView() {
       ${general ? '' : '<button class="quiet" data-act="chat_general">New chat</button>'}
       <button class="icon-btn" data-act="back" aria-label="Close chat">×</button></div>
     ${general ? '' : det('chat-ev-' + c.id, 'What Second Look can see', `<div class="chat-evidence">${plainEvidence(c)}</div>`)}
-    <div class="chat-scroll" id="chatscroll"><div class="chat" aria-live="polite" aria-relevant="additions">${msgs.map(m => `<div class="msg ${m.role}${m.pending ? ' pending' : ''}">${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('')}</div>
+    <div class="chat-scroll" id="chatscroll"><div class="chat" aria-live="polite" aria-relevant="additions">${msgs.map(m => `<div class="msg ${m.role}${m.pending ? ' pending' : ''}">${m.att ? attBlock(m.att) : ''}${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('')}</div>
       ${chatLog.length ? '' : `<div class="chat-starters">${starters.map(t => `<button class="chat-starter" data-act="send" data-text="${esc(t)}">${esc(t)}</button>`).join('')}</div>`}</div>
     <div class="chat-dock">
       <div class="chat-chips" role="group" aria-label="Get help">${help.map(([k, label, done]) => `<button class="chat-chip" data-act="cb" data-kind="${k}" ${asked(k) ? 'disabled' : ''}>${asked(k) ? done : label}</button>`).join('')}</div>
+      ${pendingAtt.length ? `<ul class="att-tray" aria-label="Ready to send">${pendingAtt.map((a, i) => `<li class="att-chip">${a.kind === 'image' ? `<img src="${a.preview}" alt="">` : ''}<span>${esc(attLabel(a))}</span><button class="icon-btn" data-act="att_remove" data-i="${i}" aria-label="Remove ${esc(attLabel(a))}">×</button></li>`).join('')}</ul>` : ''}
+      ${rec ? `<div class="rec-bar" role="status"><span class="rec-dot" aria-hidden="true"></span><span>Recording <span id="rec-time">0:00</span></span><button class="primary" data-act="rec_stop">Stop and add</button><button class="quiet" data-act="rec_cancel">Cancel</button></div>` : ''}
       <div class="composer"><label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="1" placeholder="Message Second Look"></textarea>
         <button class="primary composer-send" data-act="send" aria-label="Send">↑</button></div>
-      <p class="chat-note">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide.</p>
+      <div class="composer-tools"><button class="quiet" data-act="attach">Add a screenshot or file</button><button class="quiet" data-act="rec_start" ${rec ? 'disabled' : ''}>Record a voice note</button>
+        <input type="file" id="chatfile" accept="image/*,application/pdf,audio/*,.m4a,.mp3,.wav" multiple hidden></div>
+      <p class="chat-note">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide. Voice notes are transcribed on Sound’s server; the audio isn’t kept.</p>
     </div></div>`;
 }
 
@@ -415,12 +476,21 @@ document.addEventListener('click', async e => {
     case 'cb_done': return post('callback/' + b.dataset.id + '/done', { note: b.dataset.note || 'Called the member' });
     case 'chat': chatCase = cid; openCopilot(); chatLog = await (await fetch('/api/chat/' + cid)).json(); return render(true);
     case 'back': copilotOpen = false; store('sl-copilot', '0'); return render(true);
-    case 'send': { const t = (b.dataset.text || $('#chatin').value).trim(); if (!t) return; $('#chatin').value = '';
-      chatLog.push({ role: 'user', text: t }); const pend = { role: 'assistant', text: 'Second Look is thinking…', pending: true }; chatLog.push(pend); render(true);
-      const j = await post('chat/' + chatCase, { text: t });
+    case 'send': { const t = (b.dataset.text || $('#chatin').value).trim(); const att = b.dataset.text ? [] : pendingAtt;
+      if ((!t && !att.length) || rec) return; $('#chatin').value = ''; pendingAtt = [];
+      const mine = { role: 'user', text: t, att: att.length ? att.map(a => ({ kind: a.kind, name: a.name, src: a.preview, seconds: a.seconds })) : undefined };
+      chatLog.push(mine);
+      const pend = { role: 'assistant', text: att.some(a => a.kind === 'audio') ? 'Listening to your voice note…' : att.length ? 'Looking at what you shared…' : 'Second Look is thinking…', pending: true }; chatLog.push(pend); render(true);
+      const j = await post('chat/' + chatCase, { text: t, attachments: att.map(({ preview, ...a }) => a) });
       chatLog.splice(chatLog.indexOf(pend), 1);
-      if (j && j.reply) chatLog.push({ role: 'assistant', text: j.reply, source: j.source });
+      if (j && j.reply) { if (j.att && j.att.length) mine.att = j.att; chatLog.push({ role: 'assistant', text: j.reply, source: j.source }); }
+      else if (att.length) { chatLog.splice(chatLog.indexOf(mine), 1); pendingAtt = att; } // keep the files so the member can try again
       return render(true); }
+    case 'attach': return $('#chatfile')?.click();
+    case 'att_remove': pendingAtt.splice(Number(b.dataset.i), 1); return render(true);
+    case 'rec_start': return startRec();
+    case 'rec_stop': if (rec) rec.mr.stop(); return;
+    case 'rec_cancel': if (rec) { rec.keep = false; rec.mr.stop(); } return;
     case 'onboarding': page = 'onboarding'; obStep = 0; return render();
     case 'sign_in': signedIn = true; sessSet('sl-signed-in', '1'); page = 'home'; return render();
     case 'sign_in_setup': signedIn = true; sessSet('sl-signed-in', '1'); page = 'onboarding'; obStep = 0; return render();
@@ -464,7 +534,12 @@ document.addEventListener('keydown', e => {
 });
 // Composer grows with its text, up to a few lines.
 document.addEventListener('input', e => { if (e.target.id === 'chatin') { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });
+// Paste a screenshot into the message box, or drop files on the chat.
+document.addEventListener('paste', e => { if (e.target.id === 'chatin' && e.clipboardData?.files.length) { e.preventDefault(); addFiles([...e.clipboardData.files]); } });
+document.addEventListener('dragover', e => { if (e.target.closest?.('#copilot')) e.preventDefault(); });
+document.addEventListener('drop', e => { if (e.target.closest?.('#copilot') && e.dataTransfer?.files.length) { e.preventDefault(); addFiles([...e.dataTransfer.files]); } });
 document.addEventListener('change', e => {
+  if (e.target.id === 'chatfile') { addFiles([...e.target.files]); e.target.value = ''; }
   if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked });
   if (e.target.id === 'quiet') post('member/alert_settings', { quiet: e.target.checked });
 });

@@ -9,6 +9,8 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { tickAll, useWorld, loadScene, control, member, employee, snapshot, requestCallback, callbackDone } from './sim.ts';
 import { TransitionError } from './payments.ts';
 import { chat, chatHistory, GENERAL } from './chat.ts';
+import { prepare, loadAsr, AttachmentError } from './media.ts';
+import { bodyLimit } from 'hono/body-limit';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -45,6 +47,7 @@ app.use('/api/*', async (c, next) => { useWorld(c.get('sid')); await next(); });
 
 app.onError((err, c) => {
   if (err instanceof TransitionError) return c.json({ error: err.message }, 409);
+  if (err instanceof AttachmentError) return c.json({ error: err.message }, 400);
   console.error(err);
   return c.json({ error: 'Something went wrong' }, 500);
 });
@@ -59,9 +62,13 @@ app.post('/api/callback', async c => { const b = await c.req.json().catch(() => 
 app.post('/api/callback/:id/done', async c => { const b = await c.req.json().catch(() => ({})); callbackDone(Number(c.req.param('id')), String(b.note ?? '')); return c.json({ ok: true }); });
 const caseParam = (c: any) => (c.req.param('caseId') === 'general' ? GENERAL : Number(c.req.param('caseId')));
 app.get('/api/chat/:caseId', c => c.json(chatHistory(chatKey(c), caseParam(c))));
-app.post('/api/chat/:caseId', async c => {
+// Photos, PDFs and voice notes ride along as base64; 30 MB covers three max-size attachments.
+app.post('/api/chat/:caseId', bodyLimit({ maxSize: 30 * 1024 * 1024, onError: c => c.json({ error: 'Those files are too large to send together' }, 413) }), async c => {
   const b = await c.req.json().catch(() => ({}));
-  return c.json(await chat(chatKey(c), caseParam(c), String(b.text ?? '')));
+  const att = await prepare(b.attachments);
+  const text = String(b.text ?? '').trim();
+  if (!text && !att.length) return c.json({ error: 'Type a message or add a file' }, 400);
+  return c.json(await chat(chatKey(c), caseParam(c), text, att));
 });
 
 const page = (f: string) => readFileSync(join(import.meta.dirname, '..', 'public', f), 'utf8');
@@ -75,3 +82,4 @@ setInterval(() => { const now = Date.now(); tickAll(now - last); last = now; }, 
 
 const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port }, () => console.log(`Second Look demo on http://localhost:${port}`));
+if (process.env.NODE_ENV !== 'test') loadAsr(); // warm up on-device voice-note transcription

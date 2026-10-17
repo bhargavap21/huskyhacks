@@ -291,3 +291,21 @@ td:nth-child(2), td:nth-child(4), td:nth-child(5) { white-space: nowrap; }
 
 .setup-card { border-left: 4px solid var(--accent); }
 .setup-card .row { margin-top: var(--space-3); }
+
+/* Chat attachments: screenshots, PDFs and voice notes. Square, hairline, words over icons. */
+.composer-tools { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.composer-tools button { min-height: 36px; padding: var(--space-1) var(--space-3); font-size: 14px; }
+.att-tray { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-2); padding: 0; list-style: none; }
+.att-chip { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; padding: 0 0 0 var(--space-2); border: 1px solid var(--line); background: var(--surface-raised); font-size: 14px; color: var(--ink-body); }
+.att-chip img { width: 32px; height: 32px; object-fit: cover; }
+.att-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.att-chip .icon-btn { min-height: 36px; min-width: 36px; font-size: 18px; }
+.rec-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); background: var(--surface-raised); color: var(--ink); }
+.rec-bar > span:nth-child(2) { flex: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--risk); animation: rec-pulse 1.2s ease-in-out infinite; }
+@keyframes rec-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .rec-dot { animation: none; } }
+.msg-att { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-2); white-space: normal; }
+.msg-att img { display: block; max-width: 220px; max-height: 260px; border: 1px solid var(--line); }
+.att-file { font-size: 14px; font-weight: 600; color: var(--ink); }
+.att-heard { margin: var(--space-1) 0 0; font-size: 14px; line-height: 20px; color: var(--ink-body); font-style: italic; }

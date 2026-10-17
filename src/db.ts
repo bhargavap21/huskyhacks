@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   role TEXT NOT NULL CHECK (role IN ('user','assistant')), text TEXT NOT NULL, source TEXT, ts INTEGER NOT NULL
 );
 `);
+// Chat attachments (photos, PDFs, voice-note transcripts) as JSON; added after the first demo build.
+try { db.exec('ALTER TABLE chat_messages ADD COLUMN att TEXT'); } catch { /* already there */ }
 
 export function audit(actor: string, action: string, detail = '') {
   db.prepare('INSERT INTO audit_log (ts, actor, action, detail) VALUES (?, ?, ?, ?)').run(Date.now(), actor, action, detail);
