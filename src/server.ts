@@ -32,7 +32,9 @@ app.use('/api/*', async (c, next) => {
     const want = csrfFor(sid);
     const okToken = sid && sent.length === want.length && timingSafeEqual(Buffer.from(sent), Buffer.from(want));
     const origin = c.req.header('origin');
-    const okOrigin = !origin || new URL(origin).host === c.req.header('host');
+    // Same host, or a public front door we put in front of this server (e.g. the Vercel proxy), listed in ALLOWED_ORIGIN_HOSTS.
+    const allowed = [c.req.header('host'), ...(process.env.ALLOWED_ORIGIN_HOSTS ?? '').split(',').map(h => h.trim()).filter(Boolean)];
+    const okOrigin = !origin || allowed.includes(new URL(origin).host);
     if (!okToken || !okOrigin) return c.json({ error: 'Request blocked (CSRF/Origin check)' }, 403);
   }
   await next();
