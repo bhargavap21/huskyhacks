@@ -19,7 +19,7 @@ let chatAuto = true;
 // A phone that joined by QR code shows only the member app, full screen.
 let joined = sess('sl-joined') === '1';
 // Chat: the + menu, and chats where the member already answered the sharing prompt.
-let plusOpen = false; const shareAnswered = new Set();
+let plusOpen = false, outcomeSel = '', blurbSeen = new Set(); const shareAnswered = new Set();
 // Composer icons (inline SVG, colour from the button).
 const svg = d => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICON = { chat: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'), plus: svg('<path d="M12 5v14M5 12h14"/>'), mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'), up: svg('<path d="M12 19V5M6 11l6-6 6 6"/>') };
@@ -62,7 +62,7 @@ function keep(fn) {
 
 // Only rebuild when something other than the clock changed; clock and countdowns update in place.
 let lastKey = '';
-function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, pendingAtt.length, !!rec, showMore, sideCollapsed, copilotOpen, signedIn, obStep, setupDone, joined, plusOpen]); }
+function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, pendingAtt.length, !!rec, showMore, sideCollapsed, copilotOpen, signedIn, obStep, setupDone, joined, plusOpen, outcomeSel]); }
 function tickText() {
   $('#clock').textContent = S.sim_text;
   document.querySelectorAll('[data-expires]').forEach(el => { const t = hm(Number(el.dataset.expires) - S.sim); el.textContent = t; el.setAttribute('aria-label', 'Time left ' + t); });
@@ -81,7 +81,8 @@ function render(force = false) {
   $('#next').disabled = !!S.awaiting || S.ended;
   $('#clock').textContent = S.sim_text;
   $('#speed').textContent = S.awaiting ? '(hold clock at 60×: 4 h ≈ 4 min)' : `(${Math.round(S.speed)}×)`;
-  $('#blurb').textContent = (S.mode === 'as_is' ? 'Kit replay, as it happened. ' : 'With Second Look (proposed design). ') + S.scene.blurb;
+  // Scene note: open the first time a scene is shown, folded once you move on.
+  $('#blurb').innerHTML = det('blurb-' + S.scene.id, 'About this scene', `<p>${esc((S.mode === 'as_is' ? 'Kit replay, as it happened. ' : 'With Second Look (proposed design). ') + S.scene.blurb)}</p>`, !blurbSeen.has(S.scene.id));
   const shell = $('#shell');
   shell.classList.toggle('side-collapsed', sideCollapsed);
   shell.classList.toggle('copilot-closed', !copilotOpen);
@@ -231,7 +232,7 @@ function inboxView() {
 
 function settingsView() {
   const m = S.member, t = m.trusted_contact;
-  return `<div class="card"><h2>Second Look</h2>
+  return `<div class="card"><h2>Protection</h2>
     <div class="switch"><label for="enroll">Watch for signs someone may be manipulating me, and let a Sound employee step in before money moves</label><input type="checkbox" id="enroll" ${m.enrolled ? 'checked' : ''}></div>
     <details><summary>What we use / what we never do</summary><p class="small"><b>We use</b> the payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes. <b>We never</b> read your texts, calls, email or browsing, never freeze your account, and never make a decision about your own payment for you.</p></details>
     <button class="quiet" data-act="onboarding">Run setup again</button></div>
@@ -242,9 +243,7 @@ function settingsView() {
     ${t ? `<p>${esc(t.name)} (${esc(t.relation)}) is told when a payment is paused. They never see your balances and can never act on your account.</p><button data-act="tc_remove">Remove trusted contact</button>`
       : `<p class="small">Choose someone you trust who is <b>not involved</b> in your payments. They’re only informed, never given access or control. You can remove them any time.</p>
       <label for="tcname">Name</label><input type="text" id="tcname" data-keep><label for="tcrel">Relationship</label><input type="text" id="tcrel" data-keep>
-      <div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="tc_add">Add trusted contact</button></div>`}</div>
-    <div class="card"><h2>Report a scam</h2><p class="small">If money already moved, tell us right away. Wire recalls and ACH returns can be requested but aren’t guaranteed, and the chance falls with time. Person-to-person payments can’t be recalled. You can also report to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).</p>
-    <div class="row">${S.cases[0] ? `<button class="primary" data-act="report" data-pid="${S.cases[0].pid}">Report the latest payment</button>` : ''}<button data-act="chat_general">Ask Second Look</button></div></div>`;
+      <div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="tc_add">Add trusted contact</button></div>`}</div>`;
 }
 
 function signInView() {
@@ -567,17 +566,28 @@ function employeeView() {
   const afterHours = p => { if (!p.hold_started_at) return false; const d = new Date(p.hold_started_at); const h = d.getUTCHours(), wd = d.getUTCDay(); return h < 9 || h >= 18 || wd === 0 || wd === 6; };
   const rowHtml = x => { const p = payOf(x); const left = p.status === 'Held' ? `<span data-expires="${p.hold_expires_at}">${hm(p.hold_expires_at - S.sim)}</span>` : '—';
     return `<tr class="click ${x.id === selCase ? 'sel' : ''}" data-act="select" data-case="${x.id}" tabindex="0"><td>${esc(S.member.id)}</td><td>${usd0(p.amount)} ${esc(p.rail)}</td><td>${esc(x.title)}</td><td>${esc(p.status === 'Held' ? 'On hold' : p.gate === 'presubmit_review' && p.status === 'Pending' ? 'Waiting: verify first' : p.gate === 'branch_conversation' && p.status === 'Pending' ? 'Branch conversation' : p.gate === 'banner_confirm' && p.status === 'Pending' ? 'Member confirming' : p.status)}${x.callback_requested ? ' · <b>member asked to talk</b>' : ''}${afterHours(p) ? ' · after hours' : ''}</td><td class="countdown">${left}</td></tr>`; };
+  // One work queue: members asking to talk (urgent first), then payments waiting on people, then done.
   const waiting = S.callbacks.filter(x => x.status === 'waiting').sort((a, b) => b.urgent - a.urgent);
-  const cbCard = S.callbacks.length ? `<div class="card"><div class="console-head"><h2>Members asking to talk</h2><span class="small muted">${waiting.length} waiting · never quieted by alert limits</span></div>
-    ${S.callbacks.map(x => `<div class="callback ${x.status}">${x.urgent ? '<span class="in-badge in-badge--risk">Urgent</span> ' : ''}<b>${esc(x.reason)}</b><div class="small muted">${esc(S.member.id)} · ${esc(x.source)} · ${esc(x.ts_text.split(' ')[1])}${x.status === 'done' ? ` · done: ${esc(x.note)}` : ''}</div>
-      ${x.status === 'waiting' ? `<div class="row" style="margin-top:6px"><button class="primary" data-act="cb_done" data-id="${x.id}">Called the member</button>${x.reason.includes('money already') ? '<button data-act="cb_done" data-id="' + x.id + '" data-note="Recovery request started">Start recovery request</button>' : ''}</div>` : ''}</div>`).join('')}</div>` : '';
-  let out = guardianCard() + sharedCard('general') + cbCard + `<div class="card"><div class="console-head"><h2>Sound employee console <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
+  const doneCb = S.callbacks.filter(x => x.status !== 'waiting');
+  const cbRow = x => `<tr class="cbrow ${x.status}"><td>${esc(S.member.id)}</td><td>${x.urgent ? '<span class="in-badge in-badge--risk">Urgent</span>' : '<span class="in-badge in-badge--neutral">Asked to talk</span>'}</td><td>${esc(x.reason)}<div class="small muted">${esc(x.source)} · ${esc(x.ts_text.split(' ')[1])}${x.status === 'done' ? ` · done: ${esc(x.note)}` : ''}</div></td>
+    <td colspan="2">${x.status === 'waiting' ? `<div class="row"><button data-act="cb_done" data-id="${x.id}">Called the member</button>${x.reason.includes('money already') ? '<button data-act="cb_done" data-id="' + x.id + '" data-note="Recovery request started">Start recovery</button>' : ''}</div>` : 'Done'}</td></tr>`;
+  const n = waiting.length + open.length;
+  let out = guardianCard() + sharedCard('general') + `<div class="card queue"><div class="console-head"><h2>Work queue <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">${n ? `${n} waiting on a person` : 'Nothing waiting'} · requests first, then by hold time left</span></div>
     <div class="table-wrap"><table><thead><tr><th>Member</th><th>Payment</th><th>Why</th><th>Status</th><th>Hold left</th></tr></thead><tbody>
-    ${open.map(rowHtml).join('') || '<tr><td colspan="5" class="muted">No open items.</td></tr>'}
-    ${closed.length ? `<tr><td colspan="5" class="muted small">Closed</td></tr>` + closed.map(rowHtml).join('') : ''}</tbody></table></div></div>`;
-  if (c) out += sharedCard(String(c.id)) + caseDetail(c);
-  if (S.mode === 'as_is') out += timelineCard(true); // the as-is replay is the timeline
+    ${waiting.map(cbRow).join('')}${open.map(rowHtml).join('')}${n ? '' : '<tr><td colspan="5" class="muted">Nothing waiting on a person.</td></tr>'}
+    ${closed.length || doneCb.length ? `<tr class="q-sep"><td colspan="5" class="muted small">Done</td></tr>` + closed.map(rowHtml).join('') + doneCb.map(cbRow).join('') : ''}</tbody></table></div></div>`;
+  if (c) out += caseHead(c) + sharedCard(String(c.id)) + caseDetail(c);
+  out += timelineCard(S.mode === 'as_is'); // the as-is replay is the timeline; otherwise folded
   return out;
+}
+
+// Case header: who, how to reach them, time left, and one Call action.
+function caseHead(c) {
+  const p = payOf(c), m = S.member, r2 = c.rule === 'R2';
+  const left = p.status === 'Held' ? `<div class="case-left"><span class="small muted">Hold left</span><span class="countdown" data-expires="${p.hold_expires_at}">${hm(p.hold_expires_at - S.sim)}</span></div>` : '';
+  return `<div class="card case-head"><div class="case-who"><span class="avatar" aria-hidden="true">${esc(m.name.trim()[0])}</span><div><div class="case-name">${esc(m.name)} <span class="small muted">${esc(m.id)}</span></div>
+    <div class="small">${r2 ? `Call the <b>pre-change</b> number: ${esc(m.pre_change_contact)}` : `Phone on file: ${esc(m.current_contact)}`}</div></div></div>
+    ${left}${c.status === 'open' && c.rule !== 'STD' ? `<button class="primary" data-act="e_outreach">Call ${esc(m.name.split(' ')[0])}</button>` : ''}</div>`;
 }
 
 // Chat the member chose to share: their words, with the pressure tactics they mention (prompts for the call, not proof).
@@ -605,10 +615,11 @@ function caseDetail(c) {
   const q = [...(GUIDE[c.rule] || GUIDE.STD)].sort((a, b) => score(b) - score(a));
   const qli = x => `<li>${hit(x) ? '<span class="in-badge in-badge--neutral">From the chat</span> ' : ''}${esc(x)}</li>`;
   let step2 = '';
-  if (can.release) step2 = `<li><b>Record the outcome</b>
-      <div class="row presets">${PRESETS.Held.map(t => `<button class="chipbtn" data-act="preset" data-text="${esc(t)}">${esc(t)}</button>`).join('')}</div>
-      <label for="reason" class="small muted">Reason (required to release)</label><input type="text" id="reason" data-keep>
-      <div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_release">Release hold</button><button data-act="e_member_cancel">Member chose to cancel</button></div></li>`;
+  if (can.release) { const opts = [...PRESETS.Held, 'Member chose to cancel'], cancel = outcomeSel === 'Member chose to cancel';
+    step2 = `<li><b>Record the outcome</b>
+      <fieldset class="outcomes"><legend class="sr">Outcome</legend>${opts.map((t, i) => `<label class="outcome"><input type="radio" name="outcome" value="${esc(t)}" ${outcomeSel === t ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</fieldset>
+      <label for="reason" class="small muted">Note (optional)</label><input type="text" id="reason" data-keep>
+      <div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_outcome" ${outcomeSel ? '' : 'disabled'}>${cancel ? 'Record: member cancelled' : 'Release the payment'}</button></div></li>`; }
   else if (can.review) step2 = `<li><b>Verify using the pre-change contact</b><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_clear">Member is in control: allow</button>${can.verify ? `<button data-act="e_verify">Takeover confirmed (scripted)</button>` : ''}${can.stop ? `<button class="danger" data-act="e_stop">Stop payment</button>` : ''}</div></li>`;
   else if (can.branch) step2 = `<li><b>Record the member’s decision</b><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_branch_go">Member chose to proceed</button><button data-act="e_branch_cancel">Member chose not to</button></div></li>`;
   else if (open) step2 = `<li><b>No action needed</b> <span class="small muted">The member is confirming in the app.</span></li>`;
@@ -645,12 +656,12 @@ function caseDetail(c) {
 /* ---------------- Events ---------------- */
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act],[data-page]'); if (!b) return;
-  if (b.dataset.page) { plusOpen = false; if (narrow() || joined) copilotOpen = false; page = b.dataset.page; if (narrow()) sideCollapsed = true; $('#main').scrollTo?.(0, 0); return render(); }
+  if (b.dataset.page) { if (S) blurbSeen.add(S.scene.id); plusOpen = false; if (narrow() || joined) copilotOpen = false; page = b.dataset.page; if (narrow()) sideCollapsed = true; $('#main').scrollTo?.(0, 0); return render(); }
   const a = b.dataset.act, pid = b.dataset.pid, cid = Number(b.dataset.case || selCase);
   const reason = () => ($('#reason')?.value || '').trim();
   const E = (act, extra = {}) => post('employee/' + act, { caseId: selCase, reason: reason(), ...extra }).then(j => { if (j && j.ok && $('#reason')) $('#reason').value = ''; });
   switch (a) {
-    case 'select': selCase = cid; return render();
+    case 'select': outcomeSel = ''; selCase = cid; return render();
     case 'more': showMore[cid] = !showMore[cid]; return render();
     case 'chat_general': chatAuto = false; chatCase = 'general'; openCopilot(); chatLog = await (await fetch('/api/chat/general')).json(); return render(true);
     case 'cb': { plusOpen = false;
@@ -717,6 +728,7 @@ document.addEventListener('click', async e => {
       return; }
     case 'preset': { const el = $('#reason'); if (el) { el.value = b.dataset.text; el.focus(); } return; }
     case 'e_member_cancel': return E('member_cancel');
+    case 'e_outcome': { if (!outcomeSel) return; const note = reason(), text = outcomeSel + (note ? ' — ' + note : ''); const act = outcomeSel === 'Member chose to cancel' ? 'member_cancel' : 'release'; outcomeSel = ''; return E(act, { reason: text }); }
     case 'e_outreach': return E('outreach');
     case 'e_release': return E('release');
     case 'e_branch_go': return E('branch_outcome', { outcome: 'proceed' });
@@ -742,6 +754,7 @@ document.addEventListener('paste', e => { if (e.target.id === 'chatin' && e.clip
 document.addEventListener('dragover', e => { if (e.target.closest?.('#copilot')) e.preventDefault(); });
 document.addEventListener('drop', e => { if (e.target.closest?.('#copilot') && e.dataTransfer?.files.length) { e.preventDefault(); addFiles([...e.dataTransfer.files]); } });
 document.addEventListener('change', e => {
+  if (e.target.name === 'outcome') { outcomeSel = e.target.value; return render(true); }
   if (e.target.id === 'chatfile') { addFiles([...e.target.files]); e.target.value = ''; }
   if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked });
   if (e.target.id === 'quiet') post('member/alert_settings', { quiet: e.target.checked });

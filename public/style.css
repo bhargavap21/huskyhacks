@@ -382,3 +382,41 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 .chat-note { font-size: 13px; }
 .msg-list { margin: var(--space-1) 0; padding-left: 20px; white-space: normal; }
 .msg-list li { margin: 2px 0; }
+
+/* UI pass B: console queue, case header, outcomes, hierarchy, narrow cards */
+.employee .card h2, .employee .console-head h2 { font-size: 24px; line-height: 32px; }
+.employee .case-summary h2 { font-size: 34px; line-height: 40px; }
+.queue tr.cbrow td { background: var(--surface); }
+.queue tr.cbrow.done td { background: transparent; color: var(--ink-muted); }
+.queue tr.q-sep td { padding-top: var(--space-4); }
+.case-head { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.case-who { display: flex; align-items: center; gap: var(--space-3); flex: 1; min-width: 220px; }
+.case-who .avatar { width: 44px; height: 44px; font-size: 20px; }
+.case-name { font-family: var(--font-serif); font-size: 24px; line-height: 30px; color: var(--ink); }
+.case-left { display: flex; flex-direction: column; align-items: flex-end; }
+.case-left .countdown { font-size: 24px; line-height: 30px; }
+.outcomes { border: 0; padding: 0; margin: var(--space-2) 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.outcome { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-3); margin: 0; border: 1px solid var(--line); font: 400 15px/20px var(--font-sans); cursor: pointer; }
+.outcome:has(input:checked) { border-color: var(--accent); background: var(--safe-soft); }
+.outcome input { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; }
+@media (max-width: 700px) {
+  .queue thead { display: none; }
+  .queue table, .queue tbody, .queue tr, .queue td { display: block; width: 100%; }
+  .queue tr { padding: var(--space-2) 0; border-bottom: 1px solid var(--line); }
+  .queue td { border: 0; padding: 2px var(--space-2); }
+  .case-left { align-items: flex-start; }
+}
+
+/* UI pass C: switches, compact demo bar, scene note */
+.switch input[type=checkbox] { appearance: none; -webkit-appearance: none; position: relative; width: 52px; height: 30px; border-radius: var(--radius-pill); background: var(--line-strong); cursor: pointer; transition: background-color 150ms ease-out; }
+.switch input[type=checkbox]::before { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform 150ms ease-out; }
+.switch input[type=checkbox]:checked { background: var(--accent); }
+.switch input[type=checkbox]:checked::before { transform: translateX(22px); }
+.demo-bar { padding-top: var(--space-2); padding-bottom: var(--space-2); }
+.demo-bar button, .demo-bar select { min-height: 36px; padding-top: var(--space-1); padding-bottom: var(--space-1); }
+.demo-bar button { padding-left: var(--space-3); padding-right: var(--space-3); }
+.blurb details { margin: 0; }
+.blurb details > summary { min-height: 32px; font-size: 14px; }
+.blurb p { margin: var(--space-1) 0 0; }
+.side .ico svg { display: block; margin: 0 auto; }
+.acct-menu .ico svg { display: block; }
