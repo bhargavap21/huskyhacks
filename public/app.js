@@ -16,9 +16,13 @@ let setupDone = sess('sl-setup') === '1';
 const markSetupDone = () => { setupDone = true; sessSet('sl-setup', '1'); };
 // The chat follows a held payment until the member picks "Something feels off" themselves.
 let chatAuto = true;
+// A phone that joined by QR code shows only the member app, full screen.
+let joined = sess('sl-joined') === '1';
+// Chat: the + menu, and chats where the member already answered the sharing prompt.
+let plusOpen = false; const shareAnswered = new Set();
 // Composer icons (inline SVG, colour from the button).
 const svg = d => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-const ICON = { plus: svg('<path d="M12 5v14M5 12h14"/>'), mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'), up: svg('<path d="M12 19V5M6 11l6-6 6 6"/>') };
+const ICON = { chat: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'), plus: svg('<path d="M12 5v14M5 12h14"/>'), mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'), up: svg('<path d="M12 19V5M6 11l6-6 6 6"/>') };
 // Attachments waiting in the composer (photos, PDFs, voice notes) and the voice note being recorded.
 let pendingAtt = [], rec = null;
 const $ = s => document.querySelector(s);
@@ -58,7 +62,7 @@ function keep(fn) {
 
 // Only rebuild when something other than the clock changed; clock and countdowns update in place.
 let lastKey = '';
-function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, pendingAtt.length, !!rec, showMore, sideCollapsed, copilotOpen, signedIn, obStep, setupDone]); }
+function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, pendingAtt.length, !!rec, showMore, sideCollapsed, copilotOpen, signedIn, obStep, setupDone, joined, plusOpen]); }
 function tickText() {
   $('#clock').textContent = S.sim_text;
   document.querySelectorAll('[data-expires]').forEach(el => { const t = hm(Number(el.dataset.expires) - S.sim); el.textContent = t; el.setAttribute('aria-label', 'Time left ' + t); });
@@ -84,7 +88,9 @@ function render(force = false) {
   $('#side-toggle').setAttribute('aria-expanded', String(!sideCollapsed));
   $('#side-toggle').setAttribute('aria-label', sideCollapsed ? 'Expand page list' : 'Collapse page list');
   $('#copilot-toggle').setAttribute('aria-expanded', String(copilotOpen));
-  $('#copilot-toggle').textContent = copilotOpen ? 'Hide chat' : 'Second Look chat';
+  $('#copilot-toggle').innerHTML = `${ICON.chat}<span class="lbl">${copilotOpen ? 'Hide chat' : 'Ask Second Look'}</span>`;
+  document.body.classList.toggle('joined', joined);
+  if (joined && !MEMBER_PAGES.includes(page)) page = 'home';
   document.querySelectorAll('[data-page]').forEach(b => b.dataset.page === page ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   // Account button at the bottom of the page list (member identity, sign-in state).
   const m = S.member;
@@ -97,13 +103,15 @@ function render(force = false) {
   const openCases = S.cases.filter(c => c.status === 'open').length;
   $('#count-console').textContent = openCases + S.callbacks.filter(x => x.status === 'waiting').length || '';
   $('#count-inbox').textContent = S.cases.length || '';
-  keep(() => { $('#page').innerHTML = pageView(); $('#copilot-body').innerHTML = !copilotOpen ? '' : signedIn ? chatView() : '<p class="copilot-signedout small muted">Sign in to the Sound app to talk to Second Look.</p>'; });
+  keep(() => { $('#page').innerHTML = pageView(); $('#copilot-body').innerHTML = !copilotOpen ? '' : signedIn ? chatView() : '<p class="copilot-signedout small muted">Sign in to the Sound app to ask Second Look.</p>'; });
   const cs = $('#chatscroll'); if (cs) cs.scrollTop = cs.scrollHeight;
   tickText();
 }
 
 /* ---------------- Pages ---------------- */
-const phone = body => `<section class="phone" aria-label="Member app (concept mock of the Sound app)"><div class="app-head"><b>Sound</b><span class="small">Concept mock</span></div><div class="app-body">${body}</div><p class="footnote">Concept mock of the Sound app, not Sound software. Synthetic kit data; holds and releases change only this simulation.</p></section>`;
+const TABS = [['home', 'Home'], ['inbox', 'Alerts'], ['ask', 'Ask'], ['profile', 'Profile']];
+const joinedTabs = () => joined && signedIn ? `<nav class="joined-tabs" aria-label="Sound app">${TABS.map(([k, l]) => k === 'ask' ? `<button data-act="ask">${l}</button>` : `<button data-page="${k}" ${page === k ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</nav>` : '';
+const phone = body => `<section class="phone" aria-label="Member app (concept mock of the Sound app)"><div class="app-head"><b>Sound</b><span class="small">Concept mock</span></div><div class="app-body">${body}</div>${joinedTabs()}<p class="footnote">Concept mock of the Sound app, not Sound software. Synthetic kit data; holds and releases change only this simulation.</p></section>`;
 function timelineCard(openByDefault) {
   const tl = S.timeline.slice().reverse();
   return `<div class="card">${det('kit-tl', `Kit timeline, ${S.mode === 'as_is' ? 'as it happened' : 'with Second Look'} <span class="muted small">(${tl.length} events${tl[0] ? ` · latest ${esc(tl[0].ts_text.split(' ')[1])}` : ''})</span>`, `<div class="timeline">${tl.map(t => `<div class="${t.kind}">${esc(t.ts_text)} · ${esc(t.text)}</div>`).join('') || '<div class="muted">Press Play to start the replay.</div>'}</div>`, openByDefault)}</div>`;
@@ -136,10 +144,13 @@ function homeView() {
     <div class="row small"><span class="in-badge in-badge--neutral">Second Look: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="in-badge in-badge--neutral">Kit replay: Second Look not in use</span>' : ''}</div></div>`;
   if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
-  if (active) out += activePayment(active, caseById(active.case_id));
-  if (!setupDone) out += `<div class="card setup-card"><p class="eyebrow">3 short steps</p><h3>Finish setting up your app</h3><p class="small">Choose scam protection, how often we alert you, and an optional trusted contact.</p><div class="row"><button data-act="onboarding">Start setup</button><button class="quiet" data-act="setup_dismiss">Not now</button></div></div>`;
-  out += `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money or contacts anyone for you.</p><div class="row"><button class="primary" data-act="chat_general">Talk to Second Look</button><button data-page="guardian">On a call? Listen with me</button></div></div>`;
+  const feelsOff = `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money or contacts anyone for you.</p><div class="row"><button class="primary" data-act="chat_general">Ask Second Look</button>${S.cases[0] ? `<button class="quiet" data-act="report" data-pid="${S.cases[0].pid}">Report a scam</button>` : ''}</div></div>`;
   const recent = S.payments.slice(0, 4);
+  const recentCard = `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
+  // While money is waiting on the member, the home screen is only about that.
+  if (active) return out + activePayment(active, caseById(active.case_id)) + det('home-more', 'Everything else', feelsOff + recentCard);
+  if (!setupDone) out += `<div class="card setup-card"><p class="eyebrow">3 short steps</p><h3>Finish setting up your app</h3><p class="small">Choose scam protection, how often we alert you, and an optional trusted contact.</p><div class="row"><button data-act="onboarding">Start setup</button><button class="quiet" data-act="setup_dismiss">Not now</button></div></div>`;
+  out += feelsOff;
   out += `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
   return out;
 }
@@ -208,13 +219,13 @@ function activePayment(p, c) {
 }
 
 function inboxView() {
-  if (!S.cases.length) return `<div class="card"><h2>Second Look</h2><p class="muted">Nothing here. We stay quiet unless something is worth a second look.</p></div>`;
-  return `<div class="card"><h2>Second Look</h2><p class="small muted">Items we noticed, with the evidence. We only interrupt you when money is about to move.</p></div>` + S.cases.map(c => {
+  if (!S.cases.length) return `<div class="card"><h2>Alerts</h2><p class="muted">Nothing here. We stay quiet unless something is worth a second look.</p></div>`;
+  return `<div class="card"><h2>Alerts</h2><p class="small muted">Things Second Look noticed, with the evidence. We only interrupt you when money is about to move.</p></div>` + S.cases.map(c => {
     const p = payOf(c);
     return `<div class="card"><div class="row small"><span class="in-badge ${c.tier === 'T2' ? 'in-badge--risk' : 'in-badge--neutral'}">${c.tier === 'T2' ? 'Needs a look now' : c.tier === 'T1' ? 'Worth a second look' : 'Quiet'}</span><span class="in-badge in-badge--neutral">${esc(p.status)}</span>${c.member_label === 'looks_fine' ? `<span class="in-badge in-badge--neutral">You marked this fine${c.label_seconds != null ? ` (${c.label_seconds}s)` : ''}</span>` : ''}</div>
-      <h3>${usd(p.amount)} ${esc(p.rail)} to ${esc(p.recipient)}</h3>${plainEvidence(c)}
+      <h3>${usd0(p.amount)} ${esc(p.rail === 'P2P' ? 'payment' : p.rail.toLowerCase())} to ${p.row.recipient_status === 'New' ? 'a new recipient' : 'a saved recipient'}</h3>${reasonList(c)}
       <details><summary>Why did I get this?</summary><p class="small">${esc(c.actions.find(a => a.action === 'case_opened')?.detail || '')}</p>${c.alert ? `<p class="small">How we told you: ${c.alert.interrupt ? 'a notification, because money was about to move' : c.alert.banner_in_place ? 'a note in the payment screen only, no notification' : 'quietly, here only'}${c.alert.suppressed ? ` (${esc(c.alert.suppressed)})` : ''}.</p>` : ''}</details>
-      <div class="row">${'<button data-act="chat" data-case="' + c.id + '">Talk to Second Look</button>'}<button class="quiet" data-act="report" data-pid="${p.pid}">Report a scam</button></div></div>`;
+      <div class="row">${'<button data-act="chat" data-case="' + c.id + '">Ask Second Look</button>'}<button class="quiet" data-act="report" data-pid="${p.pid}">Report a scam</button></div></div>`;
   }).join('');
 }
 
@@ -233,7 +244,7 @@ function settingsView() {
       <label for="tcname">Name</label><input type="text" id="tcname" data-keep><label for="tcrel">Relationship</label><input type="text" id="tcrel" data-keep>
       <div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="tc_add">Add trusted contact</button></div>`}</div>
     <div class="card"><h2>Report a scam</h2><p class="small">If money already moved, tell us right away. Wire recalls and ACH returns can be requested but aren’t guaranteed, and the chance falls with time. Person-to-person payments can’t be recalled. You can also report to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).</p>
-    <div class="row">${S.cases[0] ? `<button class="primary" data-act="report" data-pid="${S.cases[0].pid}">Report the latest payment</button>` : ''}<button data-act="chat_general">Talk to Second Look</button></div></div>`;
+    <div class="row">${S.cases[0] ? `<button class="primary" data-act="report" data-pid="${S.cases[0].pid}">Report the latest payment</button>` : ''}<button data-act="chat_general">Ask Second Look</button></div></div>`;
 }
 
 function signInView() {
@@ -256,7 +267,7 @@ function onboardingView() {
     <div class="stack"><button class="primary" data-act="ob_next">Get started</button><button class="quiet" data-act="ob_done">Skip setup</button></div></div>`;
   if (obStep === 1) return `<div class="card ob">${progress(1)}<h2>Turn on Second Look?</h2>
     <p>We watch for signs someone may be manipulating you, and a Sound employee can step in before money moves.</p>
-    <ul class="in-ul ob-list"><li>We use payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes.</li><li>We never read your texts, calls, email or browsing, and never freeze your account.</li><li>Your own payments stay your decision.</li></ul>
+    <ul class="in-ul ob-list"><li>We use payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes.</li><li>We never read your texts, email or browsing, and never freeze your account. We only listen to a call when you bring us in: Call guardian, adding Second Look’s number to the call, or calling it.</li><li>Your own payments stay your decision.</li></ul>
     <div class="stack"><button class="primary" data-act="ob_on">Turn on Second Look</button><button data-act="ob_skip">Not now</button></div>
     <p class="small muted">If you choose not now, it stays off and we won’t keep asking.</p></div>`;
   if (obStep === 2) return `<div class="card ob">${progress(2)}<h2>How often should we alert you?</h2>
@@ -286,7 +297,17 @@ function profileView() {
 }
 
 // Escape first, then allow only **bold** and line breaks (no raw HTML from the model).
-const fmtReply = t => esc(t).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+// Escape first, then allow **bold**, and lines starting "- " as a bulleted list.
+const fmtReply = t => {
+  const out = []; let list = [];
+  const flush = () => { if (list.length) { out.push(`<ul class="msg-list">${list.map(x => `<li>${x}</li>`).join('')}</ul>`); list = []; } };
+  for (const line of esc(t).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').split('\n')) {
+    const m = line.match(/^\s*[-•]\s+(.*)$/);
+    if (m) list.push(m[1]); else { flush(); out.push(line); }
+  }
+  flush();
+  return out.join('\n').replace(/\n?(<ul class="msg-list">)/g, '$1').replace(/(<\/ul>)\n?/g, '$1');
+};
 
 const RECOVERY = `If money already went out, every hour matters:
 - **Tell Sound now.** We can request a wire recall or an ACH return. These are possible but not guaranteed, and the chance falls with time.
@@ -496,25 +517,35 @@ function chatView() {
   const help = [['talk', 'Talk to a person at Sound', 'A person at Sound will call you'], ['sent', 'I already sent money', 'Recovery team notified'], ['report', 'Report a scam', 'Reported']];
   const starters = general ? ['Someone says they’re from my bank', 'I’m being asked to pay with gift cards', 'Someone I met online needs money'] : ['Who should I check this with?', 'Is this a common scam?', 'I know this person'];
   const msgs = [{ role: 'assistant', text: intro }, ...chatLog];
+  const shareKey = general ? '0' : String(chatCase), shareOn = !!S.share_on?.[shareKey];
+  const askShare = !shareOn && !shareAnswered.has(shareKey) && chatLog.some(m => m.role === 'user');
+  const plusMenu = plusOpen ? `<div class="plus-menu" role="menu" aria-label="More">
+      <button role="menuitem" data-act="attach">Add a photo, screenshot or PDF</button>
+      <button role="menuitem" data-page="guardian">Listen to a call with me</button>
+      <button role="menuitem" data-act="${shareOn ? 'share_stop' : 'share_yes'}">${shareOn ? 'Stop sharing with Sound' : 'Share this chat with Sound'}</button>
+      <div class="plus-sep"></div>
+      ${help.map(([k, label, done]) => `<button role="menuitem" data-act="cb" data-kind="${k}" ${asked(k) ? 'disabled' : ''}>${asked(k) ? done : label}</button>`).join('')}
+      <p class="plus-note">Voice notes are transcribed on Sound’s server; the audio isn’t kept.</p></div>` : '';
   return `<div class="chat-screen">
     <div class="chat-top"><div class="chat-title"><div class="chat-name">Second Look</div><div class="chat-sub">${subject}</div></div>
-      ${general ? '' : '<button class="quiet" data-act="chat_general">New chat</button>'}
+      ${general ? '' : '<button class="quiet" data-act="chat_general">Something else</button>'}
       <button class="icon-btn" data-act="back" aria-label="Close chat">×</button></div>
-    ${general ? '' : det('chat-ev-' + c.id, 'What Second Look can see', `<div class="chat-evidence">${plainEvidence(c)}</div>`)}
-    <div class="chat-scroll" id="chatscroll"><div class="chat" aria-live="polite" aria-relevant="additions">${msgs.map(m => `<div class="msg ${m.role}${m.pending ? ' pending' : ''}">${m.att ? attBlock(m.att) : ''}${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('')}</div>
+    ${general ? '' : det('chat-ev-' + c.id, 'What Second Look can see', `<div class="chat-evidence">${reasonList(c)}</div>`)}
+    <div class="chat-scroll" id="chatscroll"><div class="chat" aria-live="polite" aria-relevant="additions">${msgs.map(m => `<div class="msg ${m.role}${m.pending ? ' pending' : ''}">${m.att ? attBlock(m.att) : ''}${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('')}
+      ${help.filter(([k]) => asked(k)).map(([, , done]) => `<div class="chat-status" role="status">${done}</div>`).join('')}
+      ${shareOn ? `<div class="chat-status">Shared with the Sound employee helping you</div>` : askShare ? `<div class="consent-card" role="group" aria-label="Share this chat"><p><b>Let the Sound employee helping you see this chat?</b> They see what you write here, nothing else. You can stop any time.</p><div class="row"><button class="primary" data-act="share_yes">Share with Sound</button><button data-act="share_no">Keep private</button></div></div>` : ''}</div>
       ${chatLog.length ? '' : `<div class="chat-starters">${starters.map(t => `<button class="chat-starter" data-act="send" data-text="${esc(t)}">${esc(t)}</button>`).join('')}</div>`}</div>
     <div class="chat-dock">
-      <div class="chat-chips" role="group" aria-label="Get help">${help.map(([k, label, done]) => `<button class="chat-chip" data-act="cb" data-kind="${k}" ${asked(k) ? 'disabled' : ''}>${asked(k) ? done : label}</button>`).join('')}</div>
-      <label class="chat-share"><input type="checkbox" id="chatshare" ${S.share_on?.[general ? '0' : String(chatCase)] ? 'checked' : ''}> Share this chat with the Sound employee helping me</label>
+      ${plusMenu}
       ${pendingAtt.length ? `<ul class="att-tray" aria-label="Ready to send">${pendingAtt.map((a, i) => `<li class="att-chip">${a.kind === 'image' ? `<img src="${a.preview}" alt="">` : ''}<span>${esc(attLabel(a))}</span><button class="icon-btn" data-act="att_remove" data-i="${i}" aria-label="Remove ${esc(attLabel(a))}">×</button></li>`).join('')}</ul>` : ''}
       ${rec ? `<div class="rec-bar" role="status"><span class="rec-dot" aria-hidden="true"></span><span>Recording <span id="rec-time">0:00</span></span><button class="primary" data-act="rec_stop">Stop and add</button><button class="quiet" data-act="rec_cancel">Cancel</button></div>` : ''}
       <div class="composer">
-        <button class="composer-icon" data-act="attach" aria-label="Add a screenshot, photo, PDF or voicemail" title="Add a screenshot, photo, PDF or voicemail">${ICON.plus}</button>
+        <button class="composer-icon" data-act="plus_menu" aria-haspopup="menu" aria-expanded="${plusOpen}" aria-label="More: files, calls, help" title="Files, calls and help">${ICON.plus}</button>
         <label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="1" placeholder="Ask Second Look"></textarea>
         <button class="composer-icon" data-act="rec_start" ${rec ? 'disabled' : ''} aria-label="Record a voice note" title="Record a voice note">${ICON.mic}</button>
         <button class="primary composer-send" data-act="send" aria-label="Send">${ICON.up}</button>
         <input type="file" id="chatfile" accept="image/*,application/pdf,audio/*,.m4a,.mp3,.wav" multiple hidden></div>
-      <p class="chat-note">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide. Voice notes are transcribed on Sound’s server; the audio isn’t kept.</p>
+      <p class="chat-note">Second Look can’t move money or contact anyone. You decide.</p>
     </div></div>`;
 }
 
@@ -614,7 +645,7 @@ function caseDetail(c) {
 /* ---------------- Events ---------------- */
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act],[data-page]'); if (!b) return;
-  if (b.dataset.page) { page = b.dataset.page; if (narrow()) sideCollapsed = true; $('#main').scrollTo?.(0, 0); return render(); }
+  if (b.dataset.page) { plusOpen = false; if (narrow() || joined) copilotOpen = false; page = b.dataset.page; if (narrow()) sideCollapsed = true; $('#main').scrollTo?.(0, 0); return render(); }
   const a = b.dataset.act, pid = b.dataset.pid, cid = Number(b.dataset.case || selCase);
   const reason = () => ($('#reason')?.value || '').trim();
   const E = (act, extra = {}) => post('employee/' + act, { caseId: selCase, reason: reason(), ...extra }).then(j => { if (j && j.ok && $('#reason')) $('#reason').value = ''; });
@@ -622,7 +653,7 @@ document.addEventListener('click', async e => {
     case 'select': selCase = cid; return render();
     case 'more': showMore[cid] = !showMore[cid]; return render();
     case 'chat_general': chatAuto = false; chatCase = 'general'; openCopilot(); chatLog = await (await fetch('/api/chat/general')).json(); return render(true);
-    case 'cb': {
+    case 'cb': { plusOpen = false;
       const kind = b.dataset.kind;
       const j = await post('callback', { kind, caseId: chatCase === 'general' ? 0 : chatCase });
       if (j && j.ok) {
@@ -651,7 +682,14 @@ document.addEventListener('click', async e => {
     case 'g_hangup': gStop(); await post('callback', { kind: 'talk', caseId: 0 }); return toast('Hang up now. A Sound team member will call you at the number on file.');
     case 'g_talk': { const j = await post('callback', { kind: 'talk', caseId: 0 }); if (j && j.ok) toast('A Sound team member will call you at the number on file.'); return; }
     case 'g_reset': await gfetch('reset', {}); S.guardian = null; return render(true);
-    case 'attach': return $('#chatfile')?.click();
+    case 'attach': plusOpen = false; render(true); return $('#chatfile')?.click();
+    case 'plus_menu': plusOpen = !plusOpen; return render(true);
+    case 'ask': { const held = S.awaiting && S.payments.find(p => p.pid === S.awaiting); chatCase = held && held.case_id ? held.case_id : 'general'; openCopilot(); chatLog = await (await fetch('/api/chat/' + chatCase)).json(); return render(true); }
+    case 'share_yes': case 'share_no': case 'share_stop': {
+      const k = chatCase === 'general' ? '0' : String(chatCase); shareAnswered.add(k); plusOpen = false;
+      if (a === 'share_no') return render(true);
+      await post('chat/' + chatCase + '/share', { on: a === 'share_yes' });
+      return toast(a === 'share_yes' ? 'Shared. The Sound employee helping you can see this chat.' : 'This chat is private again.'); }
     case 'att_remove': pendingAtt.splice(Number(b.dataset.i), 1); return render(true);
     case 'rec_start': return startRec();
     case 'rec_stop': if (rec) rec.mr.stop(); return;
@@ -769,7 +807,7 @@ $('#invite-close').addEventListener('click', () => $('#invite-dlg').close());
   const v = q.get('view'), pg = q.get('page');
   if (v === 'member') page = 'home'; else if (v === 'employee') page = 'console'; else if (v === 'both') page = 'split';
   if (['home', 'inbox', 'settings', 'profile', 'onboarding', 'console', 'split', 'timeline'].includes(pg)) page = pg;
-  if (q.get('joined') === '1') { page = 'home'; copilotOpen = false; setTimeout(() => toast('You’re on Linda’s phone in the presenter’s demo.'), 600); history.replaceState(null, '', '/'); }
+  if (q.get('joined') === '1') { joined = true; sessSet('sl-joined', '1'); page = 'home'; copilotOpen = false; setTimeout(() => toast('You’re on Linda’s phone in the presenter’s demo.'), 600); history.replaceState(null, '', '/'); }
   if (q.get('chat') === 'general') { chatAuto = false; chatCase = 'general'; copilotOpen = true; }
   await poll();
   if (q.get('scene') && S.scenes.some(x => x.id === q.get('scene'))) { await post('scene/' + q.get('scene')); if (q.get('jump') === '1') for (let i = 0; i < 60 && !S.awaiting && !S.ended; i++) await post('control/next');
