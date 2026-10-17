@@ -23,7 +23,7 @@ export const SCENES: Scene[] = [
 ];
 
 export type CaseRec = {
-  id: number; pid: string; rule: string; title: string; tier: 'T0' | 'T1' | 'T2'; output: string;
+  id: number; pid: string; pids: string[]; recipient: string; rule: string; title: string; tier: 'T0' | 'T1' | 'T2'; output: string;
   evidence: Finding['evidence']; findings: Finding[]; status: 'open' | 'closed'; created_sim: number; created_real: number;
   member_label: 'none' | 'looks_fine' | 'reported'; label_seconds: number | null; callback_requested: boolean;
   actions: { ts: number; actor: string; action: string; detail: string }[];
@@ -42,18 +42,44 @@ type World = {
   timeline: { ts: number; text: string; kind: 'kit' | 'suppressed' | 'system' }[];
   payments: Map<string, PayRec>; cases: CaseRec[]; awaiting: string | null; member: Member;
   confirm_code: { code: string; pid: string; sent_to: string; why: string } | null; ended: boolean;
+  next_case: number; seen: number;
 };
 
-let nextCase = 1;
-let w: World = blank(SCENES[1]);
+// One simulation per browser session so viewers don't interfere with each other.
+const worlds = new Map<string, World>();
+const MAX_WORLDS = 300, IDLE_MS = 3 * 3_600_000;
+let w: World;
+
+/** Select (or create) this session's world. All exported functions act on the selected world. */
+export function useWorld(sid: string) {
+  let x = worlds.get(sid);
+  if (!x) {
+    if (worlds.size >= MAX_WORLDS) {
+      const oldest = [...worlds.entries()].sort((a, b) => a[1].seen - b[1].seen)[0];
+      worlds.delete(oldest[0]);
+    }
+    x = blank(SCENES[1]);
+    worlds.set(sid, x);
+  }
+  x.seen = Date.now();
+  w = x;
+}
+
+/** Advance every active world's clock. */
+export function tickAll(realMs: number) {
+  const now = Date.now();
+  for (const [sid, x] of worlds) {
+    if (now - x.seen > IDLE_MS) { worlds.delete(sid); continue; }
+    w = x; tick(realMs);
+  }
+}
 
 function blank(scene: Scene): World {
-  nextCase = 1;
   const events = memberEvents(scene.member);
   const start = toMs(scene.start);
   const w0: World = {
     scene, mode: scene.mode, sim: start, speed: NORMAL_SPEED, running: false, cursor: 0, events, timeline: [],
-    payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null,
+    payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null, next_case: 1, seen: Date.now(),
     member: { id: scene.member, name: scene.name, enrolled: scene.mode === 'second_look', trusted_contact: null, contact_changed_sim: null, pre_change_contact: 'phone ending 4471 (on file since 2019)', current_contact: 'phone ending 4471' },
   };
   // Fast-forward silently to the scene start so balances, recipients and flags are in place.
@@ -64,11 +90,12 @@ function blank(scene: Scene): World {
 function toMs(s: string) { const [d, t] = s.split(' '); const [m, dd, y] = d.split('/').map(Number); const [h, mi] = t.split(':').map(Number); return Date.UTC(y, m - 1, dd, h, mi); }
 export const fmt = (ms: number) => { const d = new Date(ms); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
 
-export function loadScene(id: string) {
+export function loadScene(id: string, sid: string) {
   const s = SCENES.find(x => x.id === id);
   if (!s) throw new Error('Unknown scene');
   w = blank(s);
-  db.prepare('DELETE FROM chat_messages WHERE scene = ?').run(s.id);
+  worlds.set(sid, w);
+  db.prepare('DELETE FROM chat_messages WHERE scene = ?').run(`${sid}:${s.id}`);
   audit('demo', 'scene_loaded', s.id);
 }
 
@@ -110,20 +137,32 @@ function applyRow(W: World, e: KitEvent, silent = false) {
   if (!silent && !SKIP.has(e.event_type)) W.timeline.push({ ts: e.ts, text: line(e), kind: 'kit' });
 }
 
+const SITUATION_MS = 24 * 3_600_000;
+
 function openCase(W: World, p: PayRec, e: KitEvent) {
   const findings = score(e, historyUpTo(W.events, e));
   const f = primary(findings);
   if (!f) return;
   const gate: Gate = f.output === 'PRESUBMIT_REVIEW' ? 'presubmit_review' : f.output === 'BRANCH_CONVERSATION' ? 'branch_conversation' : f.output === 'BANNER' ? 'banner_confirm' : 'none';
   p.state = newPayment(p.rail, gate);
-  const c: CaseRec = {
-    id: nextCase++, pid: p.pid, rule: f.rule, title: f.title, tier: f.tier, output: f.output, evidence: f.evidence, findings,
-    status: 'open', created_sim: W.sim, created_real: Date.now(), member_label: 'none', label_seconds: null, callback_requested: false, actions: [],
-  };
-  W.cases.unshift(c);
-  p.case_id = c.id;
   const prev = w; w = W;
-  act(c, 'system', 'case_opened', `${f.rule} → ${f.output}; tier ${f.tier}; promoted because: ${f.evidence.map(x => x.value).join(' + ')}`);
+  // One case per situation (HANDOFF section 8): same rule and same recipient, or same rule within 24 h, accumulates on the existing case.
+  const same = W.cases.find(x => x.rule === f.rule && (x.recipient === p.recipient || W.sim - x.created_sim <= SITUATION_MS));
+  let c: CaseRec;
+  if (same) {
+    c = same;
+    c.pids.push(p.pid); c.pid = p.pid; c.status = 'open'; c.evidence = f.evidence; c.findings = findings; c.created_real = Date.now();
+    act(c, 'system', 'payment_added', `another ${p.rail} ${usd(p.amount)} in the same situation; material change (a payment initiated), so the member sees it once`);
+    if (W.payments.get(c.pids[0])?.state.ato_verified) { p.state = transition(p.state, { kind: 'verify_ato' }); act(c, 'system', 'ato_carried_over', 'takeover already verified on this case'); }
+  } else {
+    c = {
+      id: W.next_case++, pid: p.pid, pids: [p.pid], recipient: p.recipient, rule: f.rule, title: f.title, tier: f.tier, output: f.output, evidence: f.evidence, findings,
+      status: 'open', created_sim: W.sim, created_real: Date.now(), member_label: 'none', label_seconds: null, callback_requested: false, actions: [],
+    };
+    W.cases.unshift(c);
+    act(c, 'system', 'case_opened', `${f.rule} → ${f.output}; tier ${f.tier}; promoted because: ${f.evidence.map(x => x.value).join(' + ')}`);
+  }
+  p.case_id = c.id;
   if (f.output === 'HOLD') { p.state = transition(p.state, { kind: 'hold', now: W.sim }); act(c, 'system', 'hold_placed', 'up to 4 hours; employee notified'); }
   w = prev;
   W.awaiting = p.pid;
@@ -135,7 +174,10 @@ function settle(p: PayRec) {
   if (TERMINAL.includes(p.state.status) && w.awaiting === p.pid) {
     w.awaiting = null; w.speed = NORMAL_SPEED;
     const c = w.cases.find(x => x.id === p.case_id);
-    if (c) { c.status = 'closed'; act(c, 'system', 'payment_final', p.state.status); }
+    if (c) {
+      act(c, 'system', 'payment_final', `${p.pid}: ${p.state.status}`);
+      if (c.pids.every(id => TERMINAL.includes(w.payments.get(id)!.state.status))) c.status = 'closed';
+    }
     w.timeline.push({ ts: w.sim, text: `Payment ${p.pid}: ${p.state.status}`, kind: 'system' });
   }
 }
@@ -161,7 +203,7 @@ export function tick(realMs: number) {
   if (w.cursor >= w.events.length) { w.ended = true; w.running = false; }
 }
 
-export function control(cmd: string) {
+export function control(cmd: string, sid: string) {
   if (cmd === 'play') w.running = true;
   else if (cmd === 'pause') w.running = false;
   else if (cmd === 'next') {
@@ -169,7 +211,7 @@ export function control(cmd: string) {
     while (w.cursor < w.events.length && SKIP.has(w.events[w.cursor].event_type)) applyRow(w, w.events[w.cursor++]);
     if (w.cursor < w.events.length) { w.sim = Math.max(w.sim, w.events[w.cursor].ts); applyRow(w, w.events[w.cursor++]); }
   } else if (cmd === 'faster') w.speed *= 4;
-  else if (cmd === 'reset') loadScene(w.scene.id);
+  else if (cmd === 'reset') loadScene(w.scene.id, sid);
 }
 
 const pay = (pid: string) => { const p = w.payments.get(pid); if (!p) throw new TransitionError('Unknown payment'); return p; };

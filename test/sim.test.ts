@@ -1,0 +1,35 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+process.env.DB_PATH = ':memory:';
+const { useWorld, loadScene, control, employee, member, snapshot, tickAll } = await import('../src/sim.ts');
+
+const run = (ms = 60_000) => tickAll(ms);
+
+test('one case per situation: M1003’s two takeover payments share a case; verified takeover carries over', () => {
+  useWorld('a'); loadScene('m1003', 'a'); control('play', 'a'); run();
+  useWorld('a'); assert.equal(snapshot().awaiting, 'P1003-007');
+  employee('verify_ato', { caseId: 1 }); employee('stop', { caseId: 1 });
+  run(); useWorld('a');
+  const s = snapshot();
+  assert.equal(s.cases.length, 1);
+  assert.deepEqual(s.cases[0].pids, ['P1003-007', 'P1003-008']);
+  assert.ok(s.cases[0].actions.some((x: any) => x.action === 'ato_carried_over'));
+  employee('stop', { caseId: 1 });
+  useWorld('a'); assert.ok(snapshot().payments.filter((p: any) => p.pid.startsWith('P1003-00')).slice(0, 2).every((p: any) => p.status === 'Stopped by Sound'));
+});
+
+test('each browser session has its own simulation', () => {
+  useWorld('x'); loadScene('m1037', 'x');
+  useWorld('y'); loadScene('m1057', 'y');
+  useWorld('x'); assert.equal(snapshot().scene.id, 'm1037');
+  useWorld('y'); assert.equal(snapshot().scene.id, 'm1057');
+});
+
+test('M1037: one standard banner, one tap, completed', () => {
+  useWorld('b'); loadScene('m1037', 'b'); control('play', 'b'); run(); useWorld('b');
+  assert.equal(snapshot().awaiting, 'P1037-002');
+  member('looks_fine', { pid: 'P1037-002' });
+  const s = snapshot();
+  assert.equal(s.payments.find((p: any) => p.pid === 'P1037-002').status, 'Completed');
+  assert.equal(s.cases[0].rule, 'STD');
+});

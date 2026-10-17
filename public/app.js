@@ -5,6 +5,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hm = ms => { const m = Math.max(0, Math.round(ms / 60000)); return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`; };
 
+// role=status: screen readers announce toasts.
 function toast(t) { const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 4200); }
 
 async function post(path, body = {}) {
@@ -21,17 +22,29 @@ async function poll() {
   const r = await fetch('/api/state'); S = await r.json(); csrf = S.csrf; render();
 }
 
-// Keep typed input and focus across re-renders.
+// Keep typed input and focus across re-renders (focus is matched by id, or by action + target).
 function keep(fn) {
-  const a = document.activeElement, id = a && a.id, vals = {};
+  const a = document.activeElement, vals = {};
+  const key = a && (a.id ? '#' + a.id : a.dataset && a.dataset.act ? `[data-act="${a.dataset.act}"]${a.dataset.pid ? `[data-pid="${a.dataset.pid}"]` : ''}${a.dataset.case ? `[data-case="${a.dataset.case}"]` : ''}` : null);
   document.querySelectorAll('[data-keep]').forEach(el => (vals[el.id] = el.value));
   fn();
   for (const [k, v] of Object.entries(vals)) { const el = document.getElementById(k); if (el) el.value = v; }
-  if (id) { const el = document.getElementById(id); if (el) { el.focus(); if (el.setSelectionRange && el.value) el.setSelectionRange(el.value.length, el.value.length); } }
+  if (key) { const el = document.querySelector(key); if (el) { el.focus(); if (el.setSelectionRange && el.value) el.setSelectionRange(el.value.length, el.value.length); } }
 }
 
-function render() {
+// Only rebuild when something other than the clock changed; clock and countdowns update in place.
+let lastKey = '';
+function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, view, screen, selCase, chatCase, chatLog.length, showMore]); }
+function tickText() {
+  $('#clock').textContent = S.sim_text;
+  document.querySelectorAll('[data-expires]').forEach(el => { const t = hm(Number(el.dataset.expires) - S.sim); el.textContent = t; el.setAttribute('aria-label', 'Time left ' + t); });
+}
+
+function render(force = false) {
   if (!S) return;
+  const k = structuralKey();
+  if (!force && k === lastKey) return tickText();
+  lastKey = k;
   const sel = $('#scene');
   if (!sel.options.length) sel.innerHTML = S.scenes.map(s => `<option value="${s.id}">${esc(s.title)}</option>`).join('');
   sel.value = S.scene.id;
@@ -43,8 +56,9 @@ function render() {
   $('#blurb').textContent = (S.mode === 'as_is' ? 'Kit replay, as it happened. ' : 'With Second Look (proposed design). ') + S.scene.blurb;
   const g = $('#grid'); g.className = 'grid' + (view === 'member' ? ' only-member' : view === 'employee' ? ' only-employee' : '');
   document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
-  document.querySelectorAll('[data-screen]').forEach(b => b.toggleAttribute('aria-current', b.dataset.screen === screen) || (b.dataset.screen === screen && b.setAttribute('aria-current', 'page')));
+  document.querySelectorAll('[data-screen]').forEach(b => b.dataset.screen === screen ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   keep(() => { $('#member').innerHTML = memberView(); $('#employee').innerHTML = employeeView(); });
+  tickText();
 }
 
 /* ---------------- Member app ---------------- */
@@ -82,7 +96,7 @@ function activePayment(p, c) {
       <h2>We paused your ${what}</h2>
       <p>Some things about this payment are worth a second look. A Sound team member will reach out. Nothing has been sent.</p>
       ${plainEvidence(c)}
-      <div><span class="small">Time left in the pause</span><div class="countdown" aria-label="Time left ${hm(left)}">${hm(left)}</div>
+      <div><span class="small">Time left in the pause</span><div class="countdown" data-expires="${p.hold_expires_at}" aria-label="Time left ${hm(left)}">${hm(left)}</div>
       <p class="small">At 4 hours: if you’ve told us to proceed, it sends then. Otherwise it comes back to you unsent and you can resend whenever you’re ready. It is never held longer than 4 hours.</p></div>
       <div class="stack">
         <button class="primary" data-act="request_code" data-pid="${p.pid}">This is me. Release it now</button>
@@ -145,7 +159,7 @@ function chatView() {
   const c = caseById(chatCase); if (!c) { screen = 'home'; return homeView(); }
   return `<div class="row"><button class="quiet" data-act="back">← Back</button><span class="chip">About: ${usd(payOf(c).amount)} ${esc(payOf(c).rail)}</span></div>
     <div class="card small"><b>Evidence I’m using</b>${plainEvidence(c)}</div>
-    <div class="chat" aria-live="polite">${chatLog.map(m => `<div class="msg ${m.role}">${esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('') || '<div class="msg assistant">I’m here to help you think this through. You decide. What would you like to check first?</div>'}</div>
+    <div class="chat" aria-live="polite" aria-relevant="additions">${chatLog.map(m => `<div class="msg ${m.role}">${esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('') || '<div class="msg assistant">I’m here to help you think this through. You decide. What would you like to check first?</div>'}</div>
     <p class="small muted">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide.</p>
     <label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="2" placeholder="Type a message"></textarea>
     <button class="primary" data-act="send">Send</button>`;
@@ -167,7 +181,7 @@ function employeeView() {
   if (selCase == null && S.cases[0]) selCase = (open[0] || S.cases[0]).id;
   const c = caseById(selCase);
   const afterHours = p => { if (!p.hold_started_at) return false; const d = new Date(p.hold_started_at); const h = d.getUTCHours(), wd = d.getUTCDay(); return h < 9 || h >= 18 || wd === 0 || wd === 6; };
-  const rowHtml = x => { const p = payOf(x); const left = p.status === 'Held' ? hm(p.hold_expires_at - S.sim) : '—';
+  const rowHtml = x => { const p = payOf(x); const left = p.status === 'Held' ? `<span data-expires="${p.hold_expires_at}">${hm(p.hold_expires_at - S.sim)}</span>` : '—';
     return `<tr class="click ${x.id === selCase ? 'sel' : ''}" data-act="select" data-case="${x.id}" tabindex="0"><td>${esc(S.member.id)}</td><td>${usd(p.amount)} ${esc(p.rail)}</td><td>${esc(x.rule)} · ${esc(x.title)}</td><td>${esc(p.status)}${p.gate !== 'none' && p.status === 'Pending' ? ' · ' + esc(p.gate.replace('_', ' ')) : ''}${x.callback_requested ? ' · <b>member asked to talk</b>' : ''}${afterHours(p) ? ' · after hours' : ''}</td><td class="countdown" style="font-size:18px">${left}</td></tr>`; };
   let out = `<div class="card"><div class="console-head"><h1>Sound employee console <span class="chip">simulated</span></h1><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
     <div class="table-wrap"><table><thead><tr><th>Member</th><th>Payment</th><th>Why</th><th>Status</th><th>Hold left</th></tr></thead><tbody>
@@ -183,6 +197,7 @@ function caseDetail(c) {
   const can = { release: p.status === 'Held', stop: open, review: p.gate === 'presubmit_review' && p.status === 'Pending', branch: p.gate === 'branch_conversation' && p.status === 'Pending', verify: c.rule === 'R2' && open && !p.ato_verified };
   return `<div class="two"><div class="card"><h2>Case ${c.id}: ${esc(c.title)}</h2>
       <div class="row small"><span class="chip">${esc(c.rule)}</span><span class="chip">Output: ${esc(c.output.replace('_', ' ').toLowerCase())}</span><span class="chip">Tier ${esc(c.tier)}</span></div>
+      ${c.pids.length > 1 ? `<p class="small"><b>One case, ${c.pids.length} payments in the same situation:</b> ${c.pids.map(id => { const q = S.payments.find(x => x.pid === id); return `${esc(id)} ${usd(q.amount)} (${esc(q.status)})`; }).join(', ')}</p>` : ''}
       <h3 style="margin-top:10px">Evidence (kit fields)</h3><ul>${c.evidence.map(e => `<li><code>${esc(e.field)}</code>: <b>${esc(e.value)}</b> — ${esc(e.why)}</li>`).join('')}</ul>
       <h3>History comparison</h3><dl class="kv"><dt>Amount vs usual</dt><dd>${r.ratio ?? '—'}x (${esc(r.band)})</dd><dt>Days since last ${esc(p.rail.toLowerCase())}</dt><dd>${r.gap ?? 'never'}</dd><dt>Recipient</dt><dd>${esc(r.recipient_status)}${r.recipient_age_days != null ? `, ${r.recipient_age_days} days old` : ''}</dd>
       <dt>Profile change (30d)</dt><dd>${esc(r.profile_change_recent)}</dd><dt>Password reset (7d)</dt><dd>${esc(r.password_reset_recent)}</dd><dt>Trusted contact</dt><dd>${S.member.trusted_contact ? 'Enrolled' : 'Not enrolled'}</dd>

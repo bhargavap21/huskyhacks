@@ -81,7 +81,7 @@ export function transition(p: Payment, a: Action): Payment {
       n.status = 'Stopped by Sound';
       return n;
     case 'expire':
-      if (p.status !== 'Held' || p.hold_expires_at === null) no('No hold to expire');
+      if (p.status !== 'Held' || p.hold_expires_at === null) return no('No hold to expire');
       if (a.now < p.hold_expires_at) no('Hold has not reached 4 hours');
       // PROPOSED disposition (kit is silent): execute only on a recorded reconfirm; otherwise return unsent. Never auto-send.
       n.status = p.member_reconfirmed && p.member_authorized ? 'Completed' : 'Returned Unsent';

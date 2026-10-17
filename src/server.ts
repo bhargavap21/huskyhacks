@@ -6,10 +6,9 @@ import { Hono } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { tick, loadScene, control, member, employee, snapshot } from './sim.ts';
+import { tickAll, useWorld, loadScene, control, member, employee, snapshot } from './sim.ts';
 import { TransitionError } from './payments.ts';
 import { chat, chatHistory } from './chat.ts';
-import { db } from './db.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -39,6 +38,9 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
+// Every API call acts on this browser's own simulation.
+app.use('/api/*', async (c, next) => { useWorld(c.get('sid')); await next(); });
+
 app.onError((err, c) => {
   if (err instanceof TransitionError) return c.json({ error: err.message }, 409);
   console.error(err);
@@ -46,16 +48,16 @@ app.onError((err, c) => {
 });
 
 app.get('/api/state', c => c.json({ ...snapshot(), csrf: csrfFor(c.get('sid')) }));
-app.post('/api/scene/:id', c => { loadScene(c.req.param('id')); return c.json({ ok: true }); });
-app.post('/api/control/:cmd', c => { control(c.req.param('cmd')); return c.json({ ok: true }); });
+app.post('/api/scene/:id', c => { loadScene(c.req.param('id'), c.get('sid')); return c.json({ ok: true }); });
+app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/member/:action', async c => { member(c.req.param('action'), await c.req.json().catch(() => ({}))); return c.json({ ok: true }); });
 app.post('/api/employee/:action', async c => { employee(c.req.param('action'), await c.req.json().catch(() => ({}))); return c.json({ ok: true }); });
-app.get('/api/chat/:caseId', c => c.json(chatHistory(snapshot().scene.id, Number(c.req.param('caseId')))));
+const chatKey = (c: any) => `${c.get('sid')}:${snapshot().scene.id}`;
+app.get('/api/chat/:caseId', c => c.json(chatHistory(chatKey(c), Number(c.req.param('caseId')))));
 app.post('/api/chat/:caseId', async c => {
   const b = await c.req.json().catch(() => ({}));
-  return c.json(await chat(snapshot().scene.id, Number(c.req.param('caseId')), String(b.text ?? '')));
+  return c.json(await chat(chatKey(c), Number(c.req.param('caseId')), String(b.text ?? '')));
 });
-app.get('/api/audit', c => c.json(db.prepare('SELECT ts, actor, action, detail FROM audit_log ORDER BY id DESC LIMIT 60').all()));
 
 const page = (f: string) => readFileSync(join(import.meta.dirname, '..', 'public', f), 'utf8');
 app.get('/', c => c.html(page('index.html')));
@@ -63,7 +65,7 @@ app.get('/about', c => c.html(page('about.html')));
 app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: p => p.replace(/^\/static/, '') }));
 
 let last = Date.now();
-setInterval(() => { const now = Date.now(); tick(now - last); last = now; }, 250);
+setInterval(() => { const now = Date.now(); tickAll(now - last); last = now; }, 250);
 
 const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port }, () => console.log(`Second Look demo on http://localhost:${port}`));
