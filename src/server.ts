@@ -14,7 +14,8 @@ import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
 import { phoneState, link, unlink, callMe, watchCalls, PhoneError } from './phone.ts';
-import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError } from './email.ts';
+import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError, reportEmailById } from './email.ts';
+import { fileReport, normalize } from './reports.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -112,6 +113,15 @@ app.post('/api/guardian/stop', async c => c.json(await stopCall(chatKey(c)) ?? {
 // Second Look's phone line: link the member's phone, and "Have Second Look call me" (with what the app knows).
 app.post('/api/phone/link', async c => { const b = await c.req.json().catch(() => ({})); link(c.get('sid'), b.number, !!b.share); return c.json({ ok: true }); });
 app.post('/api/email/link', async c => { const b = await c.req.json().catch(() => ({})); linkEmail(c.get('sid'), b.address, !!b.share); return c.json({ ok: true }); });
+// "Report to Sound" from the app: Second Look files the report for what it already saw (a call or a forwarded email).
+app.post('/api/report', async c => {
+  const b = await c.req.json().catch(() => ({})), sid = c.get('sid');
+  if (b.channel === 'email') { await reportEmailById(sid, Number(b.id)); return c.json({ ok: true }); }
+  const g = callState(chatKey(c));
+  if (!g || !g.lines.length) return c.json({ error: 'Nothing to report yet' }, 400);
+  await fileReport(sid, normalize({ summary: g.summary ?? 'The member used Call guardian on a call with warning signs.', asked_for: g.alerts.map(a => a.label).join(', '), money_sent: false, tactics: g.alerts.map(a => a.label), quotes: g.alerts.map(a => a.quote).slice(0, 3) }, 'call guardian', 'Sound app member, number on file'));
+  return c.json({ ok: true });
+});
 app.post('/api/email/unlink', c => { unlinkEmail(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/phone/unlink', c => { unlink(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/phone/call_me', async c => {

@@ -3,7 +3,7 @@
 export type Tactic = { key: string; label: string };
 const RULES: { key: string; label: string; re: RegExp }[] = [
   { key: 'secrecy', label: 'Asked to keep it secret', re: /\b(secret|don.?t tell|not to tell|keep (it|this) (quiet|between)|no ?one can know|nobody can know)/i },
-  { key: 'urgency', label: 'Pressure to hurry', re: /\b(right now|right away|today|tonight|immediately|hurry|urgent|asap|deadline|within (an|the|one) hour|before it.?s too late)\b/i },
+  { key: 'urgency', label: 'Pressure to hurry', re: /\b(right now|right away|today|tonight|immediately|hurry|urgent|asap|deadline|within (an|the|one|\d+) (hour|hours|minutes|days?)|before it.?s too late)\b/i },
   { key: 'family', label: 'Emergency involving family', re: /\b(jail|bail|arrest(ed)?|accident|hospital|lawyer|attorney|grand(son|daughter|child))\b/i },
   { key: 'authority', label: 'Someone claiming authority', re: /\b(police|irs|fbi|federal|agent|sheriff|government|social security|fraud (team|department)|from (the|my) (bank|credit union))\b/i },
   { key: 'payment', label: 'Unusual way to pay', re: /\b(gift ?cards?|crypto|bitcoin|courier|cash pick ?up|zelle me|wire it)\b/i },

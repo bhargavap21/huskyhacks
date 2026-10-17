@@ -430,3 +430,8 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 
 .feels-ways { margin: var(--space-3) 0 0; color: var(--ink-muted); }
 .feels-ways button.quiet { min-height: 36px; padding: 0 var(--space-1); }
+
+/* Fraud reports Second Look filed for the member, in the console queue. */
+.fraud-report { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-left: 3px solid var(--risk); background: var(--surface-band); }
+.fraud-report p { margin: 0 0 var(--space-2); }
+.fraud-report blockquote { margin: 0 0 var(--space-1); font-size: 14px; color: var(--ink-muted); font-style: italic; }

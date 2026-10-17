@@ -46,7 +46,7 @@ type World = {
   confirm_code: { code: string; pid: string; sent_to: string; why: string } | null; ended: boolean;
   next_case: number; seen: number;
   policy: PolicyState; notifications: { ts: number; text: string; case_id: number }[];
-  callbacks: { id: number; ts: number; reason: string; source: string; urgent: boolean; status: 'waiting' | 'done'; note: string }[];
+  callbacks: { id: number; ts: number; reason: string; source: string; urgent: boolean; status: 'waiting' | 'done'; note: string; report?: FraudReport }[];
 };
 
 // One simulation per browser session so viewers don't interfere with each other.
@@ -287,6 +287,16 @@ export function requestCallback(kind: string, caseId: number) {
   w.callbacks.unshift({ id, ts: w.sim, reason: r.text, source, urgent: r.urgent, status: 'waiting', note: '' });
   audit('member', 'callback_requested', `${kind} from ${source}`);
   if (caseId) { const c = w.cases.find(x => x.id === caseId); if (c) { c.callback_requested = true; act(c, 'member', 'asked_to_talk', r.text); } }
+  return id;
+}
+/** What Second Look tells Sound's fraud team when the member agrees (from chat, a phone call, email or the app). */
+export type FraudReport = { channel: 'chat' | 'phone' | 'email' | 'call guardian' | 'app'; summary: string; asked_for: string; money_sent: boolean; tactics: string[]; quotes: string[]; contact: string };
+export function fraudReport(r: FraudReport) {
+  const open = w.callbacks.find(x => x.status === 'waiting' && x.report && x.report.channel === r.channel);
+  if (open) { open.report = r; open.urgent = open.urgent || r.money_sent; return open.id; } // one open report per channel, kept up to date
+  const id = w.callbacks.length + 1;
+  w.callbacks.unshift({ id, ts: w.sim, reason: r.money_sent ? 'Second Look report: money may already be gone, start recovery' : 'Second Look report: member facing a possible scam', source: `Filed by Second Look from ${r.channel}, at the member’s request`, urgent: true, status: 'waiting', note: '', report: r });
+  audit('second-look', 'fraud_report', `${r.channel}: ${r.summary.slice(0, 200)}`);
   return id;
 }
 export function callbackDone(id: number, note: string) {

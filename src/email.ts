@@ -10,6 +10,7 @@
 import { db } from './db.ts';
 import { client, MODEL } from './chat.ts';
 import { tacticsIn } from './tactics.ts';
+import { fileReport, normalize } from './reports.ts';
 
 const KEY = process.env.AGENTMAIL_API_KEY;
 export const INBOX = process.env.AGENTMAIL_INBOX_ID ?? null;
@@ -40,6 +41,7 @@ export type Report = {
   from: string; subject: string; received: number; kind: 'forwarded' | 'question';
   tactics: { key: string; label: string }[]; links: { domain: string; note: string | null }[]; numbers: string[];
   reply: string; reply_source: 'claude' | 'offline'; sent: boolean;
+  thread_id?: string; reported?: boolean;
 };
 
 export function emailState(sid: string) {
@@ -120,6 +122,28 @@ export async function draftReply(subject: string, body: string, attachNames: str
   return { forwarded, found, reply, source };
 }
 
+const FOOTER = `\n\n—\nSecond Look never asks for codes or passwords and never moves money. This is a concept demo for HuskyHack 2026.`;
+
+// File a fraud report for a forwarded email (also used by the app's "Report to Sound" button).
+export async function reportEmail(sid: string, from: string, r: Report) {
+  const links = r.links.map(l => l.note ? `${l.domain} (${l.note})` : l.domain);
+  const finding = r.reply.replace(/\s+/g, ' ').replace(/Second Look\s*$/, '').trim().slice(0, 320);
+  return fileReport(sid, normalize({
+    summary: `The member forwarded a message to Second Look: "${r.subject}". ${links.length ? `Links in it: ${links.join('; ')}. ` : ''}${r.numbers.length ? `Phone numbers in it: ${r.numbers.join(', ')}. ` : ''}Second Look's read: ${finding}`,
+    asked_for: r.tactics.map(t => t.label).join(', '), money_sent: false,
+    tactics: r.tactics.map(t => t.label), quotes: [],
+  }, 'email', `email ${mask(from)}`));
+}
+
+export async function reportEmailById(sid: string, id: number) {
+  const row = db.prepare('SELECT report FROM email_reports WHERE id = ? AND sid = ?').get(id, sid) as { report: string } | undefined;
+  if (!row) throw new EmailError('That email report is gone');
+  const r = JSON.parse(row.report) as Report;
+  await reportEmail(sid, r.from, r);
+  r.reported = true;
+  db.prepare('UPDATE email_reports SET report = ? WHERE id = ?').run(JSON.stringify(r), id);
+}
+
 const recent = new Map<string, number[]>(); // per-sender replies in the last hour (abuse guard)
 
 async function handle(m: any, keyFor: (sid: string) => string) {
@@ -132,20 +156,41 @@ async function handle(m: any, keyFor: (sid: string) => string) {
   recent.set(from, [...hits, Date.now()]);
 
   const full = await api('GET', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}`);
+  const own = String(full.extracted_text ?? '').trim(); // the member's own new words, without quoted or forwarded text
+  const send = (text: string) => api('POST', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}/reply`, { to: [from], text: text + FOOTER });
+
+  // "Yes" to our offer: report the email we already looked at in this thread.
+  if (/^\s*re:/i.test(full.subject ?? '') && /^\s*(yes|yep|yeah|ok(ay)?|sure|please( do)?|go ahead|report( it)?)\b/i.test(own)) {
+    const row = (db.prepare('SELECT id, report FROM email_reports WHERE sid = ? ORDER BY id DESC LIMIT 5').all(link.sid) as { id: number; report: string }[])
+      .find(x => (JSON.parse(x.report) as Report).thread_id === full.thread_id);
+    if (row) {
+      const prev = JSON.parse(row.report) as Report;
+      if (!prev.reported) {
+        await reportEmail(link.sid, from, prev);
+        prev.reported = true;
+        db.prepare('UPDATE email_reports SET report = ? WHERE id = ?').run(JSON.stringify(prev), row.id);
+      }
+      await send('Done. I’ve passed this to Sound’s fraud team with what I found, and a Sound team member will call you on the number on file. Please don’t reply to the original message or use its links in the meantime.\n\nSecond Look').catch(e => console.error('email: reply failed:', e.message));
+      return;
+    }
+  }
   // Full text, not extracted_text: extraction can drop the forwarded email we need to look at.
   const body = String(full.text ?? full.extracted_text ?? full.preview ?? '').slice(0, 12_000);
   const subject = String(full.subject ?? '').slice(0, 200);
   const attachNames = (full.attachments ?? []).map((a: any) => a.filename).filter(Boolean).slice(0, 5);
   const { forwarded, found, reply, source } = await draftReply(subject, body, attachNames);
-  const footer = `\n\n—\nSecond Look never asks for codes or passwords and never moves money. This is a concept demo for HuskyHack 2026.`;
+  // The member's own note asks us to report it: do it now. Otherwise offer, when there's something worth reporting.
+  const askedToReport = /\b(report (it|this)|tell sound|let sound know|notify sound|flag (it|this))\b/i.test(own);
+  const worth = found.tactics.length > 0 || found.links.some(l => l.note && !l.note.startsWith('This is')) || forwarded;
+  const extra = askedToReport ? '\n\nYou asked me to report this, so I’ve passed it to Sound’s fraud team. A Sound team member will call you on the number on file.'
+    : worth ? '\n\nWant me to tell Sound’s fraud team? Reply YES to this email and I’ll pass it on with what I found. Someone from Sound will call you.' : '';
 
   let sent = false;
-  try {
-    await api('POST', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}/reply`, { to: [from], text: reply + footer });
-    sent = true;
-  } catch (e) { console.error('email: reply failed:', (e as Error).message); }
+  try { await send(reply + extra); sent = true; } catch (e) { console.error('email: reply failed:', (e as Error).message); }
 
   const report: Report = { from: mask(from), subject, received: Date.parse(m.timestamp) || Date.now(), kind: forwarded ? 'forwarded' : 'question', tactics: found.tactics, links: found.links, numbers: found.numbers, reply, reply_source: source, sent };
+  report.thread_id = full.thread_id;
+  if (askedToReport) { await reportEmail(link.sid, from, report); report.reported = true; }
   db.prepare('INSERT INTO email_reports (sid, ts, subject, report) VALUES (?, ?, ?, ?)').run(link.sid, Date.now(), subject, JSON.stringify(report));
   keyFor(link.sid); // touch the member's world so their app picks it up on the next poll
 }

@@ -146,7 +146,7 @@ function homeView() {
     <div class="row small"><span class="in-badge in-badge--neutral">Second Look: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="in-badge in-badge--neutral">Kit replay: Second Look not in use</span>' : ''}</div></div>`;
   if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
-  const feelsOff = `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money or contacts anyone for you.</p><div class="row"><button class="primary" data-act="chat_general">Ask Second Look</button>${S.cases[0] ? `<button class="quiet" data-act="report" data-pid="${S.cases[0].pid}">Report a scam</button>` : ''}</div>
+  const feelsOff = `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money, and only tells Sound’s fraud team when you ask it to.</p><div class="row"><button class="primary" data-act="chat_general">Ask Second Look</button>${S.cases[0] ? `<button class="quiet" data-act="report" data-pid="${S.cases[0].pid}">Report a scam</button>` : ''}</div>
     <p class="small feels-ways">Other ways to get a second look: <button class="quiet" data-page="guardian">Bring it into a call</button> · <button class="quiet" data-page="email">Forward it an email</button></p></div>`;
   const recent = S.payments.slice(0, 4);
   const recentCard = `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
@@ -317,6 +317,15 @@ const RECOVERY = `If money already went out, every hour matters:
 - You can also report it to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).
 You did the right thing by speaking up.`;
 
+// A report Second Look filed for the member: what happened, in their words, ready for the callback.
+function fraudDetail(r) {
+  return `<div class="fraud-report"><p>${esc(r.summary)}</p>
+    ${r.asked_for ? `<p class="small"><b>Asked for:</b> ${esc(r.asked_for)}</p>` : ''}
+    ${r.tactics.length ? `<div class="row">${r.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${r.quotes.length ? r.quotes.map(q => `<blockquote>“${esc(q)}”</blockquote>`).join('') : ''}
+    <p class="small muted">Contact: ${esc(r.contact)}. Call on the number on file, never one from the scam.</p></div>`;
+}
+
 /* ---------------- Email check ---------------- */
 // Members forward an email that feels off (or ask a question) to Second Look's inbox and get a reply.
 // Only mail from the address they link here is read; everything else is left unread.
@@ -327,6 +336,7 @@ function emailReport(r, staff = false) {
     <div class="g-head"><b>${esc(r.subject || '(no subject)')}</b><span class="small muted">${r.kind === 'forwarded' ? 'Forwarded' : 'Question'} · ${emAgo(r.received)}</span></div>
     ${r.tactics.length ? `<div class="row">${r.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t.label)}</span>`).join('')}</div>` : ''}
     ${flagged.length ? `<ul class="em-links">${flagged.map(l => `<li><b>${esc(l.domain)}</b>: ${esc(l.note)}</li>`).join('')}</ul>` : ''}
+    ${staff ? '' : r.reported ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : `<div class="row"><button data-act="em_report" data-id="${r.id}">Report to Sound</button></div>`}
     ${staff ? '' : det('em-' + r.id, r.sent ? 'Second Look’s reply (also in your email)' : 'Second Look’s reply', `<div class="msg assistant">${fmtReply(r.reply)}</div>`)}
   </li>`;
 }
@@ -358,7 +368,7 @@ function emailCard() {
 /* ---------------- Call guardian ---------------- */
 // Second Look listens to a call on speaker: ~4 s chunks go to the server, which transcribes them (local Whisper,
 // audio not kept) and returns any new warning signs. G holds the browser-side capture while a call is live.
-let G = null;
+let G = null, reportedCall = null;
 // Call timer for any live call (speaker or phone), from the server's start time.
 setInterval(() => { const el = $('#g-time'); if (el && el.dataset.since && !G) el.textContent = mmss((Date.now() - Number(el.dataset.since)) / 1000); }, 500);
 const LEVEL = {
@@ -414,7 +424,7 @@ function guardianView() {
   return `<div class="card guardian"><div class="g-head"><span class="in-badge in-badge--${tone}">${word}</span><span class="small muted">Call ended · ${mmss((g.ended - g.started) / 1000)}</span></div>
       <h2>${g.alerts.length ? 'Before you do anything' : 'Call summary'}</h2>
       <div class="msg assistant">${fmtReply(g.summary)}</div>${g.summary_source === 'offline' ? '<p class="small muted">offline summary</p>' : ''}
-      <div class="row"><button class="primary" data-act="g_talk">Talk to a person at Sound</button>${S.phone && S.phone.can_call_me ? '<button data-act="ph_call_me">Have Second Look call me</button>' : ''}<button data-act="chat_general">Talk it through</button><button class="quiet" data-act="g_reset">Listen to another call</button></div></div>
+      <div class="row">${g.alerts.length ? (reportedCall === g.started ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : '<button class="primary" data-act="g_report">Report this call to Sound</button>') : ''}<button ${g.alerts.length ? '' : 'class="primary"'} data-act="g_talk">Talk to a person at Sound</button>${S.phone && S.phone.can_call_me ? '<button data-act="ph_call_me">Have Second Look call me</button>' : ''}<button data-act="chat_general">Talk it through</button><button class="quiet" data-act="g_reset">Listen to another call</button></div></div>
     ${g.alerts.length ? `<div class="card"><h3>Warning signs I heard</h3><ul class="g-alerts">${alertList}</ul></div>` : ''}`;
 }
 
@@ -585,7 +595,7 @@ function chatView() {
         <button class="composer-icon" data-act="rec_start" ${rec ? 'disabled' : ''} aria-label="Record a voice note" title="Record a voice note">${ICON.mic}</button>
         <button class="primary composer-send" data-act="send" aria-label="Send">${ICON.up}</button>
         <input type="file" id="chatfile" accept="image/*,application/pdf,audio/*,.m4a,.mp3,.wav" multiple hidden></div>
-      <p class="chat-note">Second Look can’t move money or contact anyone. You decide.</p>
+      <p class="chat-note">Second Look can’t move money. It tells Sound’s fraud team only if you say so. You decide.</p>
     </div></div>`;
 }
 
@@ -610,7 +620,7 @@ function employeeView() {
   // One work queue: members asking to talk (urgent first), then payments waiting on people, then done.
   const waiting = S.callbacks.filter(x => x.status === 'waiting').sort((a, b) => b.urgent - a.urgent);
   const doneCb = S.callbacks.filter(x => x.status !== 'waiting');
-  const cbRow = x => `<tr class="cbrow ${x.status}"><td>${esc(S.member.id)}</td><td>${x.urgent ? '<span class="in-badge in-badge--risk">Urgent</span>' : '<span class="in-badge in-badge--neutral">Asked to talk</span>'}</td><td>${esc(x.reason)}<div class="small muted">${esc(x.source)} · ${esc(x.ts_text.split(' ')[1])}${x.status === 'done' ? ` · done: ${esc(x.note)}` : ''}</div></td>
+  const cbRow = x => `<tr class="cbrow ${x.status}"><td>${esc(S.member.id)}</td><td>${x.urgent ? '<span class="in-badge in-badge--risk">Urgent</span>' : '<span class="in-badge in-badge--neutral">Asked to talk</span>'}</td><td>${esc(x.reason)}<div class="small muted">${esc(x.source)} · ${esc(x.ts_text.split(' ')[1])}${x.status === 'done' ? ` · done: ${esc(x.note)}` : ''}</div>${x.report ? fraudDetail(x.report) : ''}</td>
     <td colspan="2">${x.status === 'waiting' ? `<div class="row"><button data-act="cb_done" data-id="${x.id}">Called the member</button>${x.reason.includes('money already') ? '<button data-act="cb_done" data-id="' + x.id + '" data-note="Recovery request started">Start recovery</button>' : ''}</div>` : 'Done'}</td></tr>`;
   const n = waiting.length + open.length;
   let out = guardianCard() + emailCard() + sharedCard('general') + `<div class="card queue"><div class="console-head"><h2>Work queue <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">${n ? `${n} waiting on a person` : 'Nothing waiting'} · requests first, then by hold time left</span></div>
@@ -723,7 +733,7 @@ document.addEventListener('click', async e => {
       const pend = { role: 'assistant', text: att.some(a => a.kind === 'audio') ? 'Listening to your voice note…' : att.length ? 'Looking at what you shared…' : 'Second Look is thinking…', pending: true }; chatLog.push(pend); render(true);
       const j = await post('chat/' + chatCase, { text: t, attachments: att.map(({ preview, ...a }) => a) });
       chatLog.splice(chatLog.indexOf(pend), 1);
-      if (j && j.reply) { if (j.att && j.att.length) mine.att = j.att; chatLog.push({ role: 'assistant', text: j.reply, source: j.source }); }
+      if (j && j.reply) { if (j.att && j.att.length) mine.att = j.att; chatLog.push({ role: 'assistant', text: j.reply, source: j.source }); if (j.reported) toast('Second Look reported this to Sound’s fraud team. Someone will call you.'); }
       else if (att.length) { chatLog.splice(chatLog.indexOf(mine), 1); pendingAtt = att; } // keep the files so the member can try again
       return render(true); }
     case 'g_start': return gStart(b.dataset.src);
@@ -731,6 +741,8 @@ document.addEventListener('click', async e => {
     case 'ph_unlink': return post('phone/unlink');
     case 'em_link': { const j = await post('email/link', { address: $('#em-addr').value, share: $('#em-share').checked }); if (j && j.ok) toast('Email linked. Forward a message to Second Look to try it.'); return; }
     case 'em_unlink': return post('email/unlink');
+    case 'em_report': { const j = await post('report', { channel: 'email', id: Number(b.dataset.id) }); if (j && j.ok) toast('Reported. Sound’s fraud team has what Second Look found, and someone will call you.'); return; }
+    case 'g_report': { const j = await post('report', { channel: 'call guardian' }); if (j && j.ok) { reportedCall = S.guardian.started; toast('Reported. Sound’s fraud team has the warnings from this call, and someone will call you.'); render(true); } return; }
     case 'ph_call_me': { const j = await post('phone/call_me', { caseId: S.cases.find(c => c.status === 'open')?.id }); if (j && j.ok) toast('Second Look is calling your phone now.'); return; }
     case 'g_stop': return gStop();
     case 'g_hangup': gStop(); await post('callback', { kind: 'talk', caseId: 0 }); return toast('Hang up now. A Sound team member will call you at the number on file.');
