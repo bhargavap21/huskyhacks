@@ -435,3 +435,5 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 .fraud-report { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-left: 3px solid var(--risk); background: var(--surface-band); }
 .fraud-report p { margin: 0 0 var(--space-2); }
 .fraud-report blockquote { margin: 0 0 var(--space-1); font-size: 14px; color: var(--ink-muted); font-style: italic; }
+.fr-kv { margin: 0 0 var(--space-2); font-size: 14px; }
+.fr-steps { margin: var(--space-1) 0 0; padding-left: var(--space-5); font-size: 14px; }

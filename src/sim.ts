@@ -1,6 +1,7 @@
 // Simulated Sound environment: replays one member's kit timeline on a compressed clock and,
 // in "with Second Look" mode, runs the rules and the enforced payment state machine.
 // Nothing here touches real money, accounts, or Sound systems.
+import type { FraudCase } from './reports.ts';
 import { memberEvents, historyUpTo, type KitEvent } from './kit.ts';
 import { score, primary, type Finding, HOLDABLE } from './rules.ts';
 import { newPayment, transition, TERMINAL, TransitionError, type Payment, type Gate } from './payments.ts';
@@ -290,7 +291,7 @@ export function requestCallback(kind: string, caseId: number) {
   return id;
 }
 /** What Second Look tells Sound's fraud team when the member agrees (from chat, a phone call, email or the app). */
-export type FraudReport = { channel: 'chat' | 'phone' | 'email' | 'call guardian' | 'app'; summary: string; asked_for: string; money_sent: boolean; tactics: string[]; quotes: string[]; contact: string };
+export type FraudReport = FraudCase;
 export function fraudReport(r: FraudReport) {
   const open = w.callbacks.find(x => x.status === 'waiting' && x.report && x.report.channel === r.channel);
   if (open) { open.report = r; open.urgent = open.urgent || r.money_sent; return open.id; } // one open report per channel, kept up to date

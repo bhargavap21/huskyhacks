@@ -15,7 +15,7 @@ import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
 import { phoneState, link, unlink, callMe, watchCalls, PhoneError } from './phone.ts';
 import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError, reportEmailById } from './email.ts';
-import { fileReport, normalize } from './reports.ts';
+import { fileReport, normalize, extractIntake } from './reports.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -119,7 +119,9 @@ app.post('/api/report', async c => {
   if (b.channel === 'email') { await reportEmailById(sid, Number(b.id)); return c.json({ ok: true }); }
   const g = callState(chatKey(c));
   if (!g || !g.lines.length) return c.json({ error: 'Nothing to report yet' }, 400);
-  await fileReport(sid, normalize({ summary: g.summary ?? 'The member used Call guardian on a call with warning signs.', asked_for: g.alerts.map(a => a.label).join(', '), money_sent: false, tactics: g.alerts.map(a => a.label), quotes: g.alerts.map(a => a.quote).slice(0, 3) }, 'call guardian', 'Sound app member, number on file'));
+  const base = { summary: g.summary ?? 'The member used Call guardian on a call with warning signs.', contact_method: 'phone call (Call guardian listened)', tactics: g.alerts.map(a => a.label), quotes: g.alerts.map(a => a.quote).slice(0, 3) };
+  const d = await extractIntake('You read the automatic transcript of a phone call a credit union member let Second Look listen to. The other voice is the caller who contacted the member. Fill the fraud case: the threat details come from what the caller said.', g.lines.map(l => (l.who === 'second-look' ? 'Second Look: ' : '') + l.text).join('\n')).catch(() => null);
+  await fileReport(sid, normalize({ ...base, ...(d ?? {}), tactics: [...new Set([...(d?.tactics ?? []), ...base.tactics])] }, 'call guardian', { linked: true }));
   return c.json({ ok: true });
 });
 app.post('/api/email/unlink', c => { unlinkEmail(c.get('sid')); return c.json({ ok: true }); });

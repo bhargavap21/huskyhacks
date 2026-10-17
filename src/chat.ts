@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { db } from './db.ts';
 import { caseForChat } from './sim.ts';
 import { type Attachment, audioText } from './media.ts';
-import { fileReport, normalize } from './reports.ts';
+import { fileReport, normalize, INTAKE_SCHEMA } from './reports.ts';
 
 const key = process.env.ANTHROPIC_API_KEY ?? process.env.LLM_API_KEY;
 export const client = key ? new Anthropic({ apiKey: key }) : null;
@@ -14,7 +14,7 @@ const FALLBACK_MODELS = new Set(['claude-opus-5-5', 'claude-opus-5', 'claude-fab
 const SYSTEM = `You are Second Look, a security helper inside a credit union app (a concept demo on synthetic data).
 You help a member think through a payment, message or request that may be worth a second look. Rules you never break:
 - You never move or release money, click links, contact anyone outside Sound, or change any setting. If asked, say plainly you can't, and say what the member can do themselves.
-- The one thing you can do for the member: file a report with Sound's fraud team (tool report_to_sound). Offer it once, in one sentence, when the member describes warning signs, says money already went out, or shared a code: "Would you like me to tell Sound's fraud team now? I'll pass on what you've told me and someone will call you." Call the tool only after the member clearly says yes, or asks you to report it or tell Sound. Never call it otherwise. Once it succeeds, say it's done and that a Sound team member will call them on the number on file.
+- The one thing you can do for the member: file a report with Sound's fraud team (tool report_to_sound). Offer it once, in one sentence, when the member describes warning signs, says money already went out, or shared a code: "Would you like me to tell Sound's fraud team now? I'll pass on what you've told me and someone will call you." Call the tool only after the member clearly says yes, or asks you to report it or tell Sound. Never call it otherwise. The member is signed in, so Sound already has their name and number; don't ask for those. Before filing, if you don't know them yet, ask in ONE short message for what the fraud team needs most: who contacted them and how (and the number, email or website used), what they asked for (amount and how to pay), whether any money was already sent, and whether they shared any codes, passwords or card numbers or let anyone into their computer. Their yes stands: never ask for consent again in this conversation. As soon as they answer your questions (or say they don't know), call report_to_sound in that same turn. If money already went out or a code was shared, file right away with what you have. Never ask for full card or account numbers, SSNs, PINs, passwords or codes. Once it succeeds, say it's done, give the case number, and say a Sound team member will call them on the number on file.
 - Never say a payment is definitely a scam or definitely safe. Never call any person a scammer or malicious; talk about the request and the evidence.
 - Quote the case evidence you are given when you use it. Say what you cannot tell.
 - Suggest independent verification: call the person on a number the member already had (not one from the request), visit a branch, type the credit union's website themselves, ask someone not involved in the payment.
@@ -89,17 +89,7 @@ function content(rows: Row[]) {
 const REPORT_TOOL = {
   name: 'report_to_sound',
   description: "File a fraud report with Sound Credit Union's fraud team on the member's behalf. Use ONLY after the member clearly agreed in this conversation, or asked you to report it or tell Sound. The report goes to Sound's employee work queue; a Sound employee calls the member back on the number on file.",
-  input_schema: {
-    type: 'object',
-    properties: {
-      summary: { type: 'string', description: 'Two or three plain sentences: what happened, who contacted the member and how, what they were asked to do. Facts the member gave; no verdict.' },
-      asked_for: { type: 'string', description: 'What the member was asked for (e.g. "a $2,000 wire", "a one-time code", "gift cards").' },
-      money_sent: { type: 'boolean', description: 'True if the member said money already went out.' },
-      tactics: { type: 'array', items: { type: 'string' }, description: 'Pressure patterns noticed, short labels like "urgency", "secrecy", "claims to be the credit union".' },
-      quotes: { type: 'array', items: { type: 'string' }, description: 'Up to 3 short quotes from what the member said or shared.' },
-    },
-    required: ['summary', 'money_sent'],
-  },
+  input_schema: INTAKE_SCHEMA,
 };
 
 export async function chat(scene: string, caseId: number, text: string, att: Attachment[] = []): Promise<{ reply: string; source: 'claude' | 'offline'; att: ReturnType<typeof attView>; reported: boolean }> {
@@ -125,9 +115,9 @@ export async function chat(scene: string, caseId: number, text: string, att: Att
       // The member agreed: file the report, then let Claude tell them it's done.
       const use = r.content.find((b: any) => b.type === 'tool_use' && b.name === 'report_to_sound') as any;
       if (use && r.stop_reason === 'tool_use') {
-        const out = await fileReport(scene.split(':')[0], normalize(use.input, 'chat', 'Sound app member, number on file'));
+        const out = await fileReport(scene.split(':')[0], normalize(use.input, 'chat', { linked: true }));
         reported = true;
-        final = await client.messages.create({ ...params, messages: [...params.messages, { role: 'assistant', content: r.content }, { role: 'user', content: [{ type: 'tool_result', tool_use_id: use.id, content: `Filed. In the employee work queue as urgent${out.emailed ? ', and emailed to the fraud team' : ''}. A Sound team member will call the member on the number on file.` }] }] } as any, { timeout: 45_000 });
+        final = await client.messages.create({ ...params, messages: [...params.messages, { role: 'assistant', content: r.content }, { role: 'user', content: [{ type: 'tool_result', tool_use_id: use.id, content: `Filed as case ${out.case_id}. In the employee work queue as urgent${out.emailed ? ', and emailed to the fraud team' : ''}. A Sound team member will call the member on the number on file.` }] }] } as any, { timeout: 45_000 });
       }
       if (final.stop_reason !== 'refusal') {
         reply = final.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n').trim();
@@ -140,7 +130,7 @@ export async function chat(scene: string, caseId: number, text: string, att: Att
   }
   // Offline: the member explicitly asks to report it, so file with what they typed.
   if (!reply && /\b(report (it|this)|tell sound|let sound know|notify sound|yes,? (please )?(report|tell))\b/i.test(msg)) {
-    await fileReport(scene.split(':')[0], normalize({ summary: chatHistory(scene, caseId).filter((m: any) => m.role === 'user').map((m: any) => m.text).join(' ').slice(-600), money_sent: /\b(sent|paid|transferred|wired)\b/i.test(msg) }, 'chat', 'Sound app member, number on file'));
+    await fileReport(scene.split(':')[0], normalize({ summary: chatHistory(scene, caseId).filter((m: any) => m.role === 'user').map((m: any) => m.text).join(' ').slice(-600), money_sent: /\b(sent|paid|transferred|wired)\b/i.test(msg) ? true : undefined }, 'chat', { linked: true }));
     reported = true;
     reply = 'Done. I’ve told Sound’s fraud team what you shared, and a Sound team member will call you on the number on file.';
   }

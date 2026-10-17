@@ -10,7 +10,7 @@
 import { db } from './db.ts';
 import { client, MODEL } from './chat.ts';
 import { tacticsIn } from './tactics.ts';
-import { fileReport, normalize } from './reports.ts';
+import { fileReport, normalize, extractIntake } from './reports.ts';
 
 const KEY = process.env.AGENTMAIL_API_KEY;
 export const INBOX = process.env.AGENTMAIL_INBOX_ID ?? null;
@@ -42,6 +42,7 @@ export type Report = {
   tactics: { key: string; label: string }[]; links: { domain: string; note: string | null }[]; numbers: string[];
   reply: string; reply_source: 'claude' | 'offline'; sent: boolean;
   thread_id?: string; reported?: boolean;
+  excerpt?: string; // the forwarded text, kept only for filing a case (never shown)
 };
 
 export function emailState(sid: string) {
@@ -125,21 +126,30 @@ export async function draftReply(subject: string, body: string, attachNames: str
 const FOOTER = `\n\n—\nSecond Look never asks for codes or passwords and never moves money. This is a concept demo for HuskyHack 2026.`;
 
 // File a fraud report for a forwarded email (also used by the app's "Report to Sound" button).
-export async function reportEmail(sid: string, from: string, r: Report) {
-  const links = r.links.map(l => l.note ? `${l.domain} (${l.note})` : l.domain);
-  const finding = r.reply.replace(/\s+/g, ' ').replace(/Second Look\s*$/, '').trim().slice(0, 320);
-  return fileReport(sid, normalize({
-    summary: `The member forwarded a message to Second Look: "${r.subject}". ${links.length ? `Links in it: ${links.join('; ')}. ` : ''}${r.numbers.length ? `Phone numbers in it: ${r.numbers.join(', ')}. ` : ''}Second Look's read: ${finding}`,
-    asked_for: r.tactics.map(t => t.label).join(', '), money_sent: false,
-    tactics: r.tactics.map(t => t.label), quotes: [],
-  }, 'email', `email ${mask(from)}`));
+export async function reportEmail(sid: string, r: Report, memberNote = '') {
+  const linked = (db.prepare('SELECT address FROM email_links WHERE sid = ?').get(sid) as { address: string } | undefined)?.address ?? '';
+  const flagged = r.links.filter(l => l.note && !l.note.startsWith('This is')).map(l => l.domain);
+  const base = {
+    summary: `The member forwarded a message to Second Look: "${r.subject}".`,
+    contact_method: 'email or text (forwarded to Second Look)',
+    scammer_website: flagged[0] ?? r.links[0]?.domain ?? '', scammer_phone: r.numbers[0] ?? '',
+    tactics: r.tactics.map(t => t.label),
+  };
+  // Fill the case from the forwarded message and anything the member added (their name, number, money sent).
+  const d = await extractIntake(
+    'You read a message a credit union member forwarded to Second Look (a scam-protection helper), Second Look’s analysis, and the member’s own note. Fill the fraud case. The contact’s details come from the forwarded message; the member details and what they did come from the member’s note.',
+    `Member’s own note: ${memberNote || '(none)'}\n\nForwarded message, subject "${r.subject}":\n${r.excerpt ?? '(not kept)'}\n\nSecond Look’s analysis:\n${r.reply}`,
+  ).catch(e => { console.error('email: could not read the case details:', e.message); return null; });
+  const raw = { ...base, ...(d ?? {}) };
+  raw.tactics = [...new Set([...(d?.tactics ?? []), ...base.tactics])];
+  return fileReport(sid, normalize(raw, 'email', { email: linked, linked: true }));
 }
 
 export async function reportEmailById(sid: string, id: number) {
   const row = db.prepare('SELECT report FROM email_reports WHERE id = ? AND sid = ?').get(id, sid) as { report: string } | undefined;
   if (!row) throw new EmailError('That email report is gone');
   const r = JSON.parse(row.report) as Report;
-  await reportEmail(sid, r.from, r);
+  await reportEmail(sid, r);
   r.reported = true;
   db.prepare('UPDATE email_reports SET report = ? WHERE id = ?').run(JSON.stringify(r), id);
 }
@@ -166,7 +176,7 @@ async function handle(m: any, keyFor: (sid: string) => string) {
     if (row) {
       const prev = JSON.parse(row.report) as Report;
       if (!prev.reported) {
-        await reportEmail(link.sid, from, prev);
+        await reportEmail(link.sid, prev, own);
         prev.reported = true;
         db.prepare('UPDATE email_reports SET report = ? WHERE id = ?').run(JSON.stringify(prev), row.id);
       }
@@ -183,14 +193,15 @@ async function handle(m: any, keyFor: (sid: string) => string) {
   const askedToReport = /\b(report (it|this)|tell sound|let sound know|notify sound|flag (it|this))\b/i.test(own);
   const worth = found.tactics.length > 0 || found.links.some(l => l.note && !l.note.startsWith('This is')) || forwarded;
   const extra = askedToReport ? '\n\nYou asked me to report this, so I’ve passed it to Sound’s fraud team. A Sound team member will call you on the number on file.'
-    : worth ? '\n\nWant me to tell Sound’s fraud team? Reply YES to this email and I’ll pass it on with what I found. Someone from Sound will call you.' : '';
+    : worth ? '\n\nWant me to tell Sound’s fraud team? Reply YES to this email and I’ll pass it on with what I found. If you can, add your name, the best number to reach you, and whether you’ve sent any money or shared any codes. Someone from Sound will call you.' : '';
 
   let sent = false;
   try { await send(reply + extra); sent = true; } catch (e) { console.error('email: reply failed:', (e as Error).message); }
 
   const report: Report = { from: mask(from), subject, received: Date.parse(m.timestamp) || Date.now(), kind: forwarded ? 'forwarded' : 'question', tactics: found.tactics, links: found.links, numbers: found.numbers, reply, reply_source: source, sent };
   report.thread_id = full.thread_id;
-  if (askedToReport) { await reportEmail(link.sid, from, report); report.reported = true; }
+  report.excerpt = body.slice(0, 4000);
+  if (askedToReport) { await reportEmail(link.sid, report, own); report.reported = true; }
   db.prepare('INSERT INTO email_reports (sid, ts, subject, report) VALUES (?, ?, ?, ?)').run(link.sid, Date.now(), subject, JSON.stringify(report));
   keyFor(link.sid); // touch the member's world so their app picks it up on the next poll
 }

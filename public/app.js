@@ -319,11 +319,20 @@ You did the right thing by speaking up.`;
 
 // A report Second Look filed for the member: what happened, in their words, ready for the callback.
 function fraudDetail(r) {
-  return `<div class="fraud-report"><p>${esc(r.summary)}</p>
-    ${r.asked_for ? `<p class="small"><b>Asked for:</b> ${esc(r.asked_for)}</p>` : ''}
-    ${r.tactics.length ? `<div class="row">${r.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t)}</span>`).join('')}</div>` : ''}
-    ${r.quotes.length ? r.quotes.map(q => `<blockquote>“${esc(q)}”</blockquote>`).join('') : ''}
-    <p class="small muted">Contact: ${esc(r.contact)}. Call on the number on file, never one from the scam.</p></div>`;
+  if (!r.threat) return `<div class="fraud-report"><p>${esc(r.summary)}</p></div>`; // older reports
+  const th = r.threat, e = r.exposure, m = r.member;
+  const tone = { critical: 'risk', high: 'review', standard: 'neutral' }[r.priority];
+  const row = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : '';
+  const theirs = [th.scammer_name, th.scammer_phone, th.scammer_email, th.scammer_website].filter(Boolean).join(' · ');
+  const sent = e.money_sent ? [e.amount_sent || 'Yes', e.sent_method && `by ${e.sent_method}`, e.sent_when, e.sent_to && `to ${e.sent_to}`].filter(Boolean).join(', ') : e.money_sent === false ? 'No' : '';
+  return `<div class="fraud-report">
+    <div class="row"><span class="in-badge in-badge--${tone}">${{ critical: 'Critical', high: 'High', standard: 'Standard' }[r.priority]}</span><span class="small muted">${esc(r.case_id)} · ${esc(r.priority_reason)}</span></div>
+    <p>${esc(r.summary)}</p>
+    <dl class="kv fr-kv">${row('Member', [m.name, m.phone, m.email].filter(Boolean).join(' · ') || 'On file')}${row('Safe to call', m.safe_to_call)}${row('Threat', [th.type, th.claimed_identity && `claims to be ${th.claimed_identity}`].filter(Boolean).join(', '))}${row('Contacted by', [th.contact_method, th.first_contact].filter(Boolean).join(', '))}${row('Contact used', theirs)}${row('Asked for', r.asked_for)}${row('Deadline', th.deadline)}${row('Money sent', sent)}${row('Shared', e.info_shared.join(', '))}${row('Remote access', e.remote_access === true ? 'Yes' : '')}${row('Still in contact', e.still_in_contact === true ? 'Yes' : '')}</dl>
+    ${th.tactics.length ? `<div class="row">${th.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${r.quotes.map(q => `<blockquote>“${esc(q)}”</blockquote>`).join('')}
+    ${det('fr-steps-' + r.case_id, 'Suggested next steps', `<ol class="fr-steps">${r.next_steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`)}
+    ${r.missing.length ? `<p class="small muted"><b>Ask on the callback:</b> ${esc(r.missing.join(', '))}.</p>` : ''}</div>`;
 }
 
 /* ---------------- Email check ---------------- */
