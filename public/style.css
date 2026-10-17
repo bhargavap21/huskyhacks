@@ -16,7 +16,8 @@
   }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+html, body { overflow-x: hidden; }
+body { overflow-wrap: anywhere; margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
 button, select, input, textarea { font: inherit; }
 button { min-height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 8px 14px; cursor: pointer; }
 button.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); font-weight: 600; }
@@ -46,7 +47,7 @@ a { color: var(--brand); }
 .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: var(--panel); }
 .card h2, .card h3 { margin: 0 0 6px; font-size: 18px; }
 .banner { border-radius: var(--radius); padding: 14px; border: 1px solid var(--calm-line); background: var(--calm); color: var(--calm-ink); }
-.banner.urgent { border-color: var(--urgent-line); background: var(--urgent); color: var(--urgent-ink); }
+.banner.urgent { border: 2px solid var(--brand); background: var(--brand-soft); color: var(--ink); }
 .banner.ok { border-color: transparent; background: var(--ok); color: var(--ok-ink); }
 .banner h2 { margin: 0 0 6px; font-size: 19px; }
 .banner ul, .card ul { margin: 6px 0; padding-left: 20px; }
