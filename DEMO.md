@@ -42,6 +42,7 @@ Say these out loud every time:
 5. **Takeover pattern: M1003** (40 s, if time). Pre-submit check with confirmation to *pre-change* contact details. Show **Stop payment** refused, then **Takeover confirmed (scripted premise)**, then **Stop**. The second payment joins the same case. "The pattern routes to verification. It doesn't prove a takeover by itself."
 6. **Missed: M1102** (20 s). Only the standard banner shows.
 6b. **Before any payment: "Something feels off?"** (30 s). Open `/?chat=general&view=member` (or the card on the member home screen). Type "Someone from Sound's fraud team called and wants the code I just got by text." Second Look explains that a real credit union never asks for a texted code and asks whether the code was shared. Tap **Talk to a person at Sound**: the request appears for the employee under **Members asking to talk**. **I already sent money** shows recovery steps and flags the recovery team as urgent.
+6c. **A voice note or voicemail** (30 s). In the same "Something feels off?" chat, tap **Record a voice note** and read: "Grandma, it's me, I'm in jail, I need $2,000 by wire today, don't tell Mom." (Or attach a saved voicemail or a screenshot of the text.) Second Look shows the transcript and names the urgency, the emergency and the secrecy, without a verdict. If **Share this chat…** is ticked, the console shows the transcript with the same tags. "The member chooses what to show us. We never read her calls or texts."
 7. Slides: pilot (90 days, assumptions stated) and limits.
 
 ## If something breaks
