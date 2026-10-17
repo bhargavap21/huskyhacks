@@ -1,0 +1,2118 @@
+<!doctype html>
+<html lang="en" data-visualize-standalone>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Sound Simple Views</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe id="codex-visualization" sandbox="allow-scripts" referrerpolicy="no-referrer" title="Sound Simple Views" data-srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot; data-visualize-standalone&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;Sound Simple Views&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --icon-size: 16px;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --corner-shape: round;
+  --radius: var(--border-radius-lg, 10px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: var(--visualize-paint-gutter, 0px);
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+.cursor-interaction {
+  cursor: var(--cursor-interaction, pointer);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: var(--cursor-interaction, pointer);
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: var(--corner-shape);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card, .progress) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+hr {
+  width: 100%;
+  height: 1px;
+  margin-block: 6px;
+  border: 0;
+  background: var(--border);
+}
+
+.nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress {
+  display: flex;
+  height: 8px;
+  margin-block: calc((var(--line-height-normal, 1.5em) - 8px) / 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.progress-bar:only-child {
+  border-radius: var(--radius-full);
+}
+
+.progress-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: var(--viz-series-1);
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.nav-link,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn,
+.nav-link {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: var(--cursor-interaction, pointer);
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover,
+.nav-link:not(:disabled):not([aria-disabled=&quot;true&quot;]):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.nav-pills .nav-link {
+  min-width: 0;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.nav-justified .nav-link {
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.nav-pills .nav-link.active {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.btn:disabled,
+.nav-link:disabled,
+.nav-link[aria-disabled=&quot;true&quot;] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: var(--corner-shape);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+  [aria-pressed=&quot;true&quot;],
+  [aria-selected=&quot;true&quot;],
+  .is-selected
+) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible,
+.nav-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .btn,
+  .nav-link,
+  .form-control,
+  .form-select {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Keep small-screen WebKit from zooming when a text field receives focus. */
+  .form-control,
+  .form-select {
+    font-size: max(16px, var(--font-size-normal));
+  }
+
+  .form-control[type=&quot;file&quot;]::file-selector-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .form-control-color[type=&quot;color&quot;] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .form-control:is(
+    [type=&quot;date&quot;],
+    [type=&quot;datetime-local&quot;],
+    [type=&quot;month&quot;],
+    [type=&quot;time&quot;],
+    [type=&quot;week&quot;]
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    padding-block: 8px;
+  }
+
+  .form-check {
+    min-height: 44px;
+    padding-inline: 15px;
+  }
+
+  .form-check-input {
+    position: relative;
+  }
+
+  .form-check-input::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    content: &quot;&quot;;
+    transform: translate(-50%, -50%);
+  }
+
+  .form-check-label {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .form-range {
+    height: 44px;
+    touch-action: pan-y;
+  }
+
+  .form-range::-webkit-slider-runnable-track {
+    height: 44px;
+  }
+
+  .form-range::-moz-range-track {
+    height: 44px;
+  }
+
+  .form-range::-webkit-slider-thumb {
+    margin-top: 12px;
+  }
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;script type=&quot;application/json&quot; id=&quot;codex-visualization-widget-state&quot;&gt;__CODEX_VISUALIZATION_WIDGET_STATE__&lt;/script&gt;
+&lt;script&gt;(() =&gt; {
+  const root = document.documentElement;
+  const mediaQuery = globalThis.matchMedia(&quot;(prefers-color-scheme: dark)&quot;);
+  const apply = Reflect.apply;
+  const isArray = Array.isArray;
+  const hasOwn = Object.hasOwn;
+  const parentWindow = globalThis.parent;
+  const stringify = JSON.stringify;
+  const parse = JSON.parse;
+  const encode = TextEncoder.prototype.encode.bind(new TextEncoder());
+  const initialStateElement = document.getElementById(
+    &quot;codex-visualization-widget-state&quot;,
+  );
+  const initialGlobals = parse(initialStateElement?.textContent ?? &quot;{}&quot;);
+  initialStateElement?.remove();
+  /** @type {Record&lt;string, unknown&gt; | null} */
+  let state = initialGlobals.widgetState ?? null;
+  const statePersistence = initialGlobals.statePersistence ?? &quot;none&quot;;
+  let nextStateRequestId = 0;
+  /** @type {Map&lt;number, { resolve: () =&gt; void; reject: (error: Error) =&gt; void; timeout: ReturnType&lt;typeof globalThis.setTimeout&gt;; serializedState: string }&gt;} */
+  const pendingStateWrites = new Map();
+  const persistenceError = () =&gt;
+    Object.assign(
+      new Error(&quot;The host could not persist the widget state update&quot;),
+      {
+        code: -32000,
+        data: { code: &quot;widget_state_persistence_failed&quot;, retryable: false },
+      },
+    );
+  /**
+   * @param {object} prototype
+   * @param {string} property
+   */
+  const getPrototypeGetter = (prototype, property) =&gt; {
+    // oxlint-disable-next-line typescript/unbound-method -- invoked through captured Reflect.apply
+    const getter = Object.getOwnPropertyDescriptor(prototype, property)?.get;
+    if (getter == null) {
+      throw new Error(`Missing ${property} getter`);
+    }
+    return getter;
+  };
+  const getMessageData = getPrototypeGetter(MessageEvent.prototype, &quot;data&quot;);
+  const getMessagePorts = getPrototypeGetter(MessageEvent.prototype, &quot;ports&quot;);
+  const getMessageSource = getPrototypeGetter(MessageEvent.prototype, &quot;source&quot;);
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const addHostMessageListener = MessagePort.prototype.addEventListener;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const postHostMessage = MessagePort.prototype.postMessage;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const startHostPort = MessagePort.prototype.start;
+  // oxlint-disable-next-line typescript/unbound-method -- captured before the untrusted fragment runs
+  const stopMessagePropagation = Event.prototype.stopImmediatePropagation;
+  /** @type {MessagePort | null} */
+  let hostPort = null;
+  const postToHost = (type, payload) =&gt; {
+    if (hostPort != null) {
+      apply(postHostMessage, hostPort, [{ type, ...payload }]);
+    }
+  };
+  const openExternal = ({ href }) =&gt; {
+    if (globalThis.navigator.userActivation?.isActive === true) {
+      postToHost(&quot;open-external&quot;, { href });
+    }
+  };
+  const sendFollowUpMessage = ({ context, prompt, title }) =&gt; {
+    if (globalThis.navigator.userActivation?.isActive === true) {
+      postToHost(&quot;follow-up&quot;, { context, prompt, title });
+    }
+    return Promise.resolve();
+  };
+  /**
+   * @param {Record&lt;string, unknown&gt; | ((previous: Record&lt;string, unknown&gt; | null) =&gt; Record&lt;string, unknown&gt;)} next
+   * @returns {Promise&lt;void&gt;}
+   */
+  const setWidgetState = async (next) =&gt; {
+    const nextState = typeof next === &quot;function&quot; ? next(state) : next;
+    if (
+      nextState == null ||
+      typeof nextState !== &quot;object&quot; ||
+      isArray(nextState)
+    ) {
+      throw new TypeError(&quot;Widget state must be a JSON object&quot;);
+    }
+    const inputState = stringify(
+      nextState,
+      (_key, /** @type {unknown} */ value) =&gt; {
+        if (
+          typeof value === &quot;undefined&quot; ||
+          typeof value === &quot;function&quot; ||
+          typeof value === &quot;symbol&quot; ||
+          (typeof value === &quot;number&quot; &amp;&amp; !Number.isFinite(value))
+        ) {
+          throw new TypeError(&quot;Widget state must be a JSON object&quot;);
+        }
+        return value;
+      },
+    );
+    const parsedState = parse(inputState);
+    if (
+      parsedState == null ||
+      typeof parsedState !== &quot;object&quot; ||
+      isArray(parsedState)
+    ) {
+      throw new TypeError(&quot;Widget state must be a JSON object&quot;);
+    }
+    const storedState = {
+      modelContent: null,
+      privateContent: null,
+      ...parsedState,
+    };
+    const serializedState = stringify(storedState);
+    if (encode(serializedState).length &gt; 16 * 1024) {
+      throw new TypeError(
+        &quot;Widget state must be a JSON object of at most 16 KiB&quot;,
+      );
+    }
+    if (
+      hasOwn(storedState, &quot;imageIds&quot;) &amp;&amp;
+      (!isArray(storedState.imageIds) ||
+        storedState.imageIds.some(
+          (/** @type {unknown} */ id) =&gt; typeof id !== &quot;string&quot;,
+        ))
+    ) {
+      throw new TypeError(&quot;Widget state imageIds must be an array of strings&quot;);
+    }
+    if (storedState.imageIds?.length &gt; 0) {
+      throw Object.assign(
+        new TypeError(&quot;Visualization state does not support image attachments&quot;),
+        { code: -32602, data: { code: &quot;images_unsupported&quot; } },
+      );
+    }
+    state = storedState;
+    globalThis.openai.widgetState = state;
+    globalThis.dispatchEvent(
+      new CustomEvent(&quot;openai:set_globals&quot;, {
+        detail: { globals: { widgetState: state } },
+      }),
+    );
+    if (statePersistence === &quot;none&quot;) {
+      throw persistenceError();
+    }
+    const id = ++nextStateRequestId;
+    return new Promise((resolve, reject) =&gt; {
+      const timeout = globalThis.setTimeout(() =&gt; {
+        pendingStateWrites.delete(id);
+        reject(persistenceError());
+      }, 30_000);
+      pendingStateWrites.set(id, { resolve, reject, timeout, serializedState });
+      postToHost(&quot;widget-state-write&quot;, { id, state: serializedState });
+    });
+  };
+  const syncTheme = () =&gt; {
+    const theme = mediaQuery.matches ? &quot;dark&quot; : &quot;light&quot;;
+    root.dataset.theme = theme;
+    globalThis.openai = {
+      ...globalThis.openai,
+      openExternal,
+      sendFollowUpMessage,
+      setWidgetState,
+      theme,
+      visualizationStyleVariables: {},
+      visualizationTheme: theme,
+      widgetState: state,
+      statePersistence,
+      stateModelContext: &quot;none&quot;,
+    };
+    globalThis.dispatchEvent(
+      new CustomEvent(&quot;openai:set_globals&quot;, {
+        detail: { globals: globalThis.openai },
+      }),
+    );
+  };
+  const sendHeight = () =&gt; {
+    postToHost(&quot;height&quot;, {
+      height: Math.ceil(
+        Math.max(
+          document.body.scrollHeight,
+          document.body.getBoundingClientRect().height,
+        ),
+      ),
+    });
+  };
+
+  globalThis.addEventListener(
+    &quot;message&quot;,
+    (event) =&gt; {
+      const data = apply(getMessageData, event, []);
+      const ports = apply(getMessagePorts, event, []);
+      const source = apply(getMessageSource, event, []);
+      if (
+        hostPort != null ||
+        source !== parentWindow ||
+        typeof data !== &quot;object&quot; ||
+        data?.type !== &quot;codex-visualization-initialize&quot; ||
+        !isArray(ports) ||
+        ports.length !== 1
+      ) {
+        return;
+      }
+      apply(stopMessagePropagation, event, []);
+      const nextHostPort = ports[0];
+      try {
+        apply(addHostMessageListener, nextHostPort, [
+          &quot;message&quot;,
+          (event) =&gt; {
+            const data = apply(getMessageData, event, []);
+            if (typeof data === &quot;object&quot; &amp;&amp; data?.type === &quot;measure&quot;) {
+              sendHeight();
+            } else if (
+              typeof data === &quot;object&quot; &amp;&amp;
+              data?.type === &quot;widget-state-result&quot;
+            ) {
+              /** @type {unknown} */
+              const id = data.id;
+              if (typeof id !== &quot;number&quot;) {
+                return;
+              }
+              const pending = pendingStateWrites.get(id);
+              if (pending != null) {
+                pendingStateWrites.delete(id);
+                globalThis.clearTimeout(pending.timeout);
+                if (data.ok === true) {
+                  pending.resolve();
+                } else {
+                  pending.reject(persistenceError());
+                }
+              }
+            }
+          },
+        ]);
+        apply(startHostPort, nextHostPort, []);
+      } catch {
+        return;
+      }
+      hostPort = nextHostPort;
+      for (const [id, { serializedState }] of pendingStateWrites) {
+        postToHost(&quot;widget-state-write&quot;, { id, state: serializedState });
+      }
+      sendHeight();
+    },
+    { capture: true },
+  );
+  document.currentScript?.remove();
+  mediaQuery.addEventListener(&quot;change&quot;, syncTheme);
+  globalThis.addEventListener(&quot;click&quot;, (event) =&gt; {
+    if (event.defaultPrevented) {
+      return;
+    }
+    let element = null;
+    if (event.target instanceof globalThis.Element) {
+      element = event.target;
+    } else if (event.target instanceof globalThis.Node) {
+      element = event.target.parentElement;
+    }
+    const link = element?.closest(&quot;a[href]&quot;);
+    const href = link?.getAttribute(&quot;href&quot;);
+    if (href == null) {
+      return;
+    }
+    if (href.startsWith(&quot;#&quot;)) {
+      let id;
+      try {
+        id = decodeURIComponent(href.slice(1));
+      } catch {
+        return;
+      }
+      const target = id.length === 0 ? root : document.getElementById(id);
+      if (
+        target == null ||
+        globalThis.navigator.userActivation?.isActive !== true
+      ) {
+        return;
+      }
+      event.preventDefault();
+      postToHost(&quot;scroll-to&quot;, {
+        top: target.getBoundingClientRect().top + globalThis.scrollY,
+      });
+      return;
+    }
+    event.preventDefault();
+    openExternal({ href });
+  });
+  new ResizeObserver(sendHeight).observe(document.body);
+  syncTheme();
+})();
+&lt;/script&gt;
+&lt;style&gt;
+#sound-concept { --s-bg: light-dark(#f6f7f5,#141b1a); --s-panel: light-dark(#ffffff,#1d2725); --s-ink: light-dark(#18332d,#eef5f1); --s-muted: light-dark(#53665f,#b3c5bd); --s-line: light-dark(#dbe3de,#40514a); --s-brand: light-dark(#185c4a,#97d5bd); --s-onbrand: light-dark(#ffffff,#12382b); --s-soft: light-dark(#eaf2ed,#293f35); --s-warn: light-dark(#775514,#f1d49c); --s-warnbg: light-dark(#faf3e3,#423923); --s-size:16px; --s-space:26px; color:var(--s-ink); font:400 var(--s-size)/1.55 -apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif; }
+#sound-concept * { box-sizing:border-box; }
+#sound-concept button,#sound-concept input,#sound-concept select,#sound-concept textarea { font:inherit; }
+#sound-concept button { color:inherit; }
+#sound-concept button:disabled { opacity:.5; cursor:not-allowed; }
+#sound-concept [hidden] { display:none!important; }
+#sound-concept h1,#sound-concept h2,#sound-concept h3,#sound-concept p { margin:0; }
+#sound-concept h1 { font-size:30px; line-height:1.2; font-weight:500; letter-spacing:-.8px; }
+#sound-concept h2 { font-size:23px; line-height:1.3; font-weight:500; letter-spacing:-.4px; }
+#sound-concept h3 { font-size:18px; line-height:1.4; font-weight:500; }
+#sound-concept strong { font-weight:500; }
+#sound-concept .s-muted { color:var(--s-muted); }
+#sound-concept .s-small { font-size:13px; }
+#sound-concept .s-demo { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:0 0 16px; }
+#sound-concept .s-switch { display:flex; flex-wrap:wrap; gap:4px; padding:4px; background:var(--s-panel); border:1px solid var(--s-line); border-radius:12px; }
+#sound-concept .s-switch button { border:0; background:transparent; padding:10px 18px; min-height:44px; border-radius:8px; font-size:14px; }
+#sound-concept .s-switch button[aria-pressed=true] { background:var(--s-brand); color:var(--s-onbrand); }
+#sound-concept .s-app { background:var(--s-bg); border:1px solid var(--s-line); border-radius:16px; overflow:hidden; }
+#sound-concept .s-top { display:flex; align-items:center; gap:32px; padding:18px 30px; border-bottom:1px solid var(--s-line); background:var(--s-panel); flex-wrap:wrap; }
+#sound-concept .s-logo { display:flex; align-items:center; gap:9px; font-size:25px; font-weight:500; letter-spacing:-.8px; }
+#sound-concept .s-logo i { color:var(--s-brand); }
+#sound-concept .s-context { margin-left:auto; color:var(--s-muted); font-size:14px; }
+#sound-concept .s-nav { display:flex; gap:6px; flex-wrap:wrap; }
+#sound-concept .s-nav button { background:transparent; border:0; border-radius:8px; padding:10px 14px; min-height:44px; color:var(--s-muted); }
+#sound-concept .s-nav button[aria-current=page] { background:var(--s-soft); color:var(--s-ink); font-weight:500; }
+#sound-concept .s-main { padding:32px; }
+#sound-concept .s-client { max-width:670px; margin:auto; }
+#sound-concept .s-heading { margin-bottom:24px; }
+#sound-concept .s-heading p { margin-top:9px; color:var(--s-muted); }
+#sound-concept .s-box { background:var(--s-panel); border:1px solid var(--s-line); border-radius:14px; padding:var(--s-space); }
+#sound-concept .s-status { display:inline-flex; align-items:center; gap:7px; color:var(--s-warn); background:var(--s-warnbg); padding:5px 10px; border-radius:6px; font-size:13px; font-weight:500; }
+#sound-concept .s-status.s-good { background:var(--s-soft); color:var(--s-brand); }
+#sound-concept .s-money { font-size:36px; font-weight:500; line-height:1.2; letter-spacing:-1px; margin:20px 0 4px; font-variant-numeric:tabular-nums; }
+#sound-concept .s-rule { border:0; border-top:1px solid var(--s-line); margin:22px 0; }
+#sound-concept .s-stack { display:grid; gap:14px; }
+#sound-concept .s-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:24px; }
+#sound-concept .s-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:46px; padding:10px 17px; border:1px solid var(--s-line); background:var(--s-panel); border-radius:8px; text-decoration:none; }
+#sound-concept .s-primary { background:var(--s-brand); color:var(--s-onbrand); border-color:var(--s-brand); font-weight:500; }
+#sound-concept .s-text { display:inline-flex; align-items:center; gap:7px; border:0; padding:10px 0; min-height:44px; color:var(--s-brand); background:transparent; text-align:left; text-decoration:underline; text-underline-offset:3px; }
+#sound-concept .s-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-top:18px; }
+#sound-concept .s-choice { width:100%; text-align:left; justify-content:space-between; padding:15px 18px; min-height:56px; }
+#sound-concept .s-choice:hover,#sound-concept .s-button:not(.s-primary):hover { background:var(--s-soft); }
+#sound-concept .s-eyebrow { font-size:13px; color:var(--s-muted); margin:0 0 14px; }
+#sound-concept .s-note { background:var(--s-soft); border-radius:8px; padding:16px; }
+#sound-concept .s-note p + p { margin-top:8px; }
+#sound-concept .s-details { margin-top:16px; }
+#sound-concept .s-details summary { min-height:44px; padding:9px 0; color:var(--s-brand); }
+#sound-concept .s-details p { margin-top:8px; color:var(--s-muted); }
+#sound-concept .s-helpgrid { display:grid; gap:14px; }
+#sound-concept .s-helpgrid .s-choice { align-items:start; }
+#sound-concept .s-helpgrid small { display:block; color:var(--s-muted); margin-top:5px; font-size:14px; }
+#sound-concept .s-label { display:grid; gap:8px; margin-bottom:18px; }
+#sound-concept .s-input { background:var(--s-panel); color:var(--s-ink); border:1px solid var(--s-line); border-radius:8px; padding:12px; width:100%; min-height:46px; }
+#sound-concept .s-check { display:flex; gap:12px; align-items:flex-start; padding:10px 0; min-height:44px; }
+#sound-concept .s-check input { margin-top:5px; width:20px; height:20px; accent-color:var(--s-brand); flex-shrink:0; }
+#sound-concept .s-workspace { display:grid; grid-template-columns:260px minmax(0,1fr); gap:22px; align-items:start; }
+#sound-concept .s-queue { display:grid; gap:10px; }
+#sound-concept .s-queue h3 { margin:0 0 5px; }
+#sound-concept .s-case { text-align:left; background:var(--s-panel); border:1px solid var(--s-line); border-radius:10px; padding:17px; min-width:0; }
+#sound-concept .s-case[aria-pressed=true] { border-color:var(--s-brand); box-shadow:inset 3px 0 var(--s-brand); background:var(--s-soft); }
+#sound-concept .s-case span { display:block; }
+#sound-concept .s-case .s-small { margin-top:6px; }
+#sound-concept .s-case strong { display:block; margin-top:7px; font-variant-numeric:tabular-nums; }
+#sound-concept .s-casehead { display:flex; justify-content:space-between; gap:14px; align-items:start; flex-wrap:wrap; margin-bottom:22px; }
+#sound-concept .s-facts { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:22px; }
+#sound-concept .s-facts dt { font-size:13px; color:var(--s-muted); }
+#sound-concept .s-facts dd { margin:3px 0 0; font-weight:500; }
+#sound-concept .s-reasons { padding:0; margin:12px 0 0; list-style:none; display:grid; gap:10px; }
+#sound-concept .s-reasons li { display:flex; align-items:flex-start; gap:10px; }
+#sound-concept .s-reasons i { margin-top:4px; flex-shrink:0; color:var(--s-brand); }
+#sound-concept .s-history { list-style:none; padding:0; margin:14px 0 0; display:grid; gap:12px; font-size:14px; }
+#sound-concept .s-history li { display:grid; grid-template-columns:76px 1fr; gap:12px; }
+#sound-concept .s-history time { color:var(--s-muted); font-variant-numeric:tabular-nums; }
+#sound-concept .s-empty { padding:28px 0; }
+#sound-concept .s-empty p { margin:10px 0; color:var(--s-muted); }
+#sound-concept .s-announcement { margin-top:14px; color:var(--s-brand); }
+@media(max-width:760px) { #sound-concept .s-workspace { grid-template-columns:1fr; } #sound-concept .s-queue { grid-template-columns:1fr 1fr; } #sound-concept .s-queue h3 { grid-column:1/-1; } #sound-concept .s-top { gap:12px; padding:16px 22px; } #sound-concept .s-context { order:2; } #sound-concept .s-nav { order:3; width:100%; } #sound-concept .s-main { padding:24px 20px; } }
+@media(max-width:440px) { #sound-concept h1 { font-size:26px; } #sound-concept h2 { font-size:21px; } #sound-concept .s-money { font-size:32px; } #sound-concept .s-main { padding:22px 14px; } #sound-concept .s-box { padding:20px; } #sound-concept .s-nav { gap:0; justify-content:space-between; } #sound-concept .s-nav button { padding:10px; } #sound-concept .s-actions { align-items:stretch; flex-direction:column; } #sound-concept .s-queue { grid-template-columns:1fr; } #sound-concept .s-facts { grid-template-columns:1fr; gap:12px; } }
+&lt;/style&gt;
+&lt;div id=&quot;sound-concept&quot; aria-label=&quot;Sound interface concept&quot;&gt;
+  &lt;div class=&quot;s-demo&quot;&gt;
+    &lt;div class=&quot;s-switch&quot; role=&quot;group&quot; aria-label=&quot;Preview role&quot;&gt;
+      &lt;button type=&quot;button&quot; class=&quot;cursor-interaction&quot; data-role=&quot;client&quot; aria-pressed=&quot;true&quot;&gt;Client view&lt;/button&gt;
+      &lt;button type=&quot;button&quot; class=&quot;cursor-interaction&quot; data-role=&quot;employee&quot; aria-pressed=&quot;false&quot;&gt;Employee view&lt;/button&gt;
+    &lt;/div&gt;
+    &lt;span class=&quot;s-muted s-small&quot;&gt;Design preview · synthetic examples&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;div class=&quot;s-app&quot;&gt;
+    &lt;header class=&quot;s-top&quot;&gt;
+      &lt;div class=&quot;s-logo&quot;&gt;&lt;i data-lucide=&quot;audio-lines&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt; sound&lt;/div&gt;
+      &lt;nav class=&quot;s-nav&quot; id=&quot;sound-nav&quot; aria-label=&quot;Main navigation&quot;&gt;&lt;/nav&gt;
+      &lt;span class=&quot;s-context&quot; id=&quot;sound-context&quot;&gt;Member banking&lt;/span&gt;
+    &lt;/header&gt;
+    &lt;main class=&quot;s-main&quot; id=&quot;sound-content&quot;&gt;&lt;/main&gt;
+  &lt;/div&gt;
+  &lt;div class=&quot;s-announcement s-small&quot; id=&quot;sound-announcement&quot; role=&quot;status&quot; aria-live=&quot;polite&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;script&gt;
+(() =&gt; {
+ const root = document.getElementById(&#x27;sound-concept&#x27;);
+ const content = root.querySelector(&#x27;#sound-content&#x27;);
+ const nav = root.querySelector(&#x27;#sound-nav&#x27;);
+ const announcement = root.querySelector(&#x27;#sound-announcement&#x27;);
+ const defaults = { role:&#x27;client&#x27;, page:&#x27;home&#x27;, step:&#x27;home&#x27;, selected:&#x27;linda&#x27;, employeeStep:&#x27;details&#x27;, lindaStatus:&#x27;paused&#x27;, homeStatus:&#x27;paused&#x27;, trusted:false, verified:false, intent:&#x27;&#x27;, checked:false, employeeNote:&#x27;&#x27;, helpTopic:&#x27;&#x27;, reportSent:false };
+ let state = {...defaults};
+ const saved = window.openai?.widgetState?.privateContent;
+ if (saved &amp;&amp; saved.version === 1 &amp;&amp; saved.state) state = {...defaults,...saved.state};
+ const design = { textSize:&#x27;Standard&#x27;, spacing:&#x27;Comfortable&#x27; };
+ const cases = {
+   linda:{name:&#x27;Linda&#x27;,id:&#x27;M1001&#x27;,amount:&#x27;$8,500.00&#x27;,recipient:&#x27;New recipient&#x27;,recipientId:&#x27;R1001-11&#x27;,date:&#x27;Oct 20&#x27;,time:&#x27;6:21 PM&#x27;,channel:&#x27;Branch&#x27;,reasons:[&#x27;First wire in over 6 years&#x27;,&#x27;Recipient added today&#x27;,&#x27;Amount is 4.77× the usual payment amount&#x27;],events:[[&#x27;2:04 PM&#x27;,&#x27;New wire recipient added&#x27;],[&#x27;2:11 PM&#x27;,&#x27;$8,500 wire requested&#x27;],[&#x27;2:14 PM&#x27;,&#x27;Member confirmed the payment was intended&#x27;],[&#x27;2:21 PM&#x27;,&#x27;Payment paused for review&#x27;]]},
+   home:{name:&#x27;Member 1057&#x27;,id:&#x27;M1057&#x27;,amount:&#x27;$51,586.52&#x27;,recipient:&#x27;New recipient&#x27;,recipientId:&#x27;R1057-10&#x27;,date:&#x27;Oct 19&#x27;,time:&#x27;1:45 PM&#x27;,channel:&#x27;Branch&#x27;,reasons:[&#x27;Amount is 42.63× the usual payment amount&#x27;,&#x27;Recipient added 2 days earlier&#x27;],events:[[&#x27;Oct 17&#x27;,&#x27;New wire recipient added&#x27;],[&#x27;9:41 AM&#x27;,&#x27;$51,586.52 wire requested&#x27;],[&#x27;9:45 AM&#x27;,&#x27;Payment paused for review&#x27;]]}
+ };
+ const icon = name =&gt; `&lt;i data-lucide=&quot;${name}&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;`;
+ const button = (label,action,primary=false,extra=&#x27;&#x27;) =&gt; `&lt;button type=&quot;button&quot; class=&quot;s-button cursor-interaction ${primary?&#x27;s-primary&#x27;:&#x27;&#x27;}&quot; data-action=&quot;${action}&quot; ${extra}&gt;${label}&lt;/button&gt;`;
+ const textButton = (label,action) =&gt; `&lt;button type=&quot;button&quot; class=&quot;s-text cursor-interaction&quot; data-action=&quot;${action}&quot;&gt;${label}&lt;/button&gt;`;
+ const choice = (label,action) =&gt; `&lt;button type=&quot;button&quot; class=&quot;s-button s-choice cursor-interaction&quot; data-action=&quot;${action}&quot;&gt;&lt;span&gt;${label}&lt;/span&gt;${icon(&#x27;chevron-right&#x27;)}&lt;/button&gt;`;
+ const tag = status =&gt; `&lt;span class=&quot;s-status ${status!==&#x27;paused&#x27;?&#x27;s-good&#x27;:&#x27;&#x27;}&quot;&gt;${icon(status===&#x27;paused&#x27;?&#x27;clock-3&#x27;:&#x27;check&#x27;)}${({paused:&#x27;Payment paused&#x27;,sent:&#x27;Payment sent&#x27;,cancelled:&#x27;Payment cancelled&#x27;,stopped:&#x27;Payment stopped&#x27;,specialist:&#x27;Specialist requested&#x27;})[status]||status}&lt;/span&gt;`;
+ const heading = (title,sub=&#x27;&#x27;) =&gt; `&lt;div class=&quot;s-heading&quot;&gt;&lt;h1&gt;${title}&lt;/h1&gt;${sub?`&lt;p&gt;${sub}&lt;/p&gt;`:&#x27;&#x27;}&lt;/div&gt;`;
+ const footer = () =&gt; `&lt;div class=&quot;s-footer&quot;&gt;${textButton(&#x27;Get help with a scam&#x27;,&#x27;help&#x27;)}${textButton(&#x27;Someone you trust&#x27;,&#x27;trusted&#x27;)}&lt;/div&gt;`;
+ const clientShell = inner =&gt; `&lt;div class=&quot;s-client&quot;&gt;${inner}${footer()}&lt;/div&gt;`;
+ function remember(){
+   if(window.openai?.setWidgetState) window.openai.setWidgetState({modelContent:{view:state.role,clientScreen:state.step,selectedEmployeeCase:state.selected,paymentStatus:state.lindaStatus},privateContent:{version:1,state}}).catch(()=&gt;{});
+ }
+ function announce(message){announcement.textContent=message;}
+ function paymentSummary(){return `&lt;div class=&quot;s-money&quot;&gt;$8,500.00&lt;/div&gt;&lt;p&gt;Wire transfer · New recipient&lt;/p&gt;`;}
+ function home(){
+   const pending=state.lindaStatus===&#x27;paused&#x27;||state.lindaStatus===&#x27;specialist&#x27;;
+   return clientShell(`${heading(&#x27;Hi, Linda.&#x27;,pending?&#x27;Let’s check one payment together.&#x27;:&#x27;You’re up to date.&#x27;)}&lt;section class=&quot;s-box&quot; aria-label=&quot;Payment needing attention&quot;&gt;${tag(state.lindaStatus)}${paymentSummary()}&lt;hr class=&quot;s-rule&quot;&gt;${pending?`&lt;div class=&quot;s-stack&quot;&gt;&lt;h3&gt;The money has not been sent.&lt;/h3&gt;&lt;p&gt;This is your first wire in over 6 years, and it’s going to someone new.&lt;/p&gt;&lt;p class=&quot;s-muted s-small&quot;&gt;Paused until Oct 20 at 6:21 PM. You can review it now.&lt;/p&gt;&lt;/div&gt;&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Review payment&#x27;,&#x27;review&#x27;,true)}${button(&#x27;Talk to someone&#x27;,&#x27;talk&#x27;)}&lt;/div&gt;`:`&lt;p&gt;${state.lindaStatus===&#x27;sent&#x27;?&#x27;Your payment has been sent. You can still report a concern and ask for recovery help.&#x27;:state.lindaStatus===&#x27;stopped&#x27;?&#x27;This payment was reported as not yours. Account support is the next step.&#x27;:&#x27;The money was not sent. We’re here if you need help.&#x27;}&lt;/p&gt;&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;View payment&#x27;,&#x27;payments&#x27;,true)}&lt;/div&gt;`}&lt;/section&gt;`);
+ }
+ function clientReview(){
+   const back = textButton(`${icon(&#x27;arrow-left&#x27;)} Back`, &#x27;back&#x27;);
+   if(state.step===&#x27;recognize&#x27;) return clientShell(`${back}&lt;section class=&quot;s-box&quot;&gt;&lt;div class=&quot;s-eyebrow&quot;&gt;Payment check · 1 of 2&lt;/div&gt;&lt;h2&gt;Did you choose to send this money?&lt;/h2&gt;${paymentSummary()}&lt;p class=&quot;s-muted&quot; style=&quot;margin:14px 0 22px&quot;&gt;A wire is a bank transfer. Please check the amount before continuing.&lt;/p&gt;&lt;div class=&quot;s-stack&quot;&gt;${choice(&#x27;Yes, I did&#x27;,&#x27;recognized&#x27;)}${choice(&#x27;No, I didn’t&#x27;,&#x27;not-mine&#x27;)}${choice(&#x27;I’m not sure&#x27;,&#x27;unsure&#x27;)}&lt;/div&gt;&lt;/section&gt;`);
+   if(state.step===&#x27;pressure&#x27;) return clientShell(`${back}&lt;section class=&quot;s-box&quot;&gt;&lt;div class=&quot;s-eyebrow&quot;&gt;Payment check · 2 of 2&lt;/div&gt;&lt;h2&gt;Has anyone asked you to rush or keep this payment secret?&lt;/h2&gt;&lt;p class=&quot;s-muted&quot; style=&quot;margin:14px 0 22px&quot;&gt;You can tell us. We’re here to help.&lt;/p&gt;&lt;div class=&quot;s-stack&quot;&gt;${choice(&#x27;Yes, or I’m not sure&#x27;,&#x27;concern&#x27;)}${choice(&#x27;No&#x27;,&#x27;confirm&#x27;)}&lt;/div&gt;&lt;/section&gt;`);
+   if(state.step===&#x27;concern&#x27;) return clientShell(`${back}&lt;section class=&quot;s-box&quot;&gt;&lt;span class=&quot;s-status&quot;&gt;Payment still paused&lt;/span&gt;&lt;h2 style=&quot;margin:20px 0 12px&quot;&gt;Let’s check together.&lt;/h2&gt;&lt;p&gt;Before sending money, try reaching the person using a phone number you already know.&lt;/p&gt;&lt;div class=&quot;s-note&quot; style=&quot;margin-top:20px&quot;&gt;&lt;p&gt;You can speak privately with a Sound employee. You choose whether to involve anyone else.&lt;/p&gt;&lt;/div&gt;&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Talk to someone&#x27;,&#x27;talk&#x27;,true)}${button(&#x27;Cancel this payment&#x27;,&#x27;cancel-review&#x27;)}&lt;/div&gt;${textButton(&#x27;I still want to send this payment&#x27;,&#x27;confirm&#x27;)}&lt;/section&gt;`);
+   if(state.step===&#x27;confirm&#x27;) return clientShell(`${back}&lt;section class=&quot;s-box&quot;&gt;&lt;div class=&quot;s-eyebrow&quot;&gt;Final review&lt;/div&gt;&lt;h2&gt;Ready to send this payment?&lt;/h2&gt;${paymentSummary()}&lt;hr class=&quot;s-rule&quot;&gt;&lt;p&gt;Once a wire is sent, getting the money back is not guaranteed.&lt;/p&gt;&lt;label class=&quot;s-check&quot; style=&quot;margin-top:14px&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;sound-send-check&quot; ${state.checked?&#x27;checked&#x27;:&#x27;&#x27;}&gt;&lt;span&gt;I checked the payment details and want to send this money.&lt;/span&gt;&lt;/label&gt;&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Send $8,500.00&#x27;,&#x27;send&#x27;,true,state.checked?&#x27;&#x27;:&#x27;disabled&#x27;)}${button(&#x27;Keep it paused&#x27;,&#x27;home&#x27;)}&lt;/div&gt;&lt;/section&gt;`);
+   if(state.step===&#x27;not-mine&#x27;) return clientShell(`${back}&lt;section class=&quot;s-box&quot;&gt;&lt;h2&gt;We’ll help secure your account.&lt;/h2&gt;&lt;p style=&quot;margin-top:14px&quot;&gt;Report this payment so our team can stop it and check your account access.&lt;/p&gt;${paymentSummary()}&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Report this payment&#x27;,&#x27;stop&#x27;,true)}${button(&#x27;Go back&#x27;,&#x27;review&#x27;)}&lt;/div&gt;&lt;p class=&quot;s-muted s-small&quot; style=&quot;margin-top:18px&quot;&gt;If your contact details changed unexpectedly, use the number on your card or visit a branch.&lt;/p&gt;&lt;/section&gt;`);
+   if(state.step===&#x27;cancel&#x27;) return clientShell(`${back}&lt;section class=&quot;s-box&quot;&gt;&lt;h2&gt;Cancel this payment?&lt;/h2&gt;${paymentSummary()}&lt;p style=&quot;margin-top:16px&quot;&gt;The money will not be sent. You can make a new payment later.&lt;/p&gt;&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Cancel payment&#x27;,&#x27;cancel&#x27;,true)}${button(&#x27;Keep reviewing&#x27;,&#x27;review&#x27;)}&lt;/div&gt;&lt;/section&gt;`);
+   return home();
+ }
+ function help(){
+   if(state.helpTopic===&#x27;talk&#x27;) return clientShell(`${heading(&#x27;Talk to someone.&#x27;,&#x27;You don’t have to figure this out alone.&#x27;)}&lt;section class=&quot;s-box&quot;&gt;&lt;h3&gt;Speak with Sound&lt;/h3&gt;&lt;p style=&quot;margin-top:12px&quot;&gt;Call the number on the back of your card, or speak with an employee at a branch.&lt;/p&gt;&lt;p class=&quot;s-muted&quot; style=&quot;margin-top:12px&quot;&gt;If someone told you to make this payment, you can ask to speak privately.&lt;/p&gt;${state.lindaStatus===&#x27;paused&#x27;?`&lt;div class=&quot;s-note&quot; style=&quot;margin-top:20px&quot;&gt;Your wire is paused until Oct 20 at 6:21 PM.&lt;/div&gt;`:&#x27;&#x27;}&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Back to home&#x27;,&#x27;home&#x27;,true)}&lt;/div&gt;&lt;/section&gt;`);
+   if(state.helpTopic===&#x27;report&#x27;) return clientShell(`${heading(&#x27;Report money already sent.&#x27;,&#x27;Tell us what happened. We’ll help with the next step.&#x27;)}&lt;form class=&quot;s-box&quot; id=&quot;sound-report-form&quot;&gt;&lt;label class=&quot;s-label&quot;&gt;Payment type&lt;select class=&quot;s-input&quot; name=&quot;rail&quot;&gt;&lt;option&gt;Wire transfer&lt;/option&gt;&lt;option&gt;Bank transfer (ACH)&lt;/option&gt;&lt;option&gt;Person-to-person payment (P2P)&lt;/option&gt;&lt;option&gt;Cash withdrawal&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&lt;label class=&quot;s-label&quot;&gt;Amount sent ($)&lt;input class=&quot;s-input&quot; name=&quot;amount&quot; type=&quot;number&quot; min=&quot;0.01&quot; step=&quot;0.01&quot; inputmode=&quot;decimal&quot; required value=&quot;${state.lindaStatus===&#x27;sent&#x27;?&#x27;8500&#x27;:&#x27;&#x27;}&quot;&gt;&lt;/label&gt;&lt;label class=&quot;s-label&quot;&gt;What happened? &lt;span class=&quot;s-muted s-small&quot;&gt;Optional. Don’t include passwords or security codes.&lt;/span&gt;&lt;textarea class=&quot;s-input&quot; rows=&quot;3&quot; name=&quot;story&quot;&gt;&lt;/textarea&gt;&lt;/label&gt;&lt;p class=&quot;s-muted s-small&quot;&gt;Recovery is not guaranteed. Person-to-person payments cannot be recalled once sent.&lt;/p&gt;&lt;div class=&quot;s-actions&quot;&gt;&lt;button class=&quot;s-button s-primary cursor-interaction&quot; type=&quot;submit&quot;&gt;Report payment&lt;/button&gt;${button(&#x27;Go back&#x27;,&#x27;help&#x27;)}&lt;/div&gt;&lt;/form&gt;`);
+   if(state.helpTopic===&#x27;reported&#x27;) return clientShell(`${heading(&#x27;Your report is recorded.&#x27;,&#x27;A Sound employee will review the next steps.&#x27;)}&lt;section class=&quot;s-box&quot;&gt;&lt;span class=&quot;s-status s-good&quot;&gt;Report received&lt;/span&gt;&lt;h3 style=&quot;margin-top:20px&quot;&gt;Recovery review is next&lt;/h3&gt;&lt;p style=&quot;margin-top:12px&quot;&gt;For urgent support, call the number on your card or visit a branch. We can explore recovery options, but we can’t promise the money will be returned.&lt;/p&gt;&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Back to home&#x27;,&#x27;home&#x27;,true)}&lt;/div&gt;&lt;/section&gt;`);
+   return clientShell(`${heading(&#x27;How can we help?&#x27;,&#x27;Choose what you need help with.&#x27;)}&lt;div class=&quot;s-helpgrid&quot;&gt;${choice(&#x27;&lt;strong&gt;Talk to someone&lt;/strong&gt;&lt;small&gt;Speak privately with a Sound employee.&lt;/small&gt;&#x27;,&#x27;talk&#x27;)}${choice(&#x27;&lt;strong&gt;Report money already sent&lt;/strong&gt;&lt;small&gt;Start getting help with a payment.&lt;/small&gt;&#x27;,&#x27;report&#x27;)}${choice(&#x27;&lt;strong&gt;I don’t recognize a payment&lt;/strong&gt;&lt;small&gt;Get help with access to your account.&lt;/small&gt;&#x27;,&#x27;not-mine&#x27;)}&lt;/div&gt;`);
+ }
+ function trusted(){return clientShell(`${heading(&#x27;Someone you trust.&#x27;,&#x27;It’s always your choice to involve another person.&#x27;)}&lt;section class=&quot;s-box&quot;&gt;&lt;h3&gt;Ask for support, on your terms&lt;/h3&gt;&lt;p style=&quot;margin:12px 0 18px&quot;&gt;A support person can be informed about a concern. They cannot access your account or decide whether your payment goes ahead.&lt;/p&gt;&lt;label class=&quot;s-check&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;sound-trusted&quot; ${state.trusted?&#x27;checked&#x27;:&#x27;&#x27;}&gt;&lt;span&gt;I’d like an employee to discuss this option with me.&lt;/span&gt;&lt;/label&gt;&lt;p class=&quot;s-muted s-small&quot; style=&quot;margin-top:10px&quot;&gt;You can change your mind. We won’t contact anyone unless you choose them and agree.&lt;/p&gt;&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Back to home&#x27;,&#x27;home&#x27;,true)}&lt;/div&gt;&lt;/section&gt;`);}
+ function payments(){return clientShell(`${heading(&#x27;Your payments.&#x27;,&#x27;Check what’s happening with your money.&#x27;)}&lt;section class=&quot;s-box&quot;&gt;${tag(state.lindaStatus)}${paymentSummary()}&lt;p class=&quot;s-muted s-small&quot; style=&quot;margin-top:14px&quot;&gt;Oct 20 · Wire transfer&lt;/p&gt;&lt;div class=&quot;s-actions&quot;&gt;${state.lindaStatus===&#x27;paused&#x27;?button(&#x27;Review payment&#x27;,&#x27;review&#x27;,true):button(&#x27;Get help with this payment&#x27;,&#x27;report&#x27;,true)}&lt;/div&gt;&lt;/section&gt;`);}
+ function employee(){
+   if(state.page===&#x27;help&#x27;) return `${heading(&#x27;Help for employees.&#x27;,&#x27;Keep the conversation calm and clear.&#x27;)}&lt;section class=&quot;s-box s-stack&quot;&gt;&lt;h3&gt;Start with the member’s own words&lt;/h3&gt;&lt;p&gt;“Can you walk me through what this payment is for?”&lt;/p&gt;&lt;details class=&quot;s-details&quot;&gt;&lt;summary&gt;When contact details recently changed&lt;/summary&gt;&lt;p&gt;Use an established, independent way to verify identity. A code sent to newly changed details may reach someone else.&lt;/p&gt;&lt;/details&gt;&lt;details class=&quot;s-details&quot;&gt;&lt;summary&gt;Who makes the payment decision?&lt;/summary&gt;&lt;p&gt;For a payment the member authorizes, the member decides. A confirmed account takeover follows the stop-payment and account-recovery process.&lt;/p&gt;&lt;/details&gt;&lt;details class=&quot;s-details&quot;&gt;&lt;summary&gt;When money has already been sent&lt;/summary&gt;&lt;p&gt;Record the report promptly and start the relevant recovery process. Wire recalls and ACH returns are requests, not guarantees. Sent P2P payments cannot be recalled.&lt;/p&gt;&lt;/details&gt;&lt;/section&gt;`;
+   if(state.page===&#x27;resolved&#x27;){
+     const done=Object.keys(cases).filter(k=&gt;![&#x27;paused&#x27;,&#x27;specialist&#x27;].includes(state[k+&#x27;Status&#x27;]));
+     return `${heading(&#x27;Resolved.&#x27;,&#x27;Completed reviews stay easy to find.&#x27;)}&lt;section class=&quot;s-box&quot;&gt;${done.length?done.map(k=&gt;`&lt;div class=&quot;s-stack&quot;&gt;&lt;h3&gt;${cases[k].name} · ${cases[k].amount}&lt;/h3&gt;${tag(state[k+&#x27;Status&#x27;])}&lt;/div&gt;`).join(&#x27;&lt;hr class=&quot;s-rule&quot;&gt;&#x27;):`&lt;div class=&quot;s-empty&quot;&gt;&lt;h3&gt;No completed reviews yet.&lt;/h3&gt;&lt;p&gt;Finish a payment review and it will appear here.&lt;/p&gt;${button(&#x27;Open review queue&#x27;,&#x27;queue&#x27;,true)}&lt;/div&gt;`}&lt;/section&gt;`;
+   }
+   const c=cases[state.selected], status=state[state.selected+&#x27;Status&#x27;];
+   const queue=Object.entries(cases).map(([key,item])=&gt;`&lt;button type=&quot;button&quot; class=&quot;s-case cursor-interaction&quot; data-case=&quot;${key}&quot; aria-pressed=&quot;${key===state.selected}&quot;&gt;&lt;span&gt;${item.name}&lt;/span&gt;&lt;strong&gt;${item.amount}&lt;/strong&gt;&lt;span class=&quot;s-small s-muted&quot;&gt;${state[key+&#x27;Status&#x27;]===&#x27;paused&#x27;?`Review by ${item.time} · ${item.date}`:({sent:&#x27;Payment sent&#x27;,cancelled:&#x27;Payment cancelled&#x27;,stopped:&#x27;Payment stopped&#x27;,specialist:&#x27;Specialist requested&#x27;})[state[key+&#x27;Status&#x27;]]}&lt;/span&gt;&lt;/button&gt;`).join(&#x27;&#x27;);
+   let panel=&#x27;&#x27;;
+   if(state.employeeStep===&#x27;review&#x27; &amp;&amp; status===&#x27;paused&#x27;){
+     panel=`${textButton(`${icon(&#x27;arrow-left&#x27;)} Case details`,&#x27;case-details&#x27;)}&lt;div class=&quot;s-stack&quot;&gt;&lt;h2&gt;Review with ${c.name===&#x27;Linda&#x27;?&#x27;Linda&#x27;:&#x27;the member&#x27;}&lt;/h2&gt;&lt;p class=&quot;s-muted&quot;&gt;Confirm identity, hear their explanation, then record their choice.&lt;/p&gt;&lt;label class=&quot;s-check&quot;&gt;&lt;input id=&quot;sound-verified&quot; type=&quot;checkbox&quot; ${state.verified?&#x27;checked&#x27;:&#x27;&#x27;}&gt;&lt;span&gt;Identity verified through an approved, independent channel.&lt;/span&gt;&lt;/label&gt;&lt;div class=&quot;s-note&quot;&gt;&lt;h3&gt;Ask the member&lt;/h3&gt;&lt;p&gt;“Can you walk me through what this payment is for?”&lt;/p&gt;&lt;p&gt;“Has anyone asked you to rush or keep it secret?”&lt;/p&gt;&lt;/div&gt;&lt;label class=&quot;s-label&quot;&gt;Does the member recognize and authorize this payment?&lt;select id=&quot;sound-intent&quot; class=&quot;s-input&quot;&gt;&lt;option value=&quot;&quot;&gt;Choose a response&lt;/option&gt;&lt;option value=&quot;yes&quot; ${state.intent===&#x27;yes&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;Yes, it is their payment&lt;/option&gt;&lt;option value=&quot;no&quot; ${state.intent===&#x27;no&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;No, they did not authorize it&lt;/option&gt;&lt;option value=&quot;unsure&quot; ${state.intent===&#x27;unsure&#x27;?&#x27;selected&#x27;:&#x27;&#x27;}&gt;They are unsure&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&lt;label class=&quot;s-label&quot;&gt;Conversation notes &lt;span class=&quot;s-muted s-small&quot;&gt;Record what the member says. Keep assumptions separate.&lt;/span&gt;&lt;textarea id=&quot;sound-employee-note&quot; rows=&quot;2&quot; class=&quot;s-input&quot;&gt;&lt;/textarea&gt;&lt;/label&gt;&lt;/div&gt;&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Record next step&#x27;,&#x27;employee-next&#x27;,true,state.verified&amp;&amp;state.intent?&#x27;&#x27;:&#x27;disabled&#x27;)}${button(&#x27;Ask a specialist&#x27;,&#x27;specialist&#x27;)}&lt;/div&gt;`;
+   } else if(state.employeeStep===&#x27;decision&#x27; &amp;&amp; status===&#x27;paused&#x27;) {
+     panel=`${textButton(`${icon(&#x27;arrow-left&#x27;)} Back to review`,&#x27;begin&#x27;)}&lt;h2&gt;${state.intent===&#x27;yes&#x27;?&#x27;What does the member choose?&#x27;:state.intent===&#x27;no&#x27;?&#x27;Escalate an unauthorized payment.&#x27;:&#x27;Get more help before proceeding.&#x27;}&lt;/h2&gt;&lt;p class=&quot;s-muted&quot; style=&quot;margin:14px 0&quot;&gt;${state.intent===&#x27;yes&#x27;?&#x27;Explain the concern and recovery limits. The member decides whether to send or cancel.&#x27;:&#x27;Keep the payment paused and ask a specialist to review account access and the next step.&#x27;}&lt;/p&gt;&lt;div class=&quot;s-note&quot;&gt;${c.amount} · Wire transfer&lt;br&gt;Pause limit: ${c.date} at ${c.time}&lt;/div&gt;&lt;div class=&quot;s-actions&quot;&gt;${state.intent===&#x27;yes&#x27;?button(&#x27;Member chooses to send&#x27;,&#x27;release-review&#x27;,true)+button(&#x27;Member chooses to cancel&#x27;,&#x27;employee-cancel&#x27;):button(&#x27;Ask a specialist&#x27;,&#x27;specialist&#x27;,true)}&lt;/div&gt;`;
+   } else if(state.employeeStep===&#x27;release&#x27; &amp;&amp; status===&#x27;paused&#x27;) {
+     panel=`&lt;h2&gt;Release this payment?&lt;/h2&gt;&lt;p class=&quot;s-money&quot;&gt;${c.amount}&lt;/p&gt;&lt;p&gt;Confirm that the member chose to send this wire after discussing the concern and the limits of recovery.&lt;/p&gt;&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Release payment&#x27;,&#x27;release&#x27;,true)}${button(&#x27;Go back&#x27;,&#x27;employee-next&#x27;)}&lt;/div&gt;`;
+   } else {
+     panel=`&lt;div class=&quot;s-casehead&quot;&gt;&lt;div&gt;&lt;h2&gt;${c.name}&lt;/h2&gt;&lt;p class=&quot;s-muted s-small&quot;&gt;Member ${c.id}&lt;/p&gt;&lt;/div&gt;${tag(status)}&lt;/div&gt;&lt;dl class=&quot;s-facts&quot;&gt;&lt;div&gt;&lt;dt&gt;Payment&lt;/dt&gt;&lt;dd&gt;${c.amount} · Wire&lt;/dd&gt;&lt;/div&gt;&lt;div&gt;&lt;dt&gt;Review deadline&lt;/dt&gt;&lt;dd&gt;${c.date}, ${c.time}&lt;/dd&gt;&lt;/div&gt;&lt;div&gt;&lt;dt&gt;Recipient&lt;/dt&gt;&lt;dd&gt;${c.recipient} · ${c.recipientId}&lt;/dd&gt;&lt;/div&gt;&lt;div&gt;&lt;dt&gt;Channel&lt;/dt&gt;&lt;dd&gt;${c.channel}&lt;/dd&gt;&lt;/div&gt;&lt;/dl&gt;&lt;h3&gt;Why this needs a look&lt;/h3&gt;&lt;ul class=&quot;s-reasons&quot;&gt;${c.reasons.map(x=&gt;`&lt;li&gt;${icon(&#x27;circle-small&#x27;)}&lt;span&gt;${x}&lt;/span&gt;&lt;/li&gt;`).join(&#x27;&#x27;)}&lt;/ul&gt;&lt;p class=&quot;s-muted s-small&quot; style=&quot;margin-top:14px&quot;&gt;These changes can have a legitimate explanation.&lt;/p&gt;&lt;hr class=&quot;s-rule&quot;&gt;&lt;div class=&quot;s-note&quot;&gt;&lt;h3&gt;Next step&lt;/h3&gt;&lt;p&gt;${status===&#x27;paused&#x27;?&#x27;Confirm the member’s identity, then ask what the payment is for.&#x27;:status===&#x27;specialist&#x27;?&#x27;Specialist review requested. Keep ownership of the case and resolve it before the pause limit.&#x27;:&#x27;Review complete. The decision is recorded.&#x27;}&lt;/p&gt;&lt;/div&gt;${status===&#x27;paused&#x27;?`&lt;div class=&quot;s-actions&quot;&gt;${button(&#x27;Begin review&#x27;,&#x27;begin&#x27;,true)}${button(&#x27;Ask a specialist&#x27;,&#x27;specialist&#x27;)}&lt;/div&gt;`:&#x27;&#x27;}&lt;details class=&quot;s-details&quot;&gt;&lt;summary&gt;Payment history&lt;/summary&gt;&lt;ol class=&quot;s-history&quot;&gt;${c.events.map(([time,event])=&gt;`&lt;li&gt;&lt;time&gt;${time}&lt;/time&gt;&lt;span&gt;${event}&lt;/span&gt;&lt;/li&gt;`).join(&#x27;&#x27;)}&lt;/ol&gt;&lt;/details&gt;`;
+   }
+   return `${heading(&#x27;Payment reviews.&#x27;,&#x27;One member. One clear next step.&#x27;)}&lt;div class=&quot;s-workspace&quot;&gt;&lt;aside class=&quot;s-queue&quot; aria-label=&quot;Example review queue&quot;&gt;&lt;h3&gt;Example cases&lt;/h3&gt;${queue}&lt;/aside&gt;&lt;section class=&quot;s-box&quot; aria-label=&quot;Selected payment review&quot;&gt;${panel}&lt;/section&gt;&lt;/div&gt;`;
+ }
+ function applyDesign(){root.style.setProperty(&#x27;--s-size&#x27;,design.textSize===&#x27;Larger&#x27;?&#x27;18px&#x27;:&#x27;16px&#x27;);root.style.setProperty(&#x27;--s-space&#x27;,design.spacing===&#x27;Compact&#x27;?&#x27;20px&#x27;:&#x27;26px&#x27;);}
+ function render(){
+   const isClient=state.role===&#x27;client&#x27;;
+   root.querySelectorAll(&#x27;[data-role]&#x27;).forEach(b=&gt;b.setAttribute(&#x27;aria-pressed&#x27;,String(b.dataset.role===state.role)));
+   root.querySelector(&#x27;#sound-context&#x27;).textContent=isClient?&#x27;Member banking&#x27;:&#x27;Member support&#x27;;
+   const items=isClient?[[&#x27;home&#x27;,&#x27;Home&#x27;],[&#x27;payments&#x27;,&#x27;Payments&#x27;],[&#x27;help&#x27;,&#x27;Get help&#x27;]]:[[&#x27;queue&#x27;,&#x27;Review queue&#x27;],[&#x27;resolved&#x27;,&#x27;Resolved&#x27;],[&#x27;help&#x27;,&#x27;Help&#x27;]];
+   nav.innerHTML=items.map(([key,label])=&gt;`&lt;button type=&quot;button&quot; class=&quot;cursor-interaction&quot; data-nav=&quot;${key}&quot; ${state.page===key?&#x27;aria-current=&quot;page&quot;&#x27;:&#x27;&#x27;}&gt;${label}&lt;/button&gt;`).join(&#x27;&#x27;);
+   if(!isClient) content.innerHTML=employee();
+   else if(state.step===&#x27;trusted&#x27;) content.innerHTML=trusted();
+   else if(state.page===&#x27;help&#x27;) content.innerHTML=help();
+   else if(state.page===&#x27;payments&#x27;) content.innerHTML=payments();
+   else if(state.step===&#x27;home&#x27;) content.innerHTML=home();
+   else content.innerHTML=clientReview();
+   const notes=root.querySelector(&#x27;#sound-employee-note&#x27;); if(notes)notes.value=state.employeeNote;
+   applyDesign();
+   if(globalThis.lucide)lucide.createIcons({attrs:{width:18,height:18}});
+ }
+ function navigate(page){state.page=page;state.step=&#x27;home&#x27;;state.helpTopic=&#x27;&#x27;;state.employeeStep=&#x27;details&#x27;;}
+ root.addEventListener(&#x27;click&#x27;,event=&gt;{
+   const el=event.target.closest(&#x27;button&#x27;); if(!el||el.disabled)return;
+   announcement.textContent=&#x27;&#x27;;
+   if(el.dataset.role){state.role=el.dataset.role;navigate(state.role===&#x27;client&#x27;?&#x27;home&#x27;:&#x27;queue&#x27;);}
+   else if(el.dataset.nav)navigate(el.dataset.nav);
+   else if(el.dataset.case){state.selected=el.dataset.case;state.employeeStep=&#x27;details&#x27;;state.verified=false;state.intent=&#x27;&#x27;;state.employeeNote=&#x27;&#x27;;}
+   else {
+     const a=el.dataset.action;
+     if(a===&#x27;home&#x27;||a===&#x27;payments&#x27;||a===&#x27;queue&#x27;||a===&#x27;help&#x27;)navigate(a);
+     if(a===&#x27;review&#x27;){state.page=&#x27;home&#x27;;state.step=&#x27;recognize&#x27;;}
+     if(a===&#x27;recognized&#x27;)state.step=&#x27;pressure&#x27;;
+     if(a===&#x27;not-mine&#x27;){state.page=&#x27;home&#x27;;state.step=&#x27;not-mine&#x27;;}
+     if(a===&#x27;unsure&#x27;||a===&#x27;concern&#x27;)state.step=&#x27;concern&#x27;;
+     if(a===&#x27;confirm&#x27;){state.step=&#x27;confirm&#x27;;state.checked=false;}
+     if(a===&#x27;cancel-review&#x27;)state.step=&#x27;cancel&#x27;;
+     if(a===&#x27;back&#x27;){state.step=state.step===&#x27;pressure&#x27;?&#x27;recognize&#x27;:[&#x27;concern&#x27;,&#x27;confirm&#x27;,&#x27;cancel&#x27;].includes(state.step)?&#x27;pressure&#x27;:&#x27;home&#x27;;}
+     if(a===&#x27;send&#x27;){if(!state.checked)return;state.lindaStatus=&#x27;sent&#x27;;navigate(&#x27;home&#x27;);announce(&#x27;Preview only: payment marked as sent. No money moved.&#x27;);}
+     if(a===&#x27;stop&#x27;){state.lindaStatus=&#x27;stopped&#x27;;navigate(&#x27;home&#x27;);announce(&#x27;Preview only: unauthorized payment reported. No real account was changed.&#x27;);}
+     if(a===&#x27;cancel&#x27;){state.lindaStatus=&#x27;cancelled&#x27;;navigate(&#x27;home&#x27;);announce(&#x27;Preview only: payment cancelled.&#x27;);}
+     if(a===&#x27;talk&#x27;){navigate(&#x27;help&#x27;);state.helpTopic=&#x27;talk&#x27;;}
+     if(a===&#x27;report&#x27;){navigate(&#x27;help&#x27;);state.helpTopic=&#x27;report&#x27;;}
+     if(a===&#x27;trusted&#x27;){navigate(&#x27;home&#x27;);state.step=&#x27;trusted&#x27;;}
+     if(a===&#x27;begin&#x27;)state.employeeStep=&#x27;review&#x27;;
+     if(a===&#x27;case-details&#x27;)state.employeeStep=&#x27;details&#x27;;
+     if(a===&#x27;employee-next&#x27;){if(!state.verified||!state.intent)return;state.employeeStep=&#x27;decision&#x27;;}
+     if(a===&#x27;release-review&#x27;)state.employeeStep=&#x27;release&#x27;;
+     if(a===&#x27;release&#x27;){if(!state.verified||state.intent!==&#x27;yes&#x27;)return;state[state.selected+&#x27;Status&#x27;]=&#x27;sent&#x27;;state.employeeStep=&#x27;details&#x27;;announce(&#x27;Preview only: release recorded. No money moved.&#x27;);}
+     if(a===&#x27;employee-cancel&#x27;){state[state.selected+&#x27;Status&#x27;]=&#x27;cancelled&#x27;;state.employeeStep=&#x27;details&#x27;;announce(&#x27;Preview only: member’s cancellation recorded.&#x27;);}
+     if(a===&#x27;specialist&#x27;){state[state.selected+&#x27;Status&#x27;]=&#x27;specialist&#x27;;state.employeeStep=&#x27;details&#x27;;announce(&#x27;Preview only: specialist review requested.&#x27;);}
+   }
+   render();remember();
+ });
+ root.addEventListener(&#x27;change&#x27;,event=&gt;{
+   const el=event.target;
+   if(el.id===&#x27;sound-send-check&#x27;){state.checked=el.checked;root.querySelector(&#x27;[data-action=&quot;send&quot;]&#x27;).disabled=!state.checked;}
+   if(el.id===&#x27;sound-trusted&#x27;){state.trusted=el.checked;announce(state.trusted?&#x27;Preference saved in this preview. No one has been contacted.&#x27;:&#x27;Preference removed.&#x27;);}
+   if(el.id===&#x27;sound-verified&#x27;)state.verified=el.checked;
+   if(el.id===&#x27;sound-intent&#x27;)state.intent=el.value;
+   const next=root.querySelector(&#x27;[data-action=&quot;employee-next&quot;]&#x27;);if(next)next.disabled=!state.verified||!state.intent;
+   if(el.id===&#x27;sound-employee-note&#x27;)state.employeeNote=el.value;
+   remember();
+ });
+ root.addEventListener(&#x27;input&#x27;,event=&gt;{if(event.target.id===&#x27;sound-employee-note&#x27;)state.employeeNote=event.target.value;});
+ root.addEventListener(&#x27;submit&#x27;,event=&gt;{if(event.target.id===&#x27;sound-report-form&#x27;){event.preventDefault();state.helpTopic=&#x27;reported&#x27;;state.reportSent=true;render();remember();announce(&#x27;Preview only: no report was submitted to Sound.&#x27;);}});
+ window.addEventListener(&#x27;openai:set_globals&#x27;,event=&gt;{const incoming=event.detail?.globals?.widgetState?.privateContent;if(incoming?.version===1&amp;&amp;incoming.state){state={...defaults,...incoming.state};render();}});
+ render();
+ if(globalThis.Tweak){const tweak=new Tweak({container:root,onChange:applyDesign});tweak.addSelect(design,&#x27;textSize&#x27;,{label:&#x27;Reading size&#x27;,options:[&#x27;Standard&#x27;,&#x27;Larger&#x27;]});tweak.addSelect(design,&#x27;spacing&#x27;,{label:&#x27;Spacing&#x27;,options:[&#x27;Comfortable&#x27;,&#x27;Compact&#x27;]});}
+})();
+&lt;/script&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+  let lastPointerWasTouch = false;
+  let pinnedByTouch = false;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    pinnedByTouch = false;
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handlePointer = (event) =&gt; {
+    lastPointerWasTouch =
+      event.type === &quot;pointerdown&quot; &amp;&amp; event.pointerType === &quot;touch&quot;;
+  };
+  const handleTouchClick = (event) =&gt; {
+    const isTouch = event.pointerType === &quot;touch&quot; || lastPointerWasTouch;
+    lastPointerWasTouch = false;
+    if (!isTouch || event.detail === 0) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (
+      trigger == null ||
+      !trigger.isConnected ||
+      getContent(trigger).length === 0 ||
+      (pinnedByTouch &amp;&amp; activeTrigger === trigger)
+    ) {
+      if (pinnedByTouch) {
+        closeTooltip();
+      }
+      return;
+    }
+    openTooltip(trigger);
+    pinnedByTouch = activeTrigger === trigger;
+    window.setTimeout(() =&gt; {
+      if (activeTrigger === trigger &amp;&amp; !trigger.isConnected) {
+        closeTooltip(false);
+      }
+    }, 0);
+  };
+  const handleLeave = (event) =&gt; {
+    if (pinnedByTouch) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    lastPointerWasTouch = false;
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    lastPointerWasTouch = false;
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerdown&quot;, handlePointer);
+    document.removeEventListener(&quot;pointercancel&quot;, handlePointer);
+    document.removeEventListener(&quot;click&quot;, handleTouchClick);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerdown&quot;, handlePointer);
+  document.addEventListener(&quot;pointercancel&quot;, handlePointer);
+  document.addEventListener(&quot;click&quot;, handleTouchClick);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-tabs&quot;&gt;
+(() =&gt; {
+  const selector = &#x27;.nav[role=&quot;tablist&quot;] [role=&quot;tab&quot;]&#x27;;
+  const disabled = &#x27;:disabled,[aria-disabled=&quot;true&quot;]&#x27;;
+  const selectTab = (selected) =&gt; {
+    const panelId = selected.getAttribute(&quot;aria-controls&quot;);
+    for (const tab of selected.closest(&#x27;[role=&quot;tablist&quot;]&#x27;).querySelectorAll(&#x27;[role=&quot;tab&quot;]&#x27;)) {
+      const active = tab === selected;
+      tab.classList.toggle(&quot;active&quot;, active);
+      tab.setAttribute(&quot;aria-selected&quot;, String(active));
+      const id = tab.getAttribute(&quot;aria-controls&quot;);
+      const panel = id &amp;&amp; document.getElementById(id);
+      if (panel != null) {
+        panel.hidden = id !== panelId;
+        if (!panel.hidden &amp;&amp; selected.id) {
+          panel.setAttribute(&quot;aria-labelledby&quot;, selected.id);
+        }
+      }
+    }
+  };
+  const interact = (event) =&gt; {
+    const tab = event.target?.closest?.(selector);
+    if (event.defaultPrevented || tab == null || tab.matches(disabled)) {
+      return;
+    }
+    if (event.type === &quot;click&quot;) {
+      selectTab(tab);
+      return;
+    }
+    const tabs = Array.from(
+      tab.closest(&#x27;[role=&quot;tablist&quot;]&#x27;).querySelectorAll(&#x27;[role=&quot;tab&quot;]&#x27;),
+    ).filter((candidate) =&gt; !candidate.matches(disabled));
+    const current = tabs.indexOf(tab);
+    let next;
+    if (event.key === &quot;ArrowRight&quot; || event.key === &quot;ArrowDown&quot;) {
+      next = (current + 1) % tabs.length;
+    } else if (event.key === &quot;ArrowLeft&quot; || event.key === &quot;ArrowUp&quot;) {
+      next = (current + tabs.length - 1) % tabs.length;
+    } else if (event.key === &quot;Home&quot;) {
+      next = 0;
+    } else if (event.key === &quot;End&quot;) {
+      next = tabs.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    tabs[next].focus();
+    selectTab(tabs[next]);
+  };
+
+  for (const list of document.querySelectorAll(&#x27;.nav[role=&quot;tablist&quot;]&#x27;)) {
+    const selected =
+      list.querySelector(&#x27;[role=&quot;tab&quot;][aria-selected=&quot;true&quot;]&#x27;) ??
+      list.querySelector(&#x27;[role=&quot;tab&quot;].active&#x27;) ??
+      list.querySelector(&#x27;[role=&quot;tab&quot;]&#x27;);
+    if (selected != null) {
+      selectTab(selected);
+    }
+  }
+  document.addEventListener(&quot;click&quot;, interact);
+  document.addEventListener(&quot;keydown&quot;, interact);
+  window.addEventListener(&quot;pagehide&quot;, () =&gt; {
+    document.removeEventListener(&quot;click&quot;, interact);
+    document.removeEventListener(&quot;keydown&quot;, interact);
+  }, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+<script>(() => {
+  const frame = document.getElementById("codex-visualization");
+  if (!(frame instanceof HTMLIFrameElement)) {
+    return;
+  }
+  let viewportHeight = globalThis.innerHeight;
+  const storageKey = `codex:visualization-widget-state-v2:${JSON.stringify([
+    globalThis.location.pathname,
+    globalThis.location.search,
+  ])}`;
+  const parseState = (serializedState) => {
+    if (
+      typeof serializedState !== "string" ||
+      new TextEncoder().encode(serializedState).length > 16 * 1024
+    ) {
+      throw new TypeError(
+        "Widget state must be a JSON object of at most 16 KiB",
+      );
+    }
+    /** @type {unknown} */
+    const state = JSON.parse(serializedState);
+    if (
+      state == null ||
+      typeof state !== "object" ||
+      Array.isArray(state) ||
+      ("imageIds" in state &&
+        (!Array.isArray(state.imageIds) || state.imageIds.length > 0))
+    ) {
+      throw new TypeError("Widget state must be a JSON object");
+    }
+    const storedState = { modelContent: null, privateContent: null, ...state };
+    const canonicalState = JSON.stringify(
+      storedState,
+      (_key, /** @type {unknown} */ value) => {
+        if (typeof value === "number" && !Number.isFinite(value)) {
+          throw new TypeError("Widget state must contain finite numbers");
+        }
+        return value;
+      },
+    );
+    if (new TextEncoder().encode(canonicalState).length > 16 * 1024) {
+      throw new TypeError(
+        "Widget state must be a JSON object of at most 16 KiB",
+      );
+    }
+    return storedState;
+  };
+  let storage = null;
+  let state = null;
+  try {
+    const localStorage = globalThis.localStorage;
+    const probeKey = `${storageKey}:probe`;
+    localStorage.setItem(probeKey, "1");
+    localStorage.removeItem(probeKey);
+    storage = localStorage;
+    const savedState = storage.getItem(storageKey);
+    if (savedState != null) {
+      try {
+        state = parseState(savedState);
+      } catch {
+        // Invalid saved state does not disable future writes.
+      }
+    }
+  } catch {
+    storage = null;
+  }
+  const initialGlobals = {
+    widgetState: state,
+    statePersistence: storage == null ? "none" : "local",
+  };
+
+  const channel = new MessageChannel();
+  channel.port1.addEventListener("message", (event) => {
+    const data = event.data;
+    if (typeof data !== "object" || data == null) {
+      return;
+    }
+    if (data.type === "widget-state-write") {
+      if (!Number.isSafeInteger(data.id) || data.id <= 0) {
+        return;
+      }
+      let ok = false;
+      try {
+        if (storage != null) {
+          const state = parseState(data.state);
+          storage.setItem(storageKey, JSON.stringify(state));
+          ok = true;
+        }
+      } catch {
+        // Storage denial, quota limits, and invalid state return a failed receipt.
+      }
+      channel.port1.postMessage({
+        type: "widget-state-result",
+        id: data.id,
+        ok,
+      });
+      return;
+    }
+    if (data.type === "height") {
+      const height = data.height;
+      if (
+        typeof height === "number" &&
+        Number.isFinite(height) &&
+        height >= 0 &&
+        height <= 10_000
+      ) {
+        frame.style.height = Math.ceil(height) + "px";
+      }
+      return;
+    }
+    if (data.type === "scroll-to") {
+      const top = data.top;
+      if (
+        typeof top === "number" &&
+        Number.isFinite(top) &&
+        top >= 0 &&
+        globalThis.navigator.userActivation?.isActive === true
+      ) {
+        globalThis.scrollTo({
+          top: Math.ceil(
+            globalThis.scrollY + frame.getBoundingClientRect().top + top,
+          ),
+        });
+      }
+      return;
+    }
+    if (data.type === "open-external") {
+      const rawHref = data.href;
+      if (typeof rawHref !== "string") {
+        return;
+      }
+      let href;
+      try {
+        const url = new URL(rawHref, document.baseURI);
+        if (url.protocol !== "https:") {
+          return;
+        }
+        href = url.href;
+      } catch {
+        return;
+      }
+      if (globalThis.navigator.userActivation?.isActive === true) {
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.rel = "noopener noreferrer";
+        anchor.target = "_blank";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      }
+      return;
+    }
+    if (data.type === "follow-up") {
+      const prompt = data.prompt;
+      if (
+        typeof prompt !== "string" ||
+        globalThis.navigator.userActivation?.isActive !== true
+      ) {
+        return;
+      }
+      const title = data.title;
+      globalThis.prompt(typeof title === "string" ? title : prompt, prompt);
+    }
+  });
+  channel.port1.start();
+  const srcdoc = frame.dataset.srcdoc;
+  if (srcdoc == null) {
+    return;
+  }
+  globalThis.addEventListener("resize", () => {
+    const height = Number.parseFloat(frame.style.height);
+    if (!Number.isFinite(height) || height <= viewportHeight) {
+      frame.style.removeProperty("height");
+    }
+    viewportHeight = globalThis.innerHeight;
+    channel.port1.postMessage({ type: "measure" });
+  });
+  frame.addEventListener(
+    "load",
+    () => {
+      frame.contentWindow?.postMessage(
+        { type: "codex-visualization-initialize" },
+        "*",
+        [channel.port2],
+      );
+    },
+    { once: true },
+  );
+  // Match the trusted bootstrap element, not the same text in an authored title.
+  frame.srcdoc = srcdoc.replace(
+    '<script type="application/json" id="codex-visualization-widget-state">__CODEX_VISUALIZATION_WIDGET_STATE__<\/script>',
+    () =>
+      '<script type="application/json" id="codex-visualization-widget-state">' +
+      JSON.stringify(initialGlobals).replaceAll("<", "\\u003c") +
+      "<\/script>",
+  );
+  delete frame.dataset.srcdoc;
+})();
+</script>
+</body>
+</html>
