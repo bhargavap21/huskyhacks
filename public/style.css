@@ -212,8 +212,15 @@ th { white-space: nowrap; }
 .shell.side-collapsed .side button, .shell.side-collapsed .side .side-link { justify-content: center; padding: var(--space-2) 0; }
 .main { min-width: 0; padding: 0 var(--space-6) var(--space-7); }
 .main .blurb { padding: var(--space-4) 0; font-size: 17px; line-height: 28px; color: var(--ink-body); }
-.page-member { display: flex; justify-content: center; }
-.page-member .phone { width: 100%; max-width: 440px; }
+.page-member { display: block; }
+/* Member pages use the whole window: headline cards span the width, the rest flow into columns.
+   The phone-shaped frame stays for Side by side (member next to the console) and joined phones. */
+.page-member .phone { width: 100%; max-width: none; border: 0; background: transparent; }
+.page-member .app-head { border: 1px solid var(--line); }
+.page-member .app-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); align-items: start; gap: var(--space-5); padding: var(--space-5) 0; min-height: 0; }
+.page-member .app-body > :is(.banner, .lock, .card.ob, .card.guardian, .card.feels-off:only-child) { grid-column: 1 / -1; }
+.page-member .app-body p, .page-member .app-body li { max-width: 75ch; }
+.page-member .footnote { padding: 0; }
 .main .grid { padding: 0; }
 .copilot { position: sticky; top: 0; height: 100vh; overflow: hidden; border-left: 1px solid var(--line); background: var(--surface-raised); }
 .shell.copilot-closed .copilot { border-left: 0; }
@@ -360,7 +367,8 @@ td:nth-child(2), td:nth-child(4), td:nth-child(5) { white-space: nowrap; }
 body.joined .topbar, body.joined .demo-bar, body.joined .side, body.joined .blurb, body.joined .acct-menu { display: none !important; }
 body.joined .shell, body.joined .shell.side-collapsed { display: block; }
 body.joined .main { padding: 0; }
-body.joined .page-member .phone { max-width: none; min-height: 100dvh; border: 0; display: flex; flex-direction: column; }
+body.joined .page-member .phone { max-width: none; min-height: 100dvh; border: 0; display: flex; flex-direction: column; background: var(--surface-raised); }
+body.joined .page-member .app-body { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); }
 body.joined .phone .app-body { flex: 1; padding-bottom: 88px; }
 body.joined .footnote { display: none; }
 .joined-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: flex; border-top: 1px solid var(--line); background: var(--surface-raised); padding-bottom: env(safe-area-inset-bottom); }
@@ -437,3 +445,4 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 .fraud-report blockquote { margin: 0 0 var(--space-1); font-size: 14px; color: var(--ink-muted); font-style: italic; }
 .fr-kv { margin: 0 0 var(--space-2); font-size: 14px; }
 .fr-steps { margin: var(--space-1) 0 0; padding-left: var(--space-5); font-size: 14px; }
+.page-member .g-link { max-width: 640px; }
