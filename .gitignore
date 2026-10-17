@@ -5,3 +5,7 @@ node_modules/
 second-look-handoff.zip
 instinct-design-system.zip
 .vercel
+
+# Hackathon-provided materials (not for public release)
+data/
+HuskyHack_*
