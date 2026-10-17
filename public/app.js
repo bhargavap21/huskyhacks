@@ -16,6 +16,9 @@ let setupDone = sess('sl-setup') === '1';
 const markSetupDone = () => { setupDone = true; sessSet('sl-setup', '1'); };
 // The chat follows a held payment until the member picks "Something feels off" themselves.
 let chatAuto = true;
+// Composer icons (inline SVG, colour from the button).
+const svg = d => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON = { plus: svg('<path d="M12 5v14M5 12h14"/>'), mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'), up: svg('<path d="M12 19V5M6 11l6-6 6 6"/>') };
 // Attachments waiting in the composer (photos, PDFs, voice notes) and the voice note being recorded.
 let pendingAtt = [], rec = null;
 const $ = s => document.querySelector(s);
@@ -368,9 +371,11 @@ function chatView() {
       <label class="chat-share"><input type="checkbox" id="chatshare" ${S.share_on?.[general ? '0' : String(chatCase)] ? 'checked' : ''}> Share this chat with the Sound employee helping me</label>
       ${pendingAtt.length ? `<ul class="att-tray" aria-label="Ready to send">${pendingAtt.map((a, i) => `<li class="att-chip">${a.kind === 'image' ? `<img src="${a.preview}" alt="">` : ''}<span>${esc(attLabel(a))}</span><button class="icon-btn" data-act="att_remove" data-i="${i}" aria-label="Remove ${esc(attLabel(a))}">×</button></li>`).join('')}</ul>` : ''}
       ${rec ? `<div class="rec-bar" role="status"><span class="rec-dot" aria-hidden="true"></span><span>Recording <span id="rec-time">0:00</span></span><button class="primary" data-act="rec_stop">Stop and add</button><button class="quiet" data-act="rec_cancel">Cancel</button></div>` : ''}
-      <div class="composer"><label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="1" placeholder="Message Second Look"></textarea>
-        <button class="primary composer-send" data-act="send" aria-label="Send">↑</button></div>
-      <div class="composer-tools"><button class="quiet" data-act="attach">Add a screenshot or file</button><button class="quiet" data-act="rec_start" ${rec ? 'disabled' : ''}>Record a voice note</button>
+      <div class="composer">
+        <button class="composer-icon" data-act="attach" aria-label="Add a screenshot, photo, PDF or voicemail" title="Add a screenshot, photo, PDF or voicemail">${ICON.plus}</button>
+        <label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="1" placeholder="Ask Second Look"></textarea>
+        <button class="composer-icon" data-act="rec_start" ${rec ? 'disabled' : ''} aria-label="Record a voice note" title="Record a voice note">${ICON.mic}</button>
+        <button class="primary composer-send" data-act="send" aria-label="Send">${ICON.up}</button>
         <input type="file" id="chatfile" accept="image/*,application/pdf,audio/*,.m4a,.mp3,.wav" multiple hidden></div>
       <p class="chat-note">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide. Voice notes are transcribed on Sound’s server; the audio isn’t kept.</p>
     </div></div>`;

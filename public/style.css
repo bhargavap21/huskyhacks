@@ -138,11 +138,14 @@ fieldset legend { margin-bottom: var(--space-2); }
 .chat-dock { padding: var(--space-2) var(--space-3) var(--space-3); border-top: 1px solid var(--line); background: var(--surface-raised); }
 .chat-chips { display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: var(--space-2); scrollbar-width: none; }
 .chat-chip { flex: none; min-height: 36px; padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill); border-color: var(--line); font-size: 14px; white-space: nowrap; }
-.composer { display: flex; align-items: flex-end; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border: 1px solid var(--line-strong); border-radius: 22px; background: var(--surface-raised); }
+.composer { display: flex; align-items: flex-end; gap: var(--space-1); padding: var(--space-1); border: 1px solid var(--line-strong); border-radius: 22px; background: var(--surface-raised); }
 .composer:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 .composer textarea { flex: 1; min-height: 36px; max-height: 140px; border: 0; padding: var(--space-2) 0; background: transparent; resize: none; line-height: 22px; }
 .composer textarea:focus-visible { outline: none; }
-.composer-send { flex: none; width: 36px; min-height: 36px; height: 36px; padding: 0; border-radius: 50%; font-size: 18px; }
+.composer-send { flex: none; width: 36px; min-height: 36px; height: 36px; padding: 0; border-radius: 50%; }
+.composer textarea { padding-left: var(--space-1); }
+.composer-icon { flex: none; width: 36px; min-height: 36px; height: 36px; padding: 0; border-radius: 50%; border-color: transparent; color: var(--ink-body); background: transparent; }
+.composer-icon:hover { background: var(--surface-band); color: var(--ink); }
 .chat-note { margin: var(--space-2) 0 0; font-size: 12px; line-height: 16px; color: var(--ink-muted); text-align: center; }
 
 /* Employee console */
@@ -293,8 +296,6 @@ td:nth-child(2), td:nth-child(4), td:nth-child(5) { white-space: nowrap; }
 .setup-card .row { margin-top: var(--space-3); }
 
 /* Chat attachments: screenshots, PDFs and voice notes. Square, hairline, words over icons. */
-.composer-tools { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-.composer-tools button { min-height: 36px; padding: var(--space-1) var(--space-3); font-size: 14px; }
 .att-tray { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-2); padding: 0; list-style: none; }
 .att-chip { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; padding: 0 0 0 var(--space-2); border: 1px solid var(--line); background: var(--surface-raised); font-size: 14px; color: var(--ink-body); }
 .att-chip img { width: 32px; height: 32px; object-fit: cover; }
