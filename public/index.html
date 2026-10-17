@@ -16,7 +16,6 @@
   <span class="topbar-title">Second Look</span>
   <span class="topbar-meta">Concept for HuskyHack 2026 · synthetic data</span>
   <span class="topbar-spacer"></span>
-  <button id="theme" class="quiet" aria-pressed="false">Dark theme</button>
   <button id="copilot-toggle" class="primary" aria-controls="copilot" aria-expanded="true">Second Look chat</button>
 </header>
 <div class="demo-bar" role="toolbar" aria-label="Demo controls">
@@ -34,15 +33,24 @@
     <div class="side-label">Member app</div>
     <button data-page="home"><span class="ico" aria-hidden="true">⌂</span><span class="lbl">Home</span></button>
     <button data-page="inbox"><span class="ico" aria-hidden="true">◎</span><span class="lbl">Second Look</span><span class="side-count" id="count-inbox"></span></button>
-    <button data-page="settings"><span class="ico" aria-hidden="true">⚙</span><span class="lbl">Settings</span></button>
-    <button data-page="profile"><span class="ico" aria-hidden="true">◉</span><span class="lbl">Profile</span></button>
     <div class="side-label">Sound employee</div>
     <button data-page="console"><span class="ico" aria-hidden="true">▤</span><span class="lbl">Console</span><span class="side-count" id="count-console"></span></button>
     <div class="side-label">Demo</div>
     <button data-page="split"><span class="ico" aria-hidden="true">◫</span><span class="lbl">Side by side</span></button>
     <button data-page="timeline"><span class="ico" aria-hidden="true">☷</span><span class="lbl">Kit timeline</span></button>
     <a class="side-link" href="/about"><span class="ico" aria-hidden="true">ⓘ</span><span class="lbl">About this concept</span></a>
+    <div class="side-foot">
+      <button class="acct-btn" id="acct-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu"><span class="avatar-sm" id="acct-initial" aria-hidden="true">L</span><span class="lbl" id="acct-label">Linda</span><span class="lbl acct-chev" aria-hidden="true">⌃</span></button>
+    </div>
   </nav>
+  <div class="acct-menu" id="acct-menu" role="menu" aria-label="Account" hidden>
+    <div class="acct-head"><span class="acct-kicker">Account</span><span id="acct-name">Linda · M1001</span></div>
+    <button role="menuitem" data-page="profile"><span class="ico" aria-hidden="true">◉</span>Profile</button>
+    <button role="menuitem" data-page="settings"><span class="ico" aria-hidden="true">⚙</span>Settings</button>
+    <button role="menuitem" id="theme" aria-pressed="false"><span class="ico" aria-hidden="true">☼</span>Appearance<span class="acct-pill" id="theme-state">Light</span></button>
+    <div class="acct-sep"></div>
+    <button role="menuitem" id="acct-sign" data-act="sign_out"><span class="ico" aria-hidden="true">⇥</span><span id="acct-sign-lbl">Sign out</span></button>
+  </div>
   <main class="main" id="main">
     <p class="blurb" id="blurb"></p>
     <div id="page"></div>

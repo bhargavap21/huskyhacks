@@ -78,6 +78,14 @@ function render(force = false) {
   $('#copilot-toggle').setAttribute('aria-expanded', String(copilotOpen));
   $('#copilot-toggle').textContent = copilotOpen ? 'Hide chat' : 'Second Look chat';
   document.querySelectorAll('[data-page]').forEach(b => b.dataset.page === page || (page === 'onboarding' && b.dataset.page === 'settings') ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  // Account button at the bottom of the page list (member identity, sign-in state).
+  const m = S.member;
+  $('#acct-initial').textContent = signedIn ? m.name.trim()[0].toUpperCase() : '?';
+  $('#acct-label').textContent = signedIn ? m.name : 'Signed out';
+  $('#acct-name').textContent = signedIn ? `${m.name} · ${m.id}` : 'Signed out of the demo';
+  $('#acct-sign').dataset.act = signedIn ? 'sign_out' : 'sign_in';
+  $('#acct-sign-lbl').textContent = signedIn ? 'Sign out' : `Sign in as ${m.name} (demo)`;
+  $('#acct-btn').classList.toggle('current', ['profile', 'settings', 'onboarding'].includes(page));
   const openCases = S.cases.filter(c => c.status === 'open').length;
   $('#count-console').textContent = openCases + S.callbacks.filter(x => x.status === 'waiting').length || '';
   $('#count-inbox').textContent = S.cases.length || '';
@@ -470,7 +478,23 @@ $('#copilot-toggle').addEventListener('click', async () => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && copilotOpen && narrow()) { copilotOpen = false; render(true); } });
 
 // Theme toggle: light by default (Sound's brand); dark is opt-in and remembered per browser.
-function syncTheme() { const d = document.documentElement.dataset.theme === 'dark'; const b = $('#theme'); b.setAttribute('aria-pressed', String(d)); }
+function syncTheme() { const d = document.documentElement.dataset.theme === 'dark'; $('#theme').setAttribute('aria-pressed', String(d)); $('#theme-state').textContent = d ? 'Dark' : 'Light'; }
+
+// Account menu: opens from the account button, placed next to it (above on desktop, below on phones).
+function setAcctMenu(open) {
+  const menu = $('#acct-menu'), btn = $('#acct-btn');
+  menu.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  const r = btn.getBoundingClientRect();
+  menu.style.left = Math.max(8, Math.min(r.left, innerWidth - menu.offsetWidth - 8)) + 'px';
+  if (r.top > innerHeight / 2) { menu.style.top = 'auto'; menu.style.bottom = (innerHeight - r.top + 6) + 'px'; }
+  else { menu.style.bottom = 'auto'; menu.style.top = (r.bottom + 6) + 'px'; }
+  menu.querySelector('button').focus();
+}
+$('#acct-btn').addEventListener('click', () => setAcctMenu($('#acct-menu').hidden));
+document.addEventListener('click', e => { if (!$('#acct-menu').hidden && !e.target.closest('#acct-btn') && !e.target.closest('#theme')) setAcctMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#acct-menu').hidden) { setAcctMenu(false); $('#acct-btn').focus(); } });
+addEventListener('resize', () => setAcctMenu(false));
 $('#theme').addEventListener('click', () => {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
