@@ -242,3 +242,12 @@ th { white-space: nowrap; }
 }
 .side .side-link { font: 500 15px/20px var(--font-sans); }
 @media (max-width: 900px) { #theme { display: none; } .topbar-title { font-size: 22px; } }
+
+/* Numbers and statuses never break mid-word; side-by-side view stacks the case detail. */
+td, .countdown, .signal-value, .case-summary h2 { overflow-wrap: normal; word-break: normal; }
+td:nth-child(2), td:nth-child(4), td:nth-child(5) { white-space: nowrap; }
+.main .grid { grid-template-columns: minmax(0, 380px) minmax(0, 1fr); }
+.main .grid .two { grid-template-columns: minmax(0, 1fr); }
+.main .grid .console-head h2 { font-size: 26px; line-height: 32px; }
+.page-timeline .timeline { max-height: none; }
+.main .grid th:nth-child(1), .main .grid td:nth-child(1):not([colspan]), .main .grid th:nth-child(3), .main .grid td:nth-child(3) { display: none; }

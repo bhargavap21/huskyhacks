@@ -86,7 +86,7 @@ function timelineCard(openByDefault) {
 function pageView() {
   if (MEMBER_PAGES.includes(page)) return `<div class="page-member">${phone(memberView())}</div>`;
   if (page === 'console') return `<div class="employee">${employeeView()}</div>`;
-  if (page === 'timeline') return timelineCard(true);
+  if (page === 'timeline') return `<div class="page-timeline">${timelineCard(true)}</div>`;
   return `<div class="grid">${phone(memberView())}<section class="employee" aria-label="Employee console">${employeeView()}</section></div>`; // split
 }
 
