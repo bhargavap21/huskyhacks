@@ -116,7 +116,7 @@ function render(force = false) {
 /* ---------------- Pages ---------------- */
 const TABS = [['home', 'Home'], ['inbox', 'Alerts'], ['ask', 'Ask'], ['profile', 'Profile']];
 const joinedTabs = () => joined && signedIn ? `<nav class="joined-tabs" aria-label="Sound app">${TABS.map(([k, l]) => k === 'ask' ? `<button data-act="ask">${l}</button>` : `<button data-page="${k}" ${page === k ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</nav>` : '';
-const phone = body => `<section class="phone" aria-label="Member app (concept mock of the Sound app)"><div class="app-head"><b>Sound</b><span class="small">Concept mock</span></div><div class="app-body">${body}</div>${joinedTabs()}<p class="footnote">Concept mock of the Sound app, not Sound software. Synthetic kit data; holds and releases change only this simulation.</p></section>`;
+const phone = body => `<section class="phone" aria-label="Member app"><div class="app-head"><b>Sound</b></div><div class="app-body">${body}</div>${joinedTabs()}<p class="footnote">Synthetic kit data; holds and releases change only this simulation.</p></section>`;
 function timelineCard(openByDefault) {
   const tl = S.timeline.slice().reverse();
   return `<div class="card">${det('kit-tl', `Kit timeline, ${S.mode === 'as_is' ? 'as it happened' : 'with Second Look'} <span class="muted small">(${tl.length} events${tl[0] ? ` · latest ${esc(tl[0].ts_text.split(' ')[1])}` : ''})</span>`, `<div class="timeline">${tl.map(t => `<div class="${t.kind}">${esc(t.ts_text)} · ${esc(t.text)}</div>`).join('') || '<div class="muted">Press Play to start the replay.</div>'}</div>`, openByDefault)}</div>`;

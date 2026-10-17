@@ -10,7 +10,7 @@ Link: **https://second-look-demo.vercel.app** (forwards to the laptop; see `depl
 - Deep links: `?page=home|console|split|profile|onboarding&scene=m1057&jump=1`, and `?chat=general` for the "feels off" chat.
 
 Say these out loud every time:
-- "Everything is simulated on the kit's synthetic data. The member app is a concept mock, not Sound software."
+- "Everything is simulated on the kit's synthetic data."
 - "The pause really pauses the demo payment. It touches no real money or Sound system."
 - "For your own payment, Sound can delay and advise. You decide."
 

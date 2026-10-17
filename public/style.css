@@ -74,7 +74,7 @@ label { font: 500 15px/20px var(--font-sans); display: block; margin: var(--spac
 .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); }
 @media (max-width: 1100px) { .two { grid-template-columns: minmax(0, 1fr); } }
 
-/* Member app (concept mock) */
+/* Member app */
 .phone { background: var(--surface-raised); border: 1px solid var(--line-strong); }
 .app-head { background: var(--surface-band); padding: var(--space-4) var(--space-5); display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); }
 .app-head b { font-family: var(--font-serif); font-size: 34px; line-height: 40px; font-weight: 400; color: var(--ink); }
