@@ -1,0 +1,30 @@
+{
+  "name": "second-look",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "test": "tsx --test test/*.test.ts",
+    "vapid": "web-push generate-vapid-keys",
+    "trigger": "python3 -I scripts/payment_trigger.py",
+    "replay": "tsx scripts/replay.ts",
+    "lookalikes": "tsx scripts/lookalikes.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@hono/node-server": "^2.1.5",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^18.0.8",
+    "googleapis": "^186.0.0",
+    "hono": "^4.13.13",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "@types/web-push": "^3.6.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
