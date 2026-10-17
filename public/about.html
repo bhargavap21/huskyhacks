@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Second Look Concept</title>
+<meta name="description" content="One-pager: Second Look, scam protection members turn on inside the Sound app, with employees able to intervene before money moves.">
+<link rel="stylesheet" href="/static/style.css">
+<style>main{max-width:820px;margin:0 auto;padding:16px} h1{font-size:28px;margin:8px 0} h2{font-size:20px;margin:22px 0 6px} li{margin:4px 0}</style>
+</head>
+<body>
+<main>
+<p><a href="/">← Back to the demo</a></p>
+<h1>Second Look</h1>
+<p><b>Protection members turn on inside Sound’s own app, with Sound employees able to step in before money moves.</b> A concept for HuskyHack 2026, “Stop the Scam Before the Money Moves”. Everything here is a simulation on the kit’s synthetic data. The member app is a concept mock, not Sound software.</p>
+
+<h2>Member story</h2>
+<p>Linda (M1001) is told her grandson is in jail and that she must keep it secret. In the kit, she wires $8,500 in a branch: it was held at 14:21, an employee reached her at 15:42, she confirmed (her right), and it was released at 17:04. Recovery was unsuccessful. Our hypothesis: putting the evidence on the hold and starting a guided conversation at the moment of initiation could change what a member decides. The pilot is how we would measure that.</p>
+
+<h2>Trigger</h2>
+<ul>
+<li><b>R1</b> new recipient + Wire + no wire in 365+ days + 3x usual amount → hold (Linda: 2,411 days, 4.77x).</li>
+<li><b>R2</b> password reset or contact change + new recipient + payment within 7 days → verify first, with confirmation sent to <i>pre-change</i> contact details. The pattern alone does not prove a takeover.</li>
+<li><b>R3</b> 3+ growing P2P payments to one new recipient, then a first-ever wire or external transfer → contextual banner and human outreach.</li>
+<li><b>R4</b> large branch cash soon after a limits question → private branch conversation (uses the kit’s employee-recorded call topic, which the data dictionary marks “partly” observable).</li>
+</ul>
+<p>Thresholds are proposals. Rules use only fields in the events file, and only events at or before the payment. The Member Key is never read by the app.</p>
+
+<h2>Intervention and the role of people</h2>
+<p>Within Sound’s capability assumptions only: hold a wire, ACH or external transfer for up to 4 hours; intervene before submit on P2P (it can’t be recalled); a branch conversation for cash; stop a payment only after a verified account takeover. For a member’s own payment, Sound delays and advises, and the member decides. Employees see a queue sorted by hold time left, the field evidence, a conversation guide, and audited actions. At 4 hours a held payment sends only if the member reconfirmed; otherwise it returns unsent with notice. That disposition is a proposal to validate with Sound.</p>
+
+<h2>False positives, override and appeal</h2>
+<p>M1057’s legitimate $51,586.52 closing wire trips R1 exactly like Linda’s. The answer is a fast path: the member confirms (step-up code to on-file details) or an employee calls and releases, in minutes rather than the 3-4 hours in the kit. M1037’s $1,188.37 P2P to a grandchild never gets held; one banner, one tap. Dismissals are recorded as member feedback, never as silent training.</p>
+
+<h2>What it misses</h2>
+<p>M1102 wired $5,000 for a “federal agent” after asking about limits. The wire wasn’t unusual enough for R1, and R4 covers cash only. Only the standard banner showed. On the kit data, 7 scam journeys pass every rule; we show one of them rather than hide it.</p>
+
+<h2>Data used</h2>
+<p>Payment amount, rail, channel, timing, new-recipient indicators, days since the last same-rail payment, amount vs baseline, recent profile change and password reset, and trusted-contact status. Not used: device intelligence, biometrics, voice, carrier or consortium data, or members’ texts, calls, email or browsing.</p>
+
+<h2>Alerts without fatigue</h2>
+<p>Quiet by default. A banner appears in place, inside the payment flow. Interruptions only for money about to move. Budgets, cooldowns and quiet hours apply to member interruptions, never to the hold clock or the employee queue.</p>
+
+<h2>90-day pilot (assumptions, not data)</h2>
+<ul>
+<li>Opt-in offer to a defined segment. Never restricted by age alone.</li>
+<li>Branch and contact-center staff trained on the guide; the fraud team owns the queue.</li>
+<li>Baselines to set at launch: opt-in rate, holds per 1,000 payments, hold-to-release time, staff minutes per hold.</li>
+<li>Measures: harm prevented, scam completion, how soon recovery starts, warning completion, satisfaction, false-positive rate, time to release for legitimate members (target: minutes), time to intervention, employee effort, after-hours holds waiting.</li>
+<li>No fraud rates from the synthetic data (41% victims by design).</li>
+</ul>
+
+<h2>Privacy, accessibility, responsible design</h2>
+<p>Opt-in, revocable in one tap, no dark patterns. Trusted contacts are voluntary, revocable and member-chosen; informed only, never given access or control. The copy allows for the possibility that the exploiter is a relative or caregiver. Plain language, large type, 44px targets, AA contrast, screen-reader labels. No “safe” or “scam” verdicts and no accuracy claims.</p>
+
+<h2>Limits</h2>
+<p>Concept demo on synthetic data. Rules are unvalidated proposals. The chat is not a validated coaching tool. Holds and stops affect only the simulation. An optional, member-consented email companion is out of scope for this prototype.</p>
+</main>
+</body>
+</html>

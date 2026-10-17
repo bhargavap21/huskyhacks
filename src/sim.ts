@@ -1,0 +1,267 @@
+// Simulated Sound environment: replays one member's kit timeline on a compressed clock and,
+// in "with Second Look" mode, runs the rules and the enforced payment state machine.
+// Nothing here touches real money, accounts, or Sound systems.
+import { memberEvents, historyUpTo, type KitEvent } from './kit.ts';
+import { score, primary, type Finding, HOLDABLE } from './rules.ts';
+import { newPayment, transition, TERMINAL, TransitionError, type Payment, type Gate } from './payments.ts';
+import { audit, db } from './db.ts';
+
+export type Mode = 'as_is' | 'second_look';
+export type Scene = { id: string; member: string; name: string; mode: Mode; start: string; title: string; blurb: string };
+
+const KIT_DAY_SECONDS = 20; // 1 kit-day = 20 s (HANDOFF section 12)
+export const NORMAL_SPEED = 86_400 / KIT_DAY_SECONDS;
+export const HOLD_SPEED = 60; // while a payment waits on people: 4 h hold = 4 real minutes
+
+export const SCENES: Scene[] = [
+  { id: 'linda-asis', member: 'M1001', name: 'Linda', mode: 'as_is', start: '10/20/2026 13:58', title: 'Linda (M1001): what happened in the kit', blurb: 'Kit rows only. The wire was held at 14:21, outreach at 15:42, Linda confirmed, it released at 17:04.' },
+  { id: 'linda-sl', member: 'M1001', name: 'Linda', mode: 'second_look', start: '10/20/2026 13:58', title: 'Linda (M1001): with Second Look (proposed alternative)', blurb: 'Same kit signals. R1 fires at initiation and the hold lands with evidence and a conversation guide. A design hypothesis, not a historical claim.' },
+  { id: 'm1037', member: 'M1037', name: 'Grandparent helping with housing', mode: 'second_look', start: '10/6/2026 9:33', title: 'M1037: restraint (legitimate look-alike)', blurb: 'Urgent $1,188.37 P2P to a grandchild’s new account. Typical amount. R1 does not fire: one standard banner, one tap, done.' },
+  { id: 'm1057', member: 'M1057', name: 'Home buyer', mode: 'second_look', start: '10/19/2026 9:38', title: 'M1057: same trigger, legitimate (false positive)', blurb: 'Closing wire of $51,586.52. R1 fires exactly as for Linda. The answer is a fast confirm-and-release, in minutes.' },
+  { id: 'm1003', member: 'M1003', name: 'Sarah', mode: 'second_look', start: '10/15/2026 22:18', title: 'Sarah (M1003): takeover pattern (scripted premise)', blurb: 'Password reset + contact change + new recipient. P2P waits before submit for verification to pre-change contact details.' },
+  { id: 'm1102', member: 'M1102', name: 'Member', mode: 'second_look', start: '10/19/2026 13:40', title: 'M1102: a scam we miss', blurb: 'A $5,000 wire for a “federal agent”. Not unusual enough for R1, and R4 covers cash only. Only the standard banner shows.' },
+];
+
+export type CaseRec = {
+  id: number; pid: string; rule: string; title: string; tier: 'T0' | 'T1' | 'T2'; output: string;
+  evidence: Finding['evidence']; findings: Finding[]; status: 'open' | 'closed'; created_sim: number; created_real: number;
+  member_label: 'none' | 'looks_fine' | 'reported'; label_seconds: number | null; callback_requested: boolean;
+  actions: { ts: number; actor: string; action: string; detail: string }[];
+};
+export type PayRec = {
+  pid: string; rail: string; amount: number; recipient: string; channel: string; initiated_sim: number;
+  state: Payment; kit_status?: string; case_id: number | null; row: KitEvent;
+};
+export type Member = {
+  id: string; name: string; enrolled: boolean; trusted_contact: { name: string; relation: string; when: string } | null;
+  contact_changed_sim: number | null; pre_change_contact: string; current_contact: string;
+};
+
+type World = {
+  scene: Scene; mode: Mode; sim: number; speed: number; running: boolean; cursor: number; events: KitEvent[];
+  timeline: { ts: number; text: string; kind: 'kit' | 'suppressed' | 'system' }[];
+  payments: Map<string, PayRec>; cases: CaseRec[]; awaiting: string | null; member: Member;
+  confirm_code: { code: string; pid: string; sent_to: string; why: string } | null; ended: boolean;
+};
+
+let nextCase = 1;
+let w: World = blank(SCENES[1]);
+
+function blank(scene: Scene): World {
+  nextCase = 1;
+  const events = memberEvents(scene.member);
+  const start = toMs(scene.start);
+  const w0: World = {
+    scene, mode: scene.mode, sim: start, speed: NORMAL_SPEED, running: false, cursor: 0, events, timeline: [],
+    payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null,
+    member: { id: scene.member, name: scene.name, enrolled: scene.mode === 'second_look', trusted_contact: null, contact_changed_sim: null, pre_change_contact: 'phone ending 4471 (on file since 2019)', current_contact: 'phone ending 4471' },
+  };
+  // Fast-forward silently to the scene start so balances, recipients and flags are in place.
+  while (w0.cursor < events.length && events[w0.cursor].ts < start) applyRow(w0, events[w0.cursor++], true);
+  return w0;
+}
+
+function toMs(s: string) { const [d, t] = s.split(' '); const [m, dd, y] = d.split('/').map(Number); const [h, mi] = t.split(':').map(Number); return Date.UTC(y, m - 1, dd, h, mi); }
+export const fmt = (ms: number) => { const d = new Date(ms); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+
+export function loadScene(id: string) {
+  const s = SCENES.find(x => x.id === id);
+  if (!s) throw new Error('Unknown scene');
+  w = blank(s);
+  db.prepare('DELETE FROM chat_messages WHERE scene = ?').run(s.id);
+  audit('demo', 'scene_loaded', s.id);
+}
+
+const SKIP = new Set(['Login', 'Debit Purchase', 'ATM Withdrawal', 'Deposit', 'Automatic Payment', 'Bill Payment']);
+const usd = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const line = (e: KitEvent) => `${e.event_type}${e.payment_id ? ` · ${e.payment_id}` : ''}${e.amount ? ` · ${e.rail} ${usd(e.amount)}` : ''}${e.channel ? ` · ${e.channel}` : ''}${e.event_note ? ` — “${e.event_note}”` : ''}`;
+
+function act(c: CaseRec, actor: string, action: string, detail = '') {
+  c.actions.push({ ts: w.sim, actor, action, detail });
+  audit(actor, action, `case ${c.id} ${c.pid}${detail ? ': ' + detail : ''}`);
+}
+
+/** Apply one kit row. In second_look mode, rows for a payment Second Look took over are suppressed. */
+function applyRow(W: World, e: KitEvent, silent = false) {
+  if (['Email Change', 'Phone Change'].includes(e.event_type)) { W.member.contact_changed_sim = e.ts; W.member.current_contact = 'phone ending 0932 (changed ' + e.ts_text + ')'; }
+  if (e.event_type === 'Trusted Contact Enrolled') W.member.trusted_contact = { name: 'Enrolled contact', relation: 'from kit', when: 'any hold' };
+  const owned = e.payment_id && W.payments.get(e.payment_id)?.case_id != null && W.mode === 'second_look';
+  if (owned && e.event_type !== 'Payment Initiated') {
+    if (!silent && !SKIP.has(e.event_type)) W.timeline.push({ ts: e.ts, text: `Kit history diverges here: ${line(e)}`, kind: 'suppressed' });
+    return;
+  }
+  if (W.mode === 'second_look' && W.awaiting && ['Trusted Contact Offered', 'Employee Outreach', 'Confirmation Requested', 'Warning Displayed'].includes(e.event_type) && !e.payment_id) {
+    if (!silent) W.timeline.push({ ts: e.ts, text: `Kit history diverges here: ${line(e)}`, kind: 'suppressed' });
+    return;
+  }
+  if (e.event_type === 'Payment Initiated' && e.payment_id) {
+    const p: PayRec = { pid: e.payment_id, rail: e.rail, amount: e.amount, recipient: e.recipient_id, channel: e.channel, initiated_sim: e.ts, state: newPayment(e.rail), case_id: null, row: e };
+    W.payments.set(e.payment_id, p);
+    if (W.mode === 'second_look' && !silent && W.member.enrolled) {
+      W.timeline.push({ ts: e.ts, text: line(e), kind: 'kit' });
+      W.sim = e.ts; // the case and any hold start at initiation
+      openCase(W, p, e);
+      return;
+    }
+  } else if (e.payment_id && W.payments.has(e.payment_id)) {
+    const p = W.payments.get(e.payment_id)!;
+    if (p.case_id == null) p.kit_status = e.payment_status; // kit-driven status for payments Second Look did not take over
+  }
+  if (!silent && !SKIP.has(e.event_type)) W.timeline.push({ ts: e.ts, text: line(e), kind: 'kit' });
+}
+
+function openCase(W: World, p: PayRec, e: KitEvent) {
+  const findings = score(e, historyUpTo(W.events, e));
+  const f = primary(findings);
+  if (!f) return;
+  const gate: Gate = f.output === 'PRESUBMIT_REVIEW' ? 'presubmit_review' : f.output === 'BRANCH_CONVERSATION' ? 'branch_conversation' : f.output === 'BANNER' ? 'banner_confirm' : 'none';
+  p.state = newPayment(p.rail, gate);
+  const c: CaseRec = {
+    id: nextCase++, pid: p.pid, rule: f.rule, title: f.title, tier: f.tier, output: f.output, evidence: f.evidence, findings,
+    status: 'open', created_sim: W.sim, created_real: Date.now(), member_label: 'none', label_seconds: null, callback_requested: false, actions: [],
+  };
+  W.cases.unshift(c);
+  p.case_id = c.id;
+  const prev = w; w = W;
+  act(c, 'system', 'case_opened', `${f.rule} → ${f.output}; tier ${f.tier}; promoted because: ${f.evidence.map(x => x.value).join(' + ')}`);
+  if (f.output === 'HOLD') { p.state = transition(p.state, { kind: 'hold', now: W.sim }); act(c, 'system', 'hold_placed', 'up to 4 hours; employee notified'); }
+  w = prev;
+  W.awaiting = p.pid;
+  W.speed = HOLD_SPEED;
+  W.timeline.push({ ts: W.sim, text: `Second Look: ${f.rule} — ${f.title} → ${f.output.replace('_', ' ').toLowerCase()}`, kind: 'system' });
+}
+
+function settle(p: PayRec) {
+  if (TERMINAL.includes(p.state.status) && w.awaiting === p.pid) {
+    w.awaiting = null; w.speed = NORMAL_SPEED;
+    const c = w.cases.find(x => x.id === p.case_id);
+    if (c) { c.status = 'closed'; act(c, 'system', 'payment_final', p.state.status); }
+    w.timeline.push({ ts: w.sim, text: `Payment ${p.pid}: ${p.state.status}`, kind: 'system' });
+  }
+}
+
+/** Advance the clock. Called by the server loop (real ms elapsed). */
+export function tick(realMs: number) {
+  if (!w.running || w.ended) return;
+  w.sim += realMs * w.speed;
+  for (const p of w.payments.values()) {
+    if (p.state.status === 'Held' && p.state.hold_expires_at !== null && w.sim >= p.state.hold_expires_at) {
+      w.sim = p.state.hold_expires_at;
+      p.state = transition(p.state, { kind: 'expire', now: w.sim });
+      const c = w.cases.find(x => x.id === p.case_id)!;
+      act(c, 'system', 'hold_expired', p.state.status === 'Completed' ? 'member had reconfirmed: executed' : 'no reconfirm: returned unsent, member notified, can resubmit');
+      settle(p);
+    }
+  }
+  if (w.awaiting) return; // the journey waits on people; only the hold clock runs
+  while (w.cursor < w.events.length && w.events[w.cursor].ts <= w.sim) {
+    applyRow(w, w.events[w.cursor++]);
+    if (w.awaiting) break;
+  }
+  if (w.cursor >= w.events.length) { w.ended = true; w.running = false; }
+}
+
+export function control(cmd: string) {
+  if (cmd === 'play') w.running = true;
+  else if (cmd === 'pause') w.running = false;
+  else if (cmd === 'next') {
+    if (w.awaiting) throw new TransitionError('Waiting on the member or an employee');
+    while (w.cursor < w.events.length && SKIP.has(w.events[w.cursor].event_type)) applyRow(w, w.events[w.cursor++]);
+    if (w.cursor < w.events.length) { w.sim = Math.max(w.sim, w.events[w.cursor].ts); applyRow(w, w.events[w.cursor++]); }
+  } else if (cmd === 'faster') w.speed *= 4;
+  else if (cmd === 'reset') loadScene(w.scene.id);
+}
+
+const pay = (pid: string) => { const p = w.payments.get(pid); if (!p) throw new TransitionError('Unknown payment'); return p; };
+const caseOf = (id: number) => { const c = w.cases.find(x => x.id === id); if (!c) throw new TransitionError('Unknown case'); return c; };
+const caseFor = (p: PayRec) => caseOf(p.case_id!);
+
+/** Member-side actions (the member app). */
+export function member(action: string, b: any) {
+  if (action === 'enroll') { w.member.enrolled = !!b.on; audit('member', b.on ? 'second_look_on' : 'second_look_off', w.member.id); return; }
+  if (action === 'trusted_contact') { w.member.trusted_contact = b.remove ? null : { name: String(b.name || '').slice(0, 60), relation: String(b.relation || '').slice(0, 40), when: 'a payment is held' }; audit('member', b.remove ? 'trusted_contact_revoked' : 'trusted_contact_enrolled', w.member.id); return; }
+  const p = pay(b.pid); const c = caseFor(p);
+  switch (action) {
+    case 'looks_fine': // banner path: one tap
+      p.state = transition(p.state, { kind: 'clear_gate', actor: 'member' });
+      p.state = transition(p.state, { kind: 'submit' });
+      c.member_label = 'looks_fine'; c.label_seconds = Math.round((Date.now() - c.created_real) / 100) / 10;
+      act(c, 'member', 'this_is_fine', `confirmed in ${c.label_seconds}s; recorded as member feedback, not silent training`);
+      break;
+    case 'cancel':
+      p.state = transition(p.state, { kind: 'cancel' }); act(c, 'member', 'cancelled_payment'); break;
+    case 'request_code': {
+      const changed = w.member.contact_changed_sim !== null && w.sim - w.member.contact_changed_sim <= 7 * 86_400_000;
+      w.confirm_code = { code: String(100000 + Math.floor(Math.random() * 900000)), pid: p.pid, sent_to: changed ? w.member.pre_change_contact : w.member.current_contact, why: changed ? 'Your contact details changed in the last 7 days, so we sent this to the details you had before the change.' : 'Sent to the contact details on file.' };
+      act(c, 'system', 'confirmation_sent', `to ${w.confirm_code.sent_to}`); break;
+    }
+    case 'override_release':
+      if (!w.confirm_code || w.confirm_code.pid !== p.pid || String(b.code) !== w.confirm_code.code) throw new TransitionError('That code does not match. Request a new one.');
+      p.state = transition(p.state, { kind: 'release', actor: 'member', reason: 'Member override after step-up confirmation' });
+      w.confirm_code = null; c.member_label = 'looks_fine'; c.label_seconds = Math.round((Date.now() - c.created_real) / 100) / 10;
+      act(c, 'member', 'override_release', `member's decision, confirmed in ${c.label_seconds}s`); break;
+    case 'reconfirm':
+      p.state = transition(p.state, { kind: 'reconfirm' }); act(c, 'member', 'reconfirmed', 'send when the hold window ends'); break;
+    case 'callback':
+      c.callback_requested = true; act(c, 'member', 'asked_to_talk', 'member requested a call from Sound'); break;
+    case 'report':
+      if (!TERMINAL.includes(p.state.status)) p.state = transition(p.state, { kind: 'cancel' });
+      c.member_label = 'reported'; act(c, 'member', 'reported_scam', 'case created; recovery request started if money already moved');
+      if (p.state.status === 'Completed') act(c, 'system', 'recovery_request', HOLDABLE.has(p.rail) ? 'recall/return requested: possible, not guaranteed' : 'P2P cannot be recalled; reported to the receiving institution');
+      break;
+    default: throw new TransitionError('Unknown member action');
+  }
+  settle(p);
+}
+
+/** Employee console actions. Every one is audited. */
+export function employee(action: string, b: any) {
+  const c = caseOf(Number(b.caseId)); const p = pay(c.pid);
+  const reason = String(b.reason ?? '').slice(0, 300);
+  switch (action) {
+    case 'outreach': act(c, 'employee', 'outreach', reason || 'called member using the conversation guide'); break;
+    case 'escalate': act(c, 'employee', 'escalated', reason || 'escalated to fraud team'); break;
+    case 'release':
+      p.state = transition(p.state, { kind: 'release', actor: 'employee', reason }); act(c, 'employee', 'released', reason); break;
+    case 'clear_review': // after verification shows the member is in control
+      p.state = transition(p.state, { kind: 'clear_gate', actor: 'employee' }); p.state = transition(p.state, { kind: 'submit' });
+      act(c, 'employee', 'review_cleared', reason || 'verified with member via pre-change contact'); break;
+    case 'branch_outcome':
+      if (b.outcome === 'cancel') { p.state = transition(p.state, { kind: 'cancel' }); act(c, 'employee', 'branch_conversation', 'member decided not to proceed'); }
+      else { p.state = transition(p.state, { kind: 'clear_gate', actor: 'employee' }); p.state = transition(p.state, { kind: 'submit' }); act(c, 'employee', 'branch_conversation', 'member decided to proceed (their decision)'); }
+      break;
+    case 'verify_ato':
+      if (c.rule !== 'R2') throw new TransitionError('Takeover verification applies to the R2 pattern only');
+      p.state = transition(p.state, { kind: 'verify_ato' }); act(c, 'employee', 'ato_verified', 'SCRIPTED PREMISE: member confirmed via pre-change phone that they did not make these changes'); break;
+    case 'stop':
+      p.state = transition(p.state, { kind: 'stop' }); act(c, 'employee', 'stopped', 'verified account takeover'); break;
+    case 'trusted_notify':
+      if (!w.member.trusted_contact) throw new TransitionError('No trusted contact enrolled. The member can add one in Settings.');
+      act(c, 'employee', 'trusted_contact_notified', `informational message to ${w.member.trusted_contact.name}: no balances, no account access`); break;
+    case 'recovery':
+      act(c, 'employee', 'recovery_request', HOLDABLE.has(p.rail) ? 'recall/return requested: not guaranteed, faster is better' : 'P2P cannot be recalled'); break;
+    default: throw new TransitionError('Unknown employee action');
+  }
+  settle(p);
+}
+
+export function caseForChat(id: number) {
+  const c = caseOf(id); const p = pay(c.pid);
+  return { c, p, member: w.member };
+}
+
+export function snapshot() {
+  const pays = [...w.payments.values()].map(p => ({
+    pid: p.pid, rail: p.rail, amount: p.amount, recipient: p.recipient, channel: p.channel, initiated: fmt(p.initiated_sim),
+    status: p.case_id != null ? p.state.status : (p.kit_status ?? p.state.status), gate: p.state.gate,
+    hold_expires_at: p.state.hold_expires_at, hold_started_at: p.state.hold_started_at, reconfirmed: p.state.member_reconfirmed,
+    ato_verified: p.state.ato_verified, case_id: p.case_id,
+    row: { ratio: p.row.ratio, gap: p.row.days_since_last_same_rail, recipient_status: p.row.recipient_status, recipient_age_days: p.row.recipient_age_days, band: p.row.baseline_band, profile_change_recent: p.row.profile_change_recent, password_reset_recent: p.row.password_reset_recent, trusted_contact_enrolled: p.row.trusted_contact_enrolled, balance_after: p.row.available_balance_after },
+  }));
+  return {
+    scene: w.scene, scenes: SCENES.map(s => ({ id: s.id, title: s.title })), mode: w.mode, sim: w.sim, sim_text: fmt(w.sim),
+    speed: w.speed, running: w.running, ended: w.ended, awaiting: w.awaiting, member: w.member,
+    timeline: w.timeline.slice(-40).map(t => ({ ...t, ts_text: fmt(t.ts) })), payments: pays.reverse(), cases: w.cases,
+    confirm_code: w.confirm_code ? { sent_to: w.confirm_code.sent_to, why: w.confirm_code.why, pid: w.confirm_code.pid, demo_code: w.confirm_code.code } : null,
+  };
+}

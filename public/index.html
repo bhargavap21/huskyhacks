@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Second Look Demo</title>
+<meta name="description" content="Concept demo: Second Look inside a simulated Sound app, with an employee console. Synthetic kit data only.">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="demo-bar" role="toolbar" aria-label="Demo controls">
+  <span class="tag">Demo controls</span>
+  <label class="sr" for="scene">Scene</label>
+  <select id="scene"></select>
+  <button id="play" class="primary">Play</button>
+  <button id="next">Next event</button>
+  <button id="faster" title="Speed up the replay clock">Faster</button>
+  <button id="reset">Restart scene</button>
+  <span class="clock" aria-live="off">Kit time <span id="clock">–</span> <span id="speed" class="muted small"></span></span>
+  <span class="row" role="group" aria-label="View as">
+    <button data-view="both" aria-pressed="true">Both</button>
+    <button data-view="member" aria-pressed="false">Member</button>
+    <button data-view="employee" aria-pressed="false">Employee</button>
+  </span>
+  <a href="/about">About this concept</a>
+</div>
+<p class="blurb" id="blurb"></p>
+<main class="grid" id="grid">
+  <section class="phone" aria-label="Member app (concept mock of the Sound app)">
+    <div class="app-head"><b>Sound</b><span class="small">Concept mock</span></div>
+    <div class="app-body" id="member" aria-live="polite"></div>
+    <nav class="app-nav" aria-label="Member app">
+      <button data-screen="home">Home</button>
+      <button data-screen="inbox">Second Look</button>
+      <button data-screen="settings">Settings</button>
+    </nav>
+    <p class="footnote">Concept mock of the Sound app, not Sound software. Synthetic kit data; holds and releases change only this simulation.</p>
+  </section>
+  <section class="employee" id="employee" aria-label="Employee console"></section>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
