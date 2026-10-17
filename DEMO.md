@@ -1,6 +1,12 @@
 # Demo script
 
-Link: **https://second-look-demo.vercel.app** (forwards to the laptop; see `deploy/vercel-proxy/README.md`). Use the **Demo controls** bar: pick a scene, press **Play**. When a payment needs people, the replay stops and the hold clock runs at 60x (4 hours ≈ 4 minutes). Use the left page list: **Side by side** shows member and employee together (best on a laptop); **Home** / **Console** show one at a time. The **Second Look chat** opens on the right (collapse it with **Hide chat**, the page list with ☰). Deep links: `?page=home|console|split&scene=m1057&jump=1`.
+Link: **https://second-look-demo.vercel.app** (forwards to the laptop; see `deploy/vercel-proxy/README.md`).
+
+- **Demo controls** bar: pick a scene, press **Play**. When a payment needs people, the replay stops and the hold clock runs at 60x (4 hours ≈ 4 minutes).
+- **Page list** (left; collapse with ☰): **Home**, **Second Look** and **Console** show one page at a time; **Side by side** shows member and employee together (best on a laptop); **App setup** opens the member's setup steps; **Kit timeline**; **About this concept**.
+- **Account menu** (bottom left, "Linda"): **Profile**, **Settings**, **Appearance** (light or dark) and **Sign out**. Sign-in is demo-only: no account or password, and a fresh visit starts signed in.
+- **Second Look chat** opens on the right (button in the top bar). While a payment is held, the chat follows that payment unless you chose **Something feels off?**.
+- Deep links: `?page=home|console|split|profile|onboarding&scene=m1057&jump=1`, and `?chat=general` for the "feels off" chat.
 
 Say these out loud every time:
 - "Everything is simulated on the kit's synthetic data. The member app is a concept mock, not Sound software."
@@ -19,12 +25,13 @@ Say these out loud every time:
 | 1:05 | "Same trigger, legitimate: M1057's $51,586 closing wire. The answer isn't a looser rule; it's release in minutes." | Scene: **M1057**. Play. Type a reason, **Log the call**, **Release hold**. |
 | 1:30 | "And a scam we miss: M1102 wired $5,000 for a 'federal agent'. Not unusual enough for R1. We show that instead of hiding it." | Scene: **M1102** (optional if short on time). |
 | 1:40 | (Optional) "And members can talk it through before any money moves." | Home card **Something feels off?** → type one line → **Talk to a person at Sound**. |
-| 1:45 | "Opt-in, no new app, quiet by default, employees in the loop, and only powers Sound already has." | Open **About this concept** if asked. |
+| 1:45 | "Opt-in, no new app, quiet by default, employees in the loop, and only powers Sound already has." | (Optional) **App setup** to show the opt-in; **About this concept** if asked. |
 
 ---
 
 ## Phase 2: 5-minute live demo (Sunday)
 
+0. **Opt-in, no new app** (30 s, optional). Page list → **App setup** (or the **Finish setting up** card on Home). Step 1 offers Second Look with **Not now** right beside it ("if you choose not now, it stays off and we won't keep asking"). Turn it on, pick **Standard** alerts, skip the trusted contact, and show the summary. "It's a setting inside the app members already use. No new account, no new app." Then open the account menu → **Profile** to show the same choices.
 1. **Linda as it happened** (30 s). Scene **Linda: what happened in the kit**, Play. State the facts only: held 14:21, outreach 15:42, she confirmed, released 17:04. The next-day cash request was the one stopped. Don't diagnose.
 2. **Linda with Second Look** (90 s). The R1 hold appears at 14:11, at initiation, with the three kit fields. Employee: read guide question 3 ("Has anyone asked you to keep this quiet?"). Member: **Talk it through**, type "He said not to tell mom". The reply notes secrecy and suggests calling a number she already had. Then she presses **Cancel this payment**. "Our hypothesis is that evidence plus an early guided conversation changes decisions. The pilot is how you'd measure it."
 3. **Quiet default and restraint: M1037** (40 s). Typical amount, P2P, so R1 does not fire. One standard banner, **Yes, send it**. The Second Look tab shows "You marked this fine (N s)".
@@ -35,6 +42,7 @@ Say these out loud every time:
 7. Slides: pilot (90 days, assumptions stated) and limits.
 
 ## If something breaks
-- Page stuck: **Restart scene**.
+- Page stuck: **Restart**.
+- Member app shows "Sign in to Sound": tap **Sign in as Linda (demo)**, or open the link in a new tab (sign-in resets per tab).
 - Chat slow or offline: it falls back to scripted replies labeled "offline reply".
 - Link down: the laptop must be awake and online. Run `npm start` locally, and the tunnel again if needed.
