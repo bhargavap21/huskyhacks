@@ -78,8 +78,8 @@ function memberView() {
 function homeView() {
   const m = S.member;
   let out = `<div class="card"><div class="muted small">Welcome back</div><h2>${esc(m.name)}</h2>
-    <div class="row small"><span class="chip">Second Look: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="chip">Kit replay: Second Look not in use</span>' : ''}</div></div>`;
-  if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">SOUND · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
+    <div class="row small"><span class="in-badge in-badge--neutral">Second Look: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="in-badge in-badge--neutral">Kit replay: Second Look not in use</span>' : ''}</div></div>`;
+  if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   if (active) out += activePayment(active, caseById(active.case_id));
   const recent = S.payments.slice(0, 4);
@@ -115,9 +115,9 @@ function activePayment(p, c) {
   const talk = (primary = false) => `<button ${primary ? 'class="primary"' : ''} data-act="chat" data-case="${c.id}">Talk it through</button>`;
   if (p.status === 'Held') {
     const left = p.hold_expires_at - S.sim;
-    const code = S.confirm_code && S.confirm_code.pid === p.pid ? `<div class="card"><h3>Confirm it’s you</h3><p class="small">We sent a code to your ${esc(S.confirm_code.sent_to)}. ${esc(S.confirm_code.why)}</p><p class="small muted">Demo code: ${esc(S.confirm_code.demo_code)}</p><label for="code">Code</label><input type="text" id="code" data-keep inputmode="numeric" autocomplete="one-time-code"><div class="row" style="margin-top:8px"><button class="primary" data-act="release" data-pid="${p.pid}">Send my payment</button></div></div>` : '';
+    const code = S.confirm_code && S.confirm_code.pid === p.pid ? `<div class="card"><h3>Confirm it’s you</h3><p class="small">We sent a code to your ${esc(S.confirm_code.sent_to)}. ${esc(S.confirm_code.why)}</p><p class="small muted">Demo code: ${esc(S.confirm_code.demo_code)}</p><label for="code">Code</label><input type="text" id="code" data-keep inputmode="numeric" autocomplete="one-time-code"><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="release" data-pid="${p.pid}">Send my payment</button></div></div>` : '';
     return `<div class="banner urgent" role="region" aria-label="Payment on hold">
-      <p class="eyebrow">On hold · nothing has been sent</p>
+      <p class="eyebrow in-badge in-badge--review">On hold · nothing has been sent</p>
       <h2>Your ${usd0(p.amount)} ${kind} is paused</h2>
       <p>A few things look different from usual, so we paused it to check with you. A Sound team member will call you. If it’s right, you can still send it.</p>
       ${reasonList(c)}
@@ -125,7 +125,7 @@ function activePayment(p, c) {
       <div class="stack">${talk(true)}
         <button data-act="request_code" data-pid="${p.pid}">It’s me, send it now</button>
         <button data-act="cancel" data-pid="${p.pid}">Cancel this payment</button></div>
-      ${det('m-more-' + p.pid, 'More options', `<div class="stack" style="margin-top:8px">
+      ${det('m-more-' + p.pid, 'More options', `<div class="stack" style="margin-top:var(--space-2)">
         <button data-act="callback" data-pid="${p.pid}" ${c.callback_requested ? 'disabled' : ''}>${c.callback_requested ? 'Sound will call you' : 'Ask Sound to call me now'}</button>
         <button data-act="reconfirm" data-pid="${p.pid}" ${p.reconfirmed ? 'disabled' : ''}>${p.reconfirmed ? 'It will send when the pause ends' : 'Send it when the pause ends'}</button>
         <button class="quiet" data-act="report" data-pid="${p.pid}">Report a scam</button></div>`)}
@@ -154,7 +154,7 @@ function inboxView() {
   if (!S.cases.length) return `<div class="card"><h2>Second Look</h2><p class="muted">Nothing here. We stay quiet unless something is worth a second look.</p></div>`;
   return `<div class="card"><h2>Second Look</h2><p class="small muted">Items we noticed, with the evidence. We only interrupt you when money is about to move.</p></div>` + S.cases.map(c => {
     const p = payOf(c);
-    return `<div class="card"><div class="row small"><span class="chip">${c.tier === 'T2' ? 'Needs a look now' : c.tier === 'T1' ? 'Worth a second look' : 'Quiet'}</span><span class="chip">${esc(p.status)}</span>${c.member_label === 'looks_fine' ? `<span class="chip">You marked this fine${c.label_seconds != null ? ` (${c.label_seconds}s)` : ''}</span>` : ''}</div>
+    return `<div class="card"><div class="row small"><span class="in-badge ${c.tier === 'T2' ? 'in-badge--risk' : 'in-badge--neutral'}">${c.tier === 'T2' ? 'Needs a look now' : c.tier === 'T1' ? 'Worth a second look' : 'Quiet'}</span><span class="in-badge in-badge--neutral">${esc(p.status)}</span>${c.member_label === 'looks_fine' ? `<span class="in-badge in-badge--neutral">You marked this fine${c.label_seconds != null ? ` (${c.label_seconds}s)` : ''}</span>` : ''}</div>
       <h3>${usd(p.amount)} ${esc(p.rail)} to ${esc(p.recipient)}</h3>${plainEvidence(c)}
       <details><summary>Why did I get this?</summary><p class="small">${esc(c.actions.find(a => a.action === 'case_opened')?.detail || '')}</p>${c.alert ? `<p class="small">How we told you: ${c.alert.interrupt ? 'a notification, because money was about to move' : c.alert.banner_in_place ? 'a note in the payment screen only, no notification' : 'quietly, here only'}${c.alert.suppressed ? ` (${esc(c.alert.suppressed)})` : ''}.</p>` : ''}</details>
       <div class="row">${'<button data-act="chat" data-case="' + c.id + '">Talk to Second Look</button>'}<button class="quiet" data-act="report" data-pid="${p.pid}">Report a scam</button></div></div>`;
@@ -169,12 +169,12 @@ function settingsView() {
     <button class="quiet" data-act="onboarding">See the onboarding screen</button></div>
     <div class="card"><h2>Alerts</h2><p class="small">We stay quiet unless something is worth a look. When money is about to move, we always show it in the payment screen.</p>
     <fieldset style="border:0;padding:0;margin:0"><legend class="small muted">How many alerts</legend><div class="row">${['fewer', 'standard', 'more'].map(v => `<button data-act="sens" data-v="${v}" aria-pressed="${S.alerts.sensitivity === v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div></fieldset>
-    <div class="switch" style="margin-top:8px"><label for="quiet">Quiet hours, 9 pm to 7 am (a paused payment still reaches you)</label><input type="checkbox" id="quiet" ${S.alerts.quiet ? 'checked' : ''}></div></div>
-    <div class="card"><h2>Trusted contact <span class="chip">optional</span></h2>
+    <div class="switch" style="margin-top:var(--space-2)"><label for="quiet">Quiet hours, 9 pm to 7 am (a paused payment still reaches you)</label><input type="checkbox" id="quiet" ${S.alerts.quiet ? 'checked' : ''}></div></div>
+    <div class="card"><h2>Trusted contact <span class="in-badge in-badge--neutral">optional</span></h2>
     ${t ? `<p>${esc(t.name)} (${esc(t.relation)}) is told when a payment is paused. They never see your balances and can never act on your account.</p><button data-act="tc_remove">Remove trusted contact</button>`
       : `<p class="small">Choose someone you trust who is <b>not involved</b> in your payments. They’re only informed, never given access or control. You can remove them any time.</p>
       <label for="tcname">Name</label><input type="text" id="tcname" data-keep><label for="tcrel">Relationship</label><input type="text" id="tcrel" data-keep>
-      <div class="row" style="margin-top:8px"><button class="primary" data-act="tc_add">Add trusted contact</button></div>`}</div>
+      <div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="tc_add">Add trusted contact</button></div>`}</div>
     <div class="card"><h2>Report a scam</h2><p class="small">If money already moved, tell us right away. Wire recalls and ACH returns can be requested but aren’t guaranteed, and the chance falls with time. Person-to-person payments can’t be recalled. You can also report to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).</p>
     ${S.cases[0] ? `<button class="primary" data-act="report" data-pid="${S.cases[0].pid}">Report the latest payment</button>` : ''}</div>`;
 }
@@ -189,7 +189,7 @@ function onboardingView() {
 
 function chatView() {
   const c = caseById(chatCase); if (!c) { screen = 'home'; return homeView(); }
-  return `<div class="row"><button class="quiet" data-act="back">← Back</button><span class="chip">About: ${usd(payOf(c).amount)} ${esc(payOf(c).rail)}</span></div>
+  return `<div class="row"><button class="quiet" data-act="back">← Back</button><span class="in-badge in-badge--neutral">About: ${usd(payOf(c).amount)} ${esc(payOf(c).rail)}</span></div>
     <div class="card small"><b>Evidence I’m using</b>${plainEvidence(c)}</div>
     <div class="chat" aria-live="polite" aria-relevant="additions">${chatLog.map(m => `<div class="msg ${m.role}">${esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('') || '<div class="msg assistant">I’m here to help you think this through. You decide. What would you like to check first?</div>'}</div>
     <p class="small muted">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide.</p>
@@ -214,8 +214,8 @@ function employeeView() {
   const c = caseById(selCase);
   const afterHours = p => { if (!p.hold_started_at) return false; const d = new Date(p.hold_started_at); const h = d.getUTCHours(), wd = d.getUTCDay(); return h < 9 || h >= 18 || wd === 0 || wd === 6; };
   const rowHtml = x => { const p = payOf(x); const left = p.status === 'Held' ? `<span data-expires="${p.hold_expires_at}">${hm(p.hold_expires_at - S.sim)}</span>` : '—';
-    return `<tr class="click ${x.id === selCase ? 'sel' : ''}" data-act="select" data-case="${x.id}" tabindex="0"><td>${esc(S.member.id)}</td><td>${usd0(p.amount)} ${esc(p.rail)}</td><td>${esc(x.title)}</td><td>${esc(p.status === 'Held' ? 'On hold' : p.gate === 'presubmit_review' && p.status === 'Pending' ? 'Waiting: verify first' : p.gate === 'branch_conversation' && p.status === 'Pending' ? 'Branch conversation' : p.gate === 'banner_confirm' && p.status === 'Pending' ? 'Member confirming' : p.status)}${x.callback_requested ? ' · <b>member asked to talk</b>' : ''}${afterHours(p) ? ' · after hours' : ''}</td><td class="countdown" style="font-size:18px">${left}</td></tr>`; };
-  let out = `<div class="card"><div class="console-head"><h1>Sound employee console <span class="chip">simulated</span></h1><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
+    return `<tr class="click ${x.id === selCase ? 'sel' : ''}" data-act="select" data-case="${x.id}" tabindex="0"><td>${esc(S.member.id)}</td><td>${usd0(p.amount)} ${esc(p.rail)}</td><td>${esc(x.title)}</td><td>${esc(p.status === 'Held' ? 'On hold' : p.gate === 'presubmit_review' && p.status === 'Pending' ? 'Waiting: verify first' : p.gate === 'branch_conversation' && p.status === 'Pending' ? 'Branch conversation' : p.gate === 'banner_confirm' && p.status === 'Pending' ? 'Member confirming' : p.status)}${x.callback_requested ? ' · <b>member asked to talk</b>' : ''}${afterHours(p) ? ' · after hours' : ''}</td><td class="countdown">${left}</td></tr>`; };
+  let out = `<div class="card"><div class="console-head"><h2>Sound employee console <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
     <div class="table-wrap"><table><thead><tr><th>Member</th><th>Payment</th><th>Why</th><th>Status</th><th>Hold left</th></tr></thead><tbody>
     ${open.map(rowHtml).join('') || '<tr><td colspan="5" class="muted">No open items.</td></tr>'}
     ${closed.length ? `<tr><td colspan="5" class="muted small">Closed</td></tr>` + closed.map(rowHtml).join('') : ''}</tbody></table></div></div>`;
@@ -239,9 +239,9 @@ function caseDetail(c) {
   if (can.release) step2 = `<li><b>Record the outcome</b>
       <div class="row presets">${PRESETS.Held.map(t => `<button class="chipbtn" data-act="preset" data-text="${esc(t)}">${esc(t)}</button>`).join('')}</div>
       <label for="reason" class="small muted">Reason (required to release)</label><input type="text" id="reason" data-keep>
-      <div class="row" style="margin-top:8px"><button class="primary" data-act="e_release">Release hold</button><button data-act="e_member_cancel">Member chose to cancel</button></div></li>`;
-  else if (can.review) step2 = `<li><b>Verify using the pre-change contact</b><div class="row" style="margin-top:6px"><button class="primary" data-act="e_clear">Member is in control: allow</button>${can.verify ? `<button data-act="e_verify">Takeover confirmed (scripted)</button>` : ''}${can.stop ? `<button class="danger" data-act="e_stop">Stop payment</button>` : ''}</div></li>`;
-  else if (can.branch) step2 = `<li><b>Record the member’s decision</b><div class="row" style="margin-top:6px"><button class="primary" data-act="e_branch_go">Member chose to proceed</button><button data-act="e_branch_cancel">Member chose not to</button></div></li>`;
+      <div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_release">Release hold</button><button data-act="e_member_cancel">Member chose to cancel</button></div></li>`;
+  else if (can.review) step2 = `<li><b>Verify using the pre-change contact</b><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_clear">Member is in control: allow</button>${can.verify ? `<button data-act="e_verify">Takeover confirmed (scripted)</button>` : ''}${can.stop ? `<button class="danger" data-act="e_stop">Stop payment</button>` : ''}</div></li>`;
+  else if (can.branch) step2 = `<li><b>Record the member’s decision</b><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_branch_go">Member chose to proceed</button><button data-act="e_branch_cancel">Member chose not to</button></div></li>`;
   else if (open) step2 = `<li><b>No action needed</b> <span class="small muted">The member is confirming in the app.</span></li>`;
   return `<div class="two">
     <div class="card case-summary">
@@ -250,7 +250,7 @@ function caseDetail(c) {
       <p class="lede">${esc(c.title)}.</p>
       ${c.pids.length > 1 ? `<p class="small"><b>${c.pids.length} payments, one situation:</b> ${c.pids.map(id => { const x = S.payments.find(y => y.pid === id); return `${usd0(x.amount)} (${esc(x.status)})`; }).join(' · ')}</p>` : ''}
       <div class="signals">${sig.map(x => `<div class="signal"><div class="signal-label">${esc(x.label)}</div><div class="signal-value">${esc(x.value)}</div></div>`).join('')}</div>
-      ${memberView ? `<p class="small"><span class="chip">${esc(memberView)}</span></p>` : ''}
+      ${memberView ? `<p class="small"><span class="in-badge in-badge--neutral">${esc(memberView)}</span></p>` : ''}
       <p class="small muted">Signals to check, not proof. For the member’s own payment, Sound can delay and advise; the member decides.</p>
       ${det('e-fields-' + c.id, 'Kit fields and history', `<ul class="small">${c.evidence.map(e => `<li><code>${esc(e.field)}</code>: ${esc(e.value)}</li>`).join('')}</ul>
         <dl class="kv small"><dt>Amount vs usual</dt><dd>${r.ratio ?? '—'}x (${esc(r.band)})</dd><dt>Days since last ${esc(p.rail.toLowerCase())}</dt><dd>${r.gap ?? 'never'}</dd><dt>Recipient age</dt><dd>${r.recipient_age_days ?? '—'} days</dd><dt>Profile change (30d)</dt><dd>${esc(r.profile_change_recent)}</dd><dt>Password reset (7d)</dt><dd>${esc(r.password_reset_recent)}</dd><dt>Trusted contact</dt><dd>${S.member.trusted_contact ? 'Enrolled' : 'Not enrolled'}</dd><dt>Rule</dt><dd>${esc(c.rule)} · ${esc(c.output.replace('_', ' ').toLowerCase())} · tier ${esc(c.tier)}</dd></dl>`)}
@@ -261,10 +261,10 @@ function caseDetail(c) {
         ${open && c.rule !== 'STD' ? `<li><b>Call the member</b> <span class="small muted">on the number on file, not one given to you now</span>
           <ul class="questions">${q.slice(0, 2).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
           ${q.length > 2 ? det('e-q-' + c.id, `${q.length - 2} more questions and red flags`, `<ul class="questions">${q.slice(2).map(x => `<li>${esc(x)}</li>`).join('')}</ul><p class="small">${esc(CUES)}</p>`) : ''}
-          <div class="row" style="margin-top:6px"><button data-act="e_outreach">Log the call</button></div></li>` : ''}
+          <div class="row" style="margin-top:var(--space-2)"><button data-act="e_outreach">Log the call</button></div></li>` : ''}
         ${step2}
       </ol>
-      ${det('e-more-' + c.id, 'More actions', `<div class="row" style="margin-top:8px">
+      ${det('e-more-' + c.id, 'More actions', `<div class="row" style="margin-top:var(--space-2)">
         <button data-act="e_escalate" ${open ? '' : 'disabled'}>Escalate to fraud team</button>
         <button data-act="e_trusted" ${open ? '' : 'disabled'}>Notify trusted contact</button>
         <button data-act="e_recovery">Start recovery request</button>

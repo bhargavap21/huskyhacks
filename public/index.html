@@ -5,9 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Second Look Demo</title>
 <meta name="description" content="Concept demo: Second Look inside a simulated Sound app, with an employee console. Synthetic kit data only.">
+<link rel="stylesheet" href="/ds/tokens.css">
+<link rel="stylesheet" href="/ds/components.css">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<header class="in-header">
+  <h1 class="in-header__title">Second Look</h1>
+  <span class="in-header__meta">Concept for HuskyHack 2026 · synthetic data</span>
+  <a class="in-header__action" href="/about">About this concept</a>
+</header>
 <div class="demo-bar" role="toolbar" aria-label="Demo controls">
   <span class="tag">Demo controls</span>
   <label class="sr" for="scene">Scene</label>
@@ -22,7 +29,6 @@
     <button data-view="member" aria-pressed="false">Member</button>
     <button data-view="employee" aria-pressed="false">Employee</button>
   </span>
-  <a href="/about">About this concept</a>
 </div>
 <p class="blurb" id="blurb"></p>
 <main class="grid" id="grid">
