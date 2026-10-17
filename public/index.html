@@ -11,41 +11,43 @@
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<header class="in-header">
-  <h1 class="in-header__title">Second Look</h1>
-  <span class="in-header__meta">Concept for HuskyHack 2026 · synthetic data</span>
-  <a class="in-header__action" href="/about">About this concept</a>
+<header class="topbar">
+  <button id="side-toggle" class="icon-btn" aria-controls="side" aria-expanded="true" aria-label="Collapse page list">☰</button>
+  <span class="topbar-title">Second Look</span>
+  <span class="topbar-meta">Concept for HuskyHack 2026 · synthetic data</span>
+  <span class="topbar-spacer"></span>
+  <button id="theme" class="quiet" aria-pressed="false">Dark theme</button>
+  <button id="copilot-toggle" class="primary" aria-controls="copilot" aria-expanded="true">Second Look chat</button>
 </header>
 <div class="demo-bar" role="toolbar" aria-label="Demo controls">
-  <span class="tag">Demo controls</span>
+  <span class="tag">Demo</span>
   <label class="sr" for="scene">Scene</label>
   <select id="scene"></select>
   <button id="play" class="primary">Play</button>
   <button id="next">Next event</button>
   <button id="faster" title="Speed up the replay clock">Faster</button>
-  <button id="reset">Restart scene</button>
+  <button id="reset">Restart</button>
   <span class="clock" aria-live="off">Kit time <span id="clock">–</span> <span id="speed" class="muted small"></span></span>
-  <button id="theme" aria-pressed="false">Dark theme</button>
-  <span class="row" role="group" aria-label="View as">
-    <button data-view="both" aria-pressed="true">Both</button>
-    <button data-view="member" aria-pressed="false">Member</button>
-    <button data-view="employee" aria-pressed="false">Employee</button>
-  </span>
 </div>
-<p class="blurb" id="blurb"></p>
-<main class="grid" id="grid">
-  <section class="phone" aria-label="Member app (concept mock of the Sound app)">
-    <div class="app-head"><b>Sound</b><span class="small">Concept mock</span></div>
-    <div class="app-body" id="member"></div>
-    <nav class="app-nav" aria-label="Member app">
-      <button data-screen="home">Home</button>
-      <button data-screen="inbox">Second Look</button>
-      <button data-screen="settings">Settings</button>
-    </nav>
-    <p class="footnote">Concept mock of the Sound app, not Sound software. Synthetic kit data; holds and releases change only this simulation.</p>
-  </section>
-  <section class="employee" id="employee" aria-label="Employee console"></section>
-</main>
+<div class="shell" id="shell">
+  <nav class="side" id="side" aria-label="Pages">
+    <div class="side-label">Member app</div>
+    <button data-page="home"><span class="ico" aria-hidden="true">⌂</span><span class="lbl">Home</span></button>
+    <button data-page="inbox"><span class="ico" aria-hidden="true">◎</span><span class="lbl">Second Look</span><span class="side-count" id="count-inbox"></span></button>
+    <button data-page="settings"><span class="ico" aria-hidden="true">⚙</span><span class="lbl">Settings</span></button>
+    <div class="side-label">Sound employee</div>
+    <button data-page="console"><span class="ico" aria-hidden="true">▤</span><span class="lbl">Console</span><span class="side-count" id="count-console"></span></button>
+    <div class="side-label">Demo</div>
+    <button data-page="split"><span class="ico" aria-hidden="true">◫</span><span class="lbl">Side by side</span></button>
+    <button data-page="timeline"><span class="ico" aria-hidden="true">☷</span><span class="lbl">Kit timeline</span></button>
+    <a class="side-link" href="/about"><span class="ico" aria-hidden="true">ⓘ</span><span class="lbl">About this concept</span></a>
+  </nav>
+  <main class="main" id="main">
+    <p class="blurb" id="blurb"></p>
+    <div id="page"></div>
+  </main>
+  <aside class="copilot" id="copilot" aria-label="Second Look chat"><div id="copilot-body" class="copilot-body"></div></aside>
+</div>
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="/static/app.js"></script>
 </body>

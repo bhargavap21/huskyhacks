@@ -1,6 +1,12 @@
 // Second Look demo UI. Plain JS; polls /api/state and renders the member app + employee console.
 const openDet = new Map();
-let S = null, csrf = '', view = 'both', screen = 'home', selCase = null, chatCase = null, chatLog = [], showMore = {}, busy = false;
+let S = null, csrf = '', page = 'home', selCase = null, chatCase = 'general', chatLog = [], showMore = {}, busy = false;
+// Shell state: left page list and right Second Look copilot, both collapsible and remembered per browser.
+const stored = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const store = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const narrow = () => matchMedia('(max-width: 900px)').matches;
+let sideCollapsed = stored('sl-side') === '1', copilotOpen = narrow() ? false : stored('sl-copilot') !== '0';
+const MEMBER_PAGES = ['home', 'inbox', 'settings', 'onboarding'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,7 +41,7 @@ function keep(fn) {
 
 // Only rebuild when something other than the clock changed; clock and countdowns update in place.
 let lastKey = '';
-function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, view, screen, selCase, chatCase, chatLog.length, showMore]); }
+function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, showMore, sideCollapsed, copilotOpen]); }
 function tickText() {
   $('#clock').textContent = S.sim_text;
   document.querySelectorAll('[data-expires]').forEach(el => { const t = hm(Number(el.dataset.expires) - S.sim); el.textContent = t; el.setAttribute('aria-label', 'Time left ' + t); });
@@ -55,13 +61,33 @@ function render(force = false) {
   $('#clock').textContent = S.sim_text;
   $('#speed').textContent = S.awaiting ? '(hold clock at 60×: 4 h ≈ 4 min)' : `(${Math.round(S.speed)}×)`;
   $('#blurb').textContent = (S.mode === 'as_is' ? 'Kit replay, as it happened. ' : 'With Second Look (proposed design). ') + S.scene.blurb;
-  document.querySelector('.phone').classList.toggle('in-chat', screen === 'chat' && !!chatCase);
-  const g = $('#grid'); g.className = 'grid' + (view === 'member' ? ' only-member' : view === 'employee' ? ' only-employee' : '');
-  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
-  document.querySelectorAll('[data-screen]').forEach(b => b.dataset.screen === screen ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
-  keep(() => { $('#member').innerHTML = memberView(); $('#employee').innerHTML = employeeView(); });
+  const shell = $('#shell');
+  shell.classList.toggle('side-collapsed', sideCollapsed);
+  shell.classList.toggle('copilot-closed', !copilotOpen);
+  $('#side-toggle').setAttribute('aria-expanded', String(!sideCollapsed));
+  $('#side-toggle').setAttribute('aria-label', sideCollapsed ? 'Expand page list' : 'Collapse page list');
+  $('#copilot-toggle').setAttribute('aria-expanded', String(copilotOpen));
+  $('#copilot-toggle').textContent = copilotOpen ? 'Hide chat' : 'Second Look chat';
+  document.querySelectorAll('[data-page]').forEach(b => b.dataset.page === page || (page === 'onboarding' && b.dataset.page === 'settings') ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  const openCases = S.cases.filter(c => c.status === 'open').length;
+  $('#count-console').textContent = openCases + S.callbacks.filter(x => x.status === 'waiting').length || '';
+  $('#count-inbox').textContent = S.cases.length || '';
+  keep(() => { $('#page').innerHTML = pageView(); $('#copilot-body').innerHTML = copilotOpen ? chatView() : ''; });
   const cs = $('#chatscroll'); if (cs) cs.scrollTop = cs.scrollHeight;
   tickText();
+}
+
+/* ---------------- Pages ---------------- */
+const phone = body => `<section class="phone" aria-label="Member app (concept mock of the Sound app)"><div class="app-head"><b>Sound</b><span class="small">Concept mock</span></div><div class="app-body">${body}</div><p class="footnote">Concept mock of the Sound app, not Sound software. Synthetic kit data; holds and releases change only this simulation.</p></section>`;
+function timelineCard(openByDefault) {
+  const tl = S.timeline.slice().reverse();
+  return `<div class="card">${det('kit-tl', `Kit timeline, ${S.mode === 'as_is' ? 'as it happened' : 'with Second Look'} <span class="muted small">(${tl.length} events${tl[0] ? ` · latest ${esc(tl[0].ts_text.split(' ')[1])}` : ''})</span>`, `<div class="timeline">${tl.map(t => `<div class="${t.kind}">${esc(t.ts_text)} · ${esc(t.text)}</div>`).join('') || '<div class="muted">Press Play to start the replay.</div>'}</div>`, openByDefault)}</div>`;
+}
+function pageView() {
+  if (MEMBER_PAGES.includes(page)) return `<div class="page-member">${phone(memberView())}</div>`;
+  if (page === 'console') return `<div class="employee">${employeeView()}</div>`;
+  if (page === 'timeline') return timelineCard(true);
+  return `<div class="grid">${phone(memberView())}<section class="employee" aria-label="Employee console">${employeeView()}</section></div>`; // split
 }
 
 /* ---------------- Member app ---------------- */
@@ -70,10 +96,9 @@ const payOf = c => S.payments.find(p => p.pid === c.pid);
 const plainEvidence = c => `<ul>${c.evidence.map(e => `<li>${esc(e.why)}: <b>${esc(e.value)}</b></li>`).join('')}</ul>`;
 
 function memberView() {
-  if (screen === 'chat' && chatCase) return chatView();
-  if (screen === 'onboarding') return onboardingView();
-  if (screen === 'settings') return settingsView();
-  if (screen === 'inbox') return inboxView();
+  if (page === 'onboarding') return onboardingView();
+  if (page === 'settings') return settingsView();
+  if (page === 'inbox') return inboxView();
   return homeView();
 }
 
@@ -203,7 +228,7 @@ You did the right thing by speaking up.`;
 function chatView() {
   const general = chatCase === 'general';
   const c = general ? null : caseById(chatCase);
-  if (!general && !c) { screen = 'home'; return homeView(); }
+  if (!general && !c) { chatCase = 'general'; chatLog = []; return chatView(); }
   const asked = kind => S.callbacks.some(x => x.status === 'waiting' && x.source.includes(general ? 'feels off' : `case ${chatCase}`) && x.reason.toLowerCase().includes({ talk: 'talk to a person', sent: 'money already', report: 'reporting' }[kind]));
   const intro = general ? 'I’m here to help you think it through. What happened? For example: who contacted you, and what are they asking you to do?' : 'I’m here to help you think this through. You decide. What would you like to check first?';
   const subject = general ? 'Something feels off' : `About your ${usd0(payOf(c).amount)} ${esc(payOf(c).rail.toLowerCase())}`;
@@ -211,8 +236,9 @@ function chatView() {
   const starters = general ? ['Someone says they’re from my bank', 'I’m being asked to pay with gift cards', 'Someone I met online needs money'] : ['Who should I check this with?', 'Is this a common scam?', 'I know this person'];
   const msgs = [{ role: 'assistant', text: intro }, ...chatLog];
   return `<div class="chat-screen">
-    <div class="chat-top"><button class="quiet chat-back" data-act="back" aria-label="Back">←</button>
-      <div class="chat-title"><div class="chat-name">Second Look</div><div class="chat-sub">${subject}</div></div></div>
+    <div class="chat-top"><div class="chat-title"><div class="chat-name">Second Look</div><div class="chat-sub">${subject}</div></div>
+      ${general ? '' : '<button class="quiet" data-act="chat_general">New chat</button>'}
+      <button class="icon-btn" data-act="back" aria-label="Close chat">×</button></div>
     ${general ? '' : det('chat-ev-' + c.id, 'What Second Look can see', `<div class="chat-evidence">${plainEvidence(c)}</div>`)}
     <div class="chat-scroll" id="chatscroll"><div class="chat" aria-live="polite" aria-relevant="additions">${msgs.map(m => `<div class="msg ${m.role}${m.pending ? ' pending' : ''}">${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('')}</div>
       ${chatLog.length ? '' : `<div class="chat-starters">${starters.map(t => `<button class="chat-starter" data-act="send" data-text="${esc(t)}">${esc(t)}</button>`).join('')}</div>`}</div>
@@ -251,8 +277,7 @@ function employeeView() {
     ${open.map(rowHtml).join('') || '<tr><td colspan="5" class="muted">No open items.</td></tr>'}
     ${closed.length ? `<tr><td colspan="5" class="muted small">Closed</td></tr>` + closed.map(rowHtml).join('') : ''}</tbody></table></div></div>`;
   if (c) out += caseDetail(c);
-  const tl = S.timeline.slice().reverse();
-  out += `<div class="card">${det('kit-tl', `Kit timeline, ${S.mode === 'as_is' ? 'as it happened' : 'with Second Look'} <span class="muted small">(${tl.length} events${tl[0] ? ` · latest ${esc(tl[0].ts_text.split(' ')[1])}` : ''})</span>`, `<div class="timeline">${tl.map(t => `<div class="${t.kind}">${esc(t.ts_text)} · ${esc(t.text)}</div>`).join('') || '<div class="muted">Press Play to start the replay.</div>'}</div>`, S.mode === 'as_is')}</div>`;
+  if (S.mode === 'as_is') out += timelineCard(true); // the as-is replay is the timeline
   return out;
 }
 
@@ -306,16 +331,15 @@ function caseDetail(c) {
 
 /* ---------------- Events ---------------- */
 document.addEventListener('click', async e => {
-  const b = e.target.closest('[data-act],[data-view],[data-screen]'); if (!b) return;
-  if (b.dataset.view) { view = b.dataset.view; return render(); }
-  if (b.dataset.screen) { screen = b.dataset.screen; return render(); }
+  const b = e.target.closest('[data-act],[data-page]'); if (!b) return;
+  if (b.dataset.page) { page = b.dataset.page; if (narrow()) sideCollapsed = true; $('#main').scrollTo?.(0, 0); return render(); }
   const a = b.dataset.act, pid = b.dataset.pid, cid = Number(b.dataset.case || selCase);
   const reason = () => ($('#reason')?.value || '').trim();
   const E = (act, extra = {}) => post('employee/' + act, { caseId: selCase, reason: reason(), ...extra }).then(j => { if (j && j.ok && $('#reason')) $('#reason').value = ''; });
   switch (a) {
     case 'select': selCase = cid; return render();
     case 'more': showMore[cid] = !showMore[cid]; return render();
-    case 'chat_general': chatCase = 'general'; screen = 'chat'; chatLog = await (await fetch('/api/chat/general')).json(); return render(true);
+    case 'chat_general': chatCase = 'general'; openCopilot(); chatLog = await (await fetch('/api/chat/general')).json(); return render(true);
     case 'cb': {
       const kind = b.dataset.kind;
       const j = await post('callback', { kind, caseId: chatCase === 'general' ? 0 : chatCase });
@@ -325,17 +349,17 @@ document.addEventListener('click', async e => {
       }
       return render(true); }
     case 'cb_done': return post('callback/' + b.dataset.id + '/done', { note: b.dataset.note || 'Called the member' });
-    case 'chat': chatCase = cid; screen = 'chat'; chatLog = await (await fetch('/api/chat/' + cid)).json(); return render();
-    case 'back': screen = 'home'; return render();
+    case 'chat': chatCase = cid; openCopilot(); chatLog = await (await fetch('/api/chat/' + cid)).json(); return render(true);
+    case 'back': copilotOpen = false; store('sl-copilot', '0'); return render(true);
     case 'send': { const t = (b.dataset.text || $('#chatin').value).trim(); if (!t) return; $('#chatin').value = '';
       chatLog.push({ role: 'user', text: t }); const pend = { role: 'assistant', text: 'Second Look is thinking…', pending: true }; chatLog.push(pend); render(true);
       const j = await post('chat/' + chatCase, { text: t });
       chatLog.splice(chatLog.indexOf(pend), 1);
       if (j && j.reply) chatLog.push({ role: 'assistant', text: j.reply, source: j.source });
       return render(true); }
-    case 'onboarding': screen = 'onboarding'; return render();
-    case 'enroll_on': await post('member/enroll', { on: true }); screen = 'home'; return toast('Second Look is on. Turn it off any time in Settings.');
-    case 'enroll_skip': await post('member/enroll', { on: false }); screen = 'home'; return;
+    case 'onboarding': page = 'onboarding'; return render();
+    case 'enroll_on': page = 'home'; await post('member/enroll', { on: true }); return toast('Second Look is on. Turn it off any time in Settings.');
+    case 'enroll_skip': page = 'home'; await post('member/enroll', { on: false }); return;
     case 'sens': return post('member/alert_settings', { sensitivity: b.dataset.v });
     case 'tc_add': return post('member/trusted_contact', { name: $('#tcname').value, relation: $('#tcrel').value });
     case 'tc_remove': return post('member/trusted_contact', { remove: true });
@@ -371,11 +395,19 @@ document.addEventListener('change', e => {
   if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked });
   if (e.target.id === 'quiet') post('member/alert_settings', { quiet: e.target.checked });
 });
-$('#scene').addEventListener('change', async e => { selCase = null; chatCase = null; screen = 'home'; showMore = {}; await post('scene/' + e.target.value); });
+$('#scene').addEventListener('change', async e => { selCase = null; chatCase = 'general'; chatLog = []; showMore = {}; await post('scene/' + e.target.value); });
 $('#play').addEventListener('click', () => post('control/' + (S.running ? 'pause' : 'play')));
 $('#next').addEventListener('click', () => post('control/next'));
 $('#faster').addEventListener('click', () => post('control/faster'));
-$('#reset').addEventListener('click', () => { selCase = null; chatCase = null; screen = 'home'; post('control/reset'); });
+$('#reset').addEventListener('click', () => { selCase = null; chatCase = 'general'; chatLog = []; post('control/reset'); });
+function openCopilot() { copilotOpen = true; if (!narrow()) store('sl-copilot', '1'); }
+$('#side-toggle').addEventListener('click', () => { sideCollapsed = !sideCollapsed; store('sl-side', sideCollapsed ? '1' : '0'); render(true); });
+$('#copilot-toggle').addEventListener('click', async () => {
+  copilotOpen = !copilotOpen; store('sl-copilot', copilotOpen ? '1' : '0');
+  if (copilotOpen) chatLog = await (await fetch('/api/chat/' + chatCase)).json();
+  render(true); if (copilotOpen) $('#chatin')?.focus();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && copilotOpen && narrow()) { copilotOpen = false; render(true); } });
 
 // Theme toggle: light by default (Sound's brand); dark is opt-in and remembered per browser.
 function syncTheme() { const d = document.documentElement.dataset.theme === 'dark'; const b = $('#theme'); b.setAttribute('aria-pressed', String(d)); }
@@ -390,8 +422,10 @@ syncTheme();
 // Deep links for slides: /?scene=m1057&play=1&view=employee
 (async () => {
   const q = new URLSearchParams(location.search);
-  if (['both', 'member', 'employee'].includes(q.get('view'))) view = q.get('view');
-  if (q.get('chat') === 'general') { chatCase = 'general'; screen = 'chat'; }
+  const v = q.get('view'), pg = q.get('page');
+  if (v === 'member') page = 'home'; else if (v === 'employee') page = 'console'; else if (v === 'both') page = 'split';
+  if (['home', 'inbox', 'settings', 'console', 'split', 'timeline'].includes(pg)) page = pg;
+  if (q.get('chat') === 'general') { chatCase = 'general'; copilotOpen = true; }
   await poll();
   if (q.get('scene') && S.scenes.some(x => x.id === q.get('scene'))) { await post('scene/' + q.get('scene')); if (q.get('jump') === '1') for (let i = 0; i < 60 && !S.awaiting && !S.ended; i++) await post('control/next');
     if (q.get('play') === '1') await post('control/play'); }
