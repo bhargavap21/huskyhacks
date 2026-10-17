@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "https://eddie-surgical-beta-particularly.trycloudflare.com/$1" }
+  ]
+}

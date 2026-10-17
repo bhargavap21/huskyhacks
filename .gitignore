@@ -4,3 +4,4 @@ node_modules/
 *.sqlite-*
 second-look-handoff.zip
 instinct-design-system.zip
+.vercel
