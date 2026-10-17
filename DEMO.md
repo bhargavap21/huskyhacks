@@ -18,6 +18,7 @@ Say these out loud every time:
 | 0:45 | "The hold lands with the evidence, and the employee gets a conversation guide right away instead of a generic callback 90 minutes later. Her override stays one tap away." | Point at the guide, then **This is me. Release it now**. Don't press it. |
 | 1:05 | "Same trigger, legitimate: M1057's $51,586 closing wire. The answer isn't a looser rule; it's release in minutes." | Scene: **M1057**. Play. Type a reason, **Log outreach call**, **Release hold**. |
 | 1:30 | "And a scam we miss: M1102 wired $5,000 for a 'federal agent'. Not unusual enough for R1. We show that instead of hiding it." | Scene: **M1102** (optional if short on time). |
+| 1:40 | (Optional) "And members can talk it through before any money moves." | Home card **Something feels off?** → type one line → **Talk to a person at Sound**. |
 | 1:45 | "Opt-in, no new app, quiet by default, employees in the loop, and only powers Sound already has." | Open **About this concept** if asked. |
 
 ---
@@ -30,6 +31,7 @@ Say these out loud every time:
 4. **Same-trigger false positive: M1057** (50 s). R1 fires exactly as for Linda. Employee releases with a reason in under a minute; or the member taps **This is me. Release it now** and enters the demo code (step-up confirmation).
 5. **Takeover pattern: M1003** (40 s, if time). Pre-submit check with confirmation to *pre-change* contact details. Show **Stop payment** refused, then **Takeover confirmed (scripted premise)**, then **Stop**. The second payment joins the same case. "The pattern routes to verification. It doesn't prove a takeover by itself."
 6. **Missed: M1102** (20 s). Only the standard banner shows.
+6b. **Before any payment: "Something feels off?"** (30 s). Open `/?chat=general&view=member` (or the card on the member home screen). Type "Someone from Sound's fraud team called and wants the code I just got by text." Second Look explains that a real credit union never asks for a texted code and asks whether the code was shared. Tap **Talk to a person at Sound**: the request appears for the employee under **Members asking to talk**. **I already sent money** shows recovery steps and flags the recovery team as urgent.
 7. Slides: pilot (90 days, assumptions stated) and limits.
 
 ## If something breaks
