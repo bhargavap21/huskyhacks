@@ -299,6 +299,8 @@ You did the right thing by speaking up.`;
 // Second Look listens to a call on speaker: ~4 s chunks go to the server, which transcribes them (local Whisper,
 // audio not kept) and returns any new warning signs. G holds the browser-side capture while a call is live.
 let G = null;
+// Call timer for any live call (speaker or phone), from the server's start time.
+setInterval(() => { const el = $('#g-time'); if (el && el.dataset.since && !G) el.textContent = mmss((Date.now() - Number(el.dataset.since)) / 1000); }, 500);
 const LEVEL = {
   listening: ['neutral', 'Listening', 'Nothing worrying so far'],
   careful: ['review', 'Be careful', 'Something on this call is worth a second look'],
@@ -306,28 +308,53 @@ const LEVEL = {
 };
 const gfetch = (p, b) => fetch('/api/guardian/' + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf': csrf }, body: JSON.stringify(b) }).then(r => r.json()).catch(() => ({}));
 
+const fmtPhone = n => n ? n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3') : '';
+const SOURCE = { speaker: 'Listening on speaker', sample: 'Sample call', 'phone-in': 'Phone call · Second Look is on the line', 'phone-out': 'Second Look called you' };
+
+// How to get Second Look on a call: add it to the call, call it, have it call you, or listen on speaker.
+function guardianIntro() {
+  const ph = S.phone, num = ph && fmtPhone(ph.number);
+  const linkCard = !ph ? '' : ph.linked
+    ? `<p class="small">Your phone: <b>${esc(ph.linked)}</b> · ${ph.share ? 'Sound can see warnings from your calls' : 'warnings stay on your device'} <button class="quiet" data-act="ph_unlink">Change</button></p>`
+    : `<div class="g-link"><label for="ph-num">Your phone number</label><div class="row"><input type="tel" id="ph-num" data-keep inputmode="tel" autocomplete="tel" placeholder="(555) 555-0123"><button class="primary" data-act="ph_link">Link my phone</button></div>
+        <label class="check"><input type="checkbox" id="ph-share" data-keep checked> Let Sound see warnings from these calls</label>
+        <p class="small muted">Linking tells Second Look which calls are yours, so warnings show up here. Demo: use your own phone.</p></div>`;
+  return `<div class="card guardian"><h2>Call guardian</h2>
+    <p>On a call that feels off? Bring Second Look in. It listens for pressure tactics, like requests for codes, gift cards or secrecy, and warns you as the call happens.</p>
+    <p class="small muted">Second Look never moves money or asks for codes. It only listens to calls you bring it into. Transcripts are used for warnings; audio isn’t kept.</p>
+    ${linkCard}</div>
+    ${ph ? `<div class="card g-way"><h3>Add Second Look to a call</h3>
+      <p class="small">While someone is on the line with you:</p>
+      <ol class="in-ol g-steps"><li><span>Tap <b>Add call</b>.</span></li><li><span>Dial <b>${num}</b>.</span></li><li><span>Tap <b>Merge calls</b>.</span></li></ol>
+      <p class="small">Second Look says hello so everyone knows it’s there, then listens quietly. It speaks up only if someone asks for a code, gift cards or to move your money. Warnings appear on this screen.</p></div>
+    <div class="card g-way"><h3>Call Second Look</h3><p class="small">After a call, or about a text or email, call and tell it what happened.</p>
+      <div class="row"><a class="in-btn in-btn--secondary g-tel" href="tel:${esc(ph.number)}">Call ${num}</a></div></div>
+    <div class="card g-way"><h3>Have Second Look call me</h3><p class="small">It calls your linked phone and already knows what this app saw, like a held payment or warnings from a call.</p>
+      <div class="row"><button data-act="ph_call_me" ${ph.can_call_me ? '' : 'disabled'}>Call my phone</button></div>
+      ${ph.linked && !ph.can_call_me ? '<p class="small muted">In this demo, Second Look only calls phones on the team’s list.</p>' : !ph.linked ? '<p class="small muted">Link your phone first.</p>' : ''}</div>` : ''}
+    <div class="card g-way"><h3>Listen on speaker</h3><p class="small">Put the call on speaker near this device. Second Look listens through the microphone.</p>
+      <label class="check"><input type="checkbox" id="g-share" data-keep> Let Sound see warnings during this call</label>
+      <div class="row"><button class="primary" data-act="g_start" data-src="mic">Start listening</button><button data-act="g_start" data-src="sample">Play a sample scam call</button></div>
+      <p class="small muted">The sample is a staged call for the demo.</p></div>`;
+}
+
 function guardianView() {
   const g = S.guardian;
-  if (!g || (!g.live && !g.summary)) return `<div class="card guardian"><h2>Listen to a call with me</h2>
-    <p>On a call that feels off? Put it on speaker. Second Look listens for pressure tactics and warns you while you talk.</p>
-    <p class="small muted">Audio is turned into text on Sound’s server and isn’t kept. Second Look never speaks on the call or contacts anyone.</p>
-    <label class="check"><input type="checkbox" id="g-share" data-keep> Let Sound see warnings during this call</label>
-    <div class="row"><button class="primary" data-act="g_start" data-src="mic">Start listening</button><button data-act="g_start" data-src="sample">Play a sample scam call</button></div>
-    <p class="small muted">The sample is a staged call for the demo.</p></div>`;
+  if (!g || (!g.live && !g.summary)) return guardianIntro();
   const [tone, word, line] = LEVEL[g.level];
   const latest = g.alerts.at(-1);
   const alertList = g.alerts.slice().reverse().map(a => `<li><span class="in-badge in-badge--risk">${esc(a.label)}</span><p>${esc(a.advice)}</p><blockquote>“${esc(a.quote)}”</blockquote></li>`).join('');
   if (g.live) return `<div class="card guardian live" aria-live="polite">
-      <div class="g-head"><span class="in-badge in-badge--${tone}">${word}</span><span class="small muted">${G && G.src === 'sample' ? 'Sample call' : 'Listening on speaker'} · <span id="g-time">0:00</span></span></div>
+      <div class="g-head"><span class="in-badge in-badge--${tone}">${word}</span><span class="small muted">${SOURCE[g.source] || SOURCE.speaker} · <span id="g-time" data-since="${g.started}">0:00</span></span></div>
       <h2>${line}</h2>
       ${latest ? `<p class="g-now">${esc(latest.advice)}</p>` : '<p class="small muted">Warnings appear here as the call goes on.</p>'}
       <div class="row"><button class="primary" data-act="g_stop">Stop listening</button>${g.level === 'high' ? '<button data-act="g_hangup">Hang up and call Sound</button>' : ''}</div></div>
     ${g.alerts.length ? `<div class="card"><h3>What I’ve heard</h3><ul class="g-alerts">${alertList}</ul></div>` : ''}
-    <div class="card"><h3>Live transcript</h3><div class="g-transcript" id="g-transcript">${g.lines.map(l => `<p>${esc(l.text)}</p>`).join('') || '<p class="muted">Waiting for speech…</p>'}</div><p class="small muted">Automatic transcript. It can mishear words.</p></div>`;
+    <div class="card"><h3>Live transcript</h3><div class="g-transcript" id="g-transcript">${g.lines.map(l => l.who === 'second-look' ? `<p class="g-sl"><b>Second Look:</b> ${esc(l.text)}</p>` : `<p>${esc(l.text)}</p>`).join('') || '<p class="muted">Waiting for speech…</p>'}</div><p class="small muted">Automatic transcript. It can mishear words.</p></div>`;
   return `<div class="card guardian"><div class="g-head"><span class="in-badge in-badge--${tone}">${word}</span><span class="small muted">Call ended · ${mmss((g.ended - g.started) / 1000)}</span></div>
       <h2>${g.alerts.length ? 'Before you do anything' : 'Call summary'}</h2>
       <div class="msg assistant">${fmtReply(g.summary)}</div>${g.summary_source === 'offline' ? '<p class="small muted">offline summary</p>' : ''}
-      <div class="row"><button class="primary" data-act="g_talk">Talk to a person at Sound</button><button data-act="chat_general">Talk it through</button><button class="quiet" data-act="g_reset">Listen to another call</button></div></div>
+      <div class="row"><button class="primary" data-act="g_talk">Talk to a person at Sound</button>${S.phone && S.phone.can_call_me ? '<button data-act="ph_call_me">Have Second Look call me</button>' : ''}<button data-act="chat_general">Talk it through</button><button class="quiet" data-act="g_reset">Listen to another call</button></div></div>
     ${g.alerts.length ? `<div class="card"><h3>Warning signs I heard</h3><ul class="g-alerts">${alertList}</ul></div>` : ''}`;
 }
 
@@ -335,7 +362,7 @@ function guardianView() {
 function guardianCard() {
   const g = S.guardian; if (!g || !g.share) return '';
   const [tone, word] = LEVEL[g.level];
-  return `<div class="card guardian-console" aria-live="polite"><div class="console-head"><h2>${g.live ? 'Live call: member is listening with Second Look' : 'Call the member just had'}</h2><span class="in-badge in-badge--${tone}">${word}</span></div>
+  return `<div class="card guardian-console" aria-live="polite"><div class="console-head"><h2>${g.live ? (g.source && g.source.startsWith('phone') ? 'Live phone call: Second Look is on the line' : 'Live call: member is listening with Second Look') : 'Call the member just had'}</h2><span class="in-badge in-badge--${tone}">${word}</span></div>
     <p class="small muted">Shared by the member. Patterns heard on the call, from an automatic transcript. Prompts for your outreach, not proof.</p>
     ${g.alerts.length ? `<ul class="shared-list">${g.alerts.map(a => `<li><span class="in-badge in-badge--risk">${esc(a.label)}</span><blockquote>“${esc(a.quote)}”</blockquote><span class="small muted">at ${mmss(a.at / 1000)}</span></li>`).join('')}</ul>` : '<p class="small">No warning signs yet.</p>'}
     ${g.level === 'high' ? '<p class="small"><b>Suggested:</b> call the member now on the number on file. Don’t use any number from the call.</p>' : ''}</div>`;
@@ -357,7 +384,7 @@ async function gStart(src) {
   } catch { ctx.close(); return toast(src === 'sample' ? 'Couldn’t play the sample call.' : 'Microphone access is blocked. Allow it in your browser settings.'); }
   const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
   const share = !!$('#g-share')?.checked;
-  await gfetch('start', { share });
+  await gfetch('start', { share, source: src === 'sample' ? 'sample' : 'speaker' });
   G = { src, stream, ctx, player, an, on: true, start: Date.now(), queue: Promise.resolve(), peak: 0 };
   // Track loudness so silent chunks are skipped (Whisper invents words on silence).
   const lvl = new Float32Array(an.fftSize);
@@ -617,6 +644,9 @@ document.addEventListener('click', async e => {
       else if (att.length) { chatLog.splice(chatLog.indexOf(mine), 1); pendingAtt = att; } // keep the files so the member can try again
       return render(true); }
     case 'g_start': return gStart(b.dataset.src);
+    case 'ph_link': { const j = await post('phone/link', { number: $('#ph-num').value, share: $('#ph-share').checked }); if (j && j.ok) toast('Phone linked. Calls with Second Look will show up here.'); return; }
+    case 'ph_unlink': return post('phone/unlink');
+    case 'ph_call_me': { const j = await post('phone/call_me', { caseId: S.cases.find(c => c.status === 'open')?.id }); if (j && j.ok) toast('Second Look is calling your phone now.'); return; }
     case 'g_stop': return gStop();
     case 'g_hangup': gStop(); await post('callback', { kind: 'talk', caseId: 0 }); return toast('Hang up now. A Sound team member will call you at the number on file.');
     case 'g_talk': { const j = await post('callback', { kind: 'talk', caseId: 0 }); if (j && j.ok) toast('A Sound team member will call you at the number on file.'); return; }

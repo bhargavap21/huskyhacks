@@ -13,6 +13,7 @@ import { prepare, loadAsr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
+import { phoneState, link, unlink, callMe, watchCalls, PhoneError } from './phone.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -49,7 +50,7 @@ app.use('/api/*', async (c, next) => { useWorld(c.get('sid')); await next(); });
 
 app.onError((err, c) => {
   if (err instanceof TransitionError) return c.json({ error: err.message }, 409);
-  if (err instanceof AttachmentError) return c.json({ error: err.message }, 400);
+  if (err instanceof AttachmentError || err instanceof PhoneError) return c.json({ error: err.message }, 400);
   console.error(err);
   return c.json({ error: 'Something went wrong' }, 500);
 });
@@ -89,7 +90,7 @@ function sharedChats(c: any) {
 
 app.get('/api/state', c => {
   const ids = Object.fromEntries([...shared].filter(([k, v]) => v && k.startsWith(chatKey(c) + ':')).map(([k]) => [k.slice(chatKey(c).length + 1), true]));
-  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), csrf: csrfFor(c.get('sid')) });
+  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), csrf: csrfFor(c.get('sid')) });
 });
 app.post('/api/scene/:id', c => { loadScene(c.req.param('id'), c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('sid')); return c.json({ ok: true }); });
@@ -99,7 +100,7 @@ const chatKey = (c: any) => `${c.get('sid')}:${snapshot().scene.id}`;
 app.post('/api/callback', async c => { const b = await c.req.json().catch(() => ({})); return c.json({ ok: true, id: requestCallback(String(b.kind), Number(b.caseId) || 0) }); });
 app.post('/api/callback/:id/done', async c => { const b = await c.req.json().catch(() => ({})); callbackDone(Number(c.req.param('id')), String(b.note ?? '')); return c.json({ ok: true }); });
 // Call guardian: ~4 s audio chunks from the member's browser, transcribed here; audio is not kept.
-app.post('/api/guardian/start', async c => { const b = await c.req.json().catch(() => ({})); startCall(chatKey(c), !!b.share); return c.json({ ok: true }); });
+app.post('/api/guardian/start', async c => { const b = await c.req.json().catch(() => ({})); startCall(chatKey(c), !!b.share, b.source === 'sample' ? 'sample' : 'speaker'); return c.json({ ok: true }); });
 app.post('/api/guardian/chunk', bodyLimit({ maxSize: 4 * 1024 * 1024, onError: c => c.json({ error: 'Audio chunk too large' }, 413) }), async c => {
   const b = await c.req.json().catch(() => ({}));
   if (typeof b.data !== 'string' || !b.data) return c.json({ error: 'No audio' }, 400);
@@ -107,6 +108,19 @@ app.post('/api/guardian/chunk', bodyLimit({ maxSize: 4 * 1024 * 1024, onError: c
 });
 app.post('/api/guardian/reset', c => { clearCall(chatKey(c)); return c.json({ ok: true }); });
 app.post('/api/guardian/stop', async c => c.json(await stopCall(chatKey(c)) ?? { error: 'No call' }));
+// Second Look's phone line: link the member's phone, and "Have Second Look call me" (with what the app knows).
+app.post('/api/phone/link', async c => { const b = await c.req.json().catch(() => ({})); link(c.get('sid'), b.number, !!b.share); return c.json({ ok: true }); });
+app.post('/api/phone/unlink', c => { unlink(c.get('sid')); return c.json({ ok: true }); });
+app.post('/api/phone/call_me', async c => {
+  const b = await c.req.json().catch(() => ({}));
+  const g = callState(chatKey(c)), snap = snapshot();
+  const ctx = [
+    g && g.alerts.length ? `The member just used the call guardian on a call. Warning signs heard: ${g.alerts.map(a => `${a.label} ("${a.quote}")`).join('; ')}.` : '',
+    b.caseId ? (() => { const k = snap.cases.find((x: any) => x.id === Number(b.caseId)); const p = k && snap.payments.find((x: any) => x.pid === k.pid); return k && p ? `A ${p.rail} payment of $${p.amount} is ${p.status === 'Held' ? 'on hold' : p.status} because: ${k.evidence.map((e: any) => e.why).join('; ')}.` : ''; })() : '',
+  ].filter(Boolean).join('\n') || 'No payment is flagged; the member wants to talk something through.';
+  await callMe(c.get('sid'), ctx);
+  return c.json({ ok: true });
+});
 const caseParam = (c: any) => (c.req.param('caseId') === 'general' ? GENERAL : Number(c.req.param('caseId')));
 app.post('/api/chat/:caseId/share', async c => { const b = await c.req.json().catch(() => ({})); shared.set(chatId(c, caseParam(c)), !!b.on); return c.json({ ok: true }); });
 app.get('/api/chat/:caseId', c => c.json(chatHistory(chatKey(c), caseParam(c))));
@@ -130,4 +144,7 @@ setInterval(() => { const now = Date.now(); tickAll(now - last); last = now; }, 
 
 const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port }, () => console.log(`Second Look demo on http://localhost:${port}`));
-if (process.env.NODE_ENV !== 'test') loadAsr(); // warm up on-device voice-note transcription
+if (process.env.NODE_ENV !== 'test') {
+  loadAsr(); // warm up on-device voice-note transcription
+  watchCalls(sid => { useWorld(sid); return `${sid}:${snapshot().scene.id}`; }); // Second Look's phone line
+}
