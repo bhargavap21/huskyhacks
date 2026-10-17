@@ -12,6 +12,7 @@ import { chat, chatHistory, GENERAL } from './chat.ts';
 import { prepare, loadAsr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
+import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -88,7 +89,7 @@ function sharedChats(c: any) {
 
 app.get('/api/state', c => {
   const ids = Object.fromEntries([...shared].filter(([k, v]) => v && k.startsWith(chatKey(c) + ':')).map(([k]) => [k.slice(chatKey(c).length + 1), true]));
-  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, csrf: csrfFor(c.get('sid')) });
+  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), csrf: csrfFor(c.get('sid')) });
 });
 app.post('/api/scene/:id', c => { loadScene(c.req.param('id'), c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('sid')); return c.json({ ok: true }); });
@@ -97,6 +98,15 @@ app.post('/api/employee/:action', async c => { employee(c.req.param('action'), a
 const chatKey = (c: any) => `${c.get('sid')}:${snapshot().scene.id}`;
 app.post('/api/callback', async c => { const b = await c.req.json().catch(() => ({})); return c.json({ ok: true, id: requestCallback(String(b.kind), Number(b.caseId) || 0) }); });
 app.post('/api/callback/:id/done', async c => { const b = await c.req.json().catch(() => ({})); callbackDone(Number(c.req.param('id')), String(b.note ?? '')); return c.json({ ok: true }); });
+// Call guardian: ~4 s audio chunks from the member's browser, transcribed here; audio is not kept.
+app.post('/api/guardian/start', async c => { const b = await c.req.json().catch(() => ({})); startCall(chatKey(c), !!b.share); return c.json({ ok: true }); });
+app.post('/api/guardian/chunk', bodyLimit({ maxSize: 4 * 1024 * 1024, onError: c => c.json({ error: 'Audio chunk too large' }, 413) }), async c => {
+  const b = await c.req.json().catch(() => ({}));
+  if (typeof b.data !== 'string' || !b.data) return c.json({ error: 'No audio' }, 400);
+  return c.json(await addChunk(chatKey(c), b.data));
+});
+app.post('/api/guardian/reset', c => { clearCall(chatKey(c)); return c.json({ ok: true }); });
+app.post('/api/guardian/stop', async c => c.json(await stopCall(chatKey(c)) ?? { error: 'No call' }));
 const caseParam = (c: any) => (c.req.param('caseId') === 'general' ? GENERAL : Number(c.req.param('caseId')));
 app.post('/api/chat/:caseId/share', async c => { const b = await c.req.json().catch(() => ({})); shared.set(chatId(c, caseParam(c)), !!b.on); return c.json({ ok: true }); });
 app.get('/api/chat/:caseId', c => c.json(chatHistory(chatKey(c), caseParam(c))));

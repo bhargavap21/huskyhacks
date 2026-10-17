@@ -324,3 +324,18 @@ td:nth-child(2), td:nth-child(4), td:nth-child(5) { white-space: nowrap; }
 .shared-list li { padding: var(--space-3) 0; border-top: 1px solid var(--line); }
 .shared-list blockquote { margin: 0 0 var(--space-2); font-family: var(--font-serif); font-size: 19px; line-height: 28px; color: var(--ink); }
 .questions .in-badge { margin-right: var(--space-1); }
+
+/* Call guardian: live warnings while the member is on a call. */
+.guardian h2 { margin-top: var(--space-2); }
+.g-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.g-head .small { font-variant-numeric: tabular-nums; }
+.g-now { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border-left: 3px solid var(--risk); background: var(--risk-soft); color: var(--ink); font-size: 18px; line-height: 26px; }
+.g-alerts { margin: 0; padding: 0; list-style: none; }
+.g-alerts li { padding: var(--space-3) 0; border-top: 1px solid var(--line); }
+.g-alerts li:first-child { border-top: 0; }
+.g-alerts p { margin: var(--space-2) 0 var(--space-1); color: var(--ink-body); }
+.g-alerts blockquote, .guardian-console blockquote { margin: 0; font-size: 14px; color: var(--ink-muted); font-style: italic; }
+.g-transcript { max-height: 220px; overflow-y: auto; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); background: var(--surface-band); }
+.g-transcript p { margin: 0 0 var(--space-2); font-size: 15px; line-height: 22px; color: var(--ink-body); }
+.guardian .check { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-3) 0; }
+.guardian-console .shared-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }

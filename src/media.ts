@@ -30,7 +30,7 @@ export function loadAsr() {
   return asr;
 }
 
-async function transcribe(b64: string): Promise<string | null> {
+export async function transcribe(b64: string): Promise<string | null> {
   // A temp file, not a pipe: Safari's mp4/m4a recordings need a seekable input. Deleted right after.
   const dir = mkdtempSync(join(tmpdir(), 'sl-voice-'));
   try {

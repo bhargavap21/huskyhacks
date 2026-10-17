@@ -6,8 +6,8 @@ import { caseForChat } from './sim.ts';
 import { type Attachment, audioText } from './media.ts';
 
 const key = process.env.ANTHROPIC_API_KEY ?? process.env.LLM_API_KEY;
-const client = key ? new Anthropic({ apiKey: key }) : null;
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
+export const client = key ? new Anthropic({ apiKey: key }) : null;
+export const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
 const FALLBACK_MODELS = new Set(['claude-opus-5-5', 'claude-opus-5', 'claude-fable-5-1', 'claude-sonnet-5-5']);
 
 const SYSTEM = `You are Second Look, a security helper inside a credit union app (a concept demo on synthetic data).

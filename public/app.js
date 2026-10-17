@@ -6,7 +6,7 @@ const stored = k => { try { return localStorage.getItem(k); } catch { return nul
 const store = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const narrow = () => matchMedia('(max-width: 900px)').matches;
 let sideCollapsed = stored('sl-side') === '1', copilotOpen = narrow() ? false : stored('sl-copilot') !== '0';
-const MEMBER_PAGES = ['home', 'inbox', 'settings', 'onboarding', 'profile'];
+const MEMBER_PAGES = ['home', 'inbox', 'guardian', 'settings', 'onboarding', 'profile'];
 // Demo-only sign-in, per tab: a cold visit starts signed in so links and scenes never hit a gate.
 const sess = k => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sessSet = (k, v) => { try { sessionStorage.setItem(k, v); } catch {} };
@@ -126,6 +126,7 @@ function memberView() {
   if (page === 'profile') return profileView();
   if (page === 'settings') return settingsView();
   if (page === 'inbox') return inboxView();
+  if (page === 'guardian') return guardianView();
   return homeView();
 }
 
@@ -137,7 +138,7 @@ function homeView() {
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   if (active) out += activePayment(active, caseById(active.case_id));
   if (!setupDone) out += `<div class="card setup-card"><p class="eyebrow">3 short steps</p><h3>Finish setting up your app</h3><p class="small">Choose scam protection, how often we alert you, and an optional trusted contact.</p><div class="row"><button data-act="onboarding">Start setup</button><button class="quiet" data-act="setup_dismiss">Not now</button></div></div>`;
-  out += `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money or contacts anyone for you.</p><button class="primary" data-act="chat_general">Talk to Second Look</button></div>`;
+  out += `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money or contacts anyone for you.</p><div class="row"><button class="primary" data-act="chat_general">Talk to Second Look</button><button data-page="guardian">On a call? Listen with me</button></div></div>`;
   const recent = S.payments.slice(0, 4);
   out += `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
   return out;
@@ -294,6 +295,115 @@ const RECOVERY = `If money already went out, every hour matters:
 - You can also report it to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).
 You did the right thing by speaking up.`;
 
+/* ---------------- Call guardian ---------------- */
+// Second Look listens to a call on speaker: ~4 s chunks go to the server, which transcribes them (local Whisper,
+// audio not kept) and returns any new warning signs. G holds the browser-side capture while a call is live.
+let G = null;
+const LEVEL = {
+  listening: ['neutral', 'Listening', 'Nothing worrying so far'],
+  careful: ['review', 'Be careful', 'Something on this call is worth a second look'],
+  high: ['risk', 'High risk', 'This call matches common scam patterns'],
+};
+const gfetch = (p, b) => fetch('/api/guardian/' + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf': csrf }, body: JSON.stringify(b) }).then(r => r.json()).catch(() => ({}));
+
+function guardianView() {
+  const g = S.guardian;
+  if (!g || (!g.live && !g.summary)) return `<div class="card guardian"><h2>Listen to a call with me</h2>
+    <p>On a call that feels off? Put it on speaker. Second Look listens for pressure tactics and warns you while you talk.</p>
+    <p class="small muted">Audio is turned into text on Sound’s server and isn’t kept. Second Look never speaks on the call or contacts anyone.</p>
+    <label class="check"><input type="checkbox" id="g-share" data-keep> Let Sound see warnings during this call</label>
+    <div class="row"><button class="primary" data-act="g_start" data-src="mic">Start listening</button><button data-act="g_start" data-src="sample">Play a sample scam call</button></div>
+    <p class="small muted">The sample is a staged call for the demo.</p></div>`;
+  const [tone, word, line] = LEVEL[g.level];
+  const latest = g.alerts.at(-1);
+  const alertList = g.alerts.slice().reverse().map(a => `<li><span class="in-badge in-badge--risk">${esc(a.label)}</span><p>${esc(a.advice)}</p><blockquote>“${esc(a.quote)}”</blockquote></li>`).join('');
+  if (g.live) return `<div class="card guardian live" aria-live="polite">
+      <div class="g-head"><span class="in-badge in-badge--${tone}">${word}</span><span class="small muted">${G && G.src === 'sample' ? 'Sample call' : 'Listening on speaker'} · <span id="g-time">0:00</span></span></div>
+      <h2>${line}</h2>
+      ${latest ? `<p class="g-now">${esc(latest.advice)}</p>` : '<p class="small muted">Warnings appear here as the call goes on.</p>'}
+      <div class="row"><button class="primary" data-act="g_stop">Stop listening</button>${g.level === 'high' ? '<button data-act="g_hangup">Hang up and call Sound</button>' : ''}</div></div>
+    ${g.alerts.length ? `<div class="card"><h3>What I’ve heard</h3><ul class="g-alerts">${alertList}</ul></div>` : ''}
+    <div class="card"><h3>Live transcript</h3><div class="g-transcript" id="g-transcript">${g.lines.map(l => `<p>${esc(l.text)}</p>`).join('') || '<p class="muted">Waiting for speech…</p>'}</div><p class="small muted">Automatic transcript. It can mishear words.</p></div>`;
+  return `<div class="card guardian"><div class="g-head"><span class="in-badge in-badge--${tone}">${word}</span><span class="small muted">Call ended · ${mmss((g.ended - g.started) / 1000)}</span></div>
+      <h2>${g.alerts.length ? 'Before you do anything' : 'Call summary'}</h2>
+      <div class="msg assistant">${fmtReply(g.summary)}</div>${g.summary_source === 'offline' ? '<p class="small muted">offline summary</p>' : ''}
+      <div class="row"><button class="primary" data-act="g_talk">Talk to a person at Sound</button><button data-act="chat_general">Talk it through</button><button class="quiet" data-act="g_reset">Listen to another call</button></div></div>
+    ${g.alerts.length ? `<div class="card"><h3>Warning signs I heard</h3><ul class="g-alerts">${alertList}</ul></div>` : ''}`;
+}
+
+// Staff see a live call only if the member ticked "Let Sound see warnings during this call".
+function guardianCard() {
+  const g = S.guardian; if (!g || !g.share) return '';
+  const [tone, word] = LEVEL[g.level];
+  return `<div class="card guardian-console" aria-live="polite"><div class="console-head"><h2>${g.live ? 'Live call: member is listening with Second Look' : 'Call the member just had'}</h2><span class="in-badge in-badge--${tone}">${word}</span></div>
+    <p class="small muted">Shared by the member. Patterns heard on the call, from an automatic transcript. Prompts for your outreach, not proof.</p>
+    ${g.alerts.length ? `<ul class="shared-list">${g.alerts.map(a => `<li><span class="in-badge in-badge--risk">${esc(a.label)}</span><blockquote>“${esc(a.quote)}”</blockquote><span class="small muted">at ${mmss(a.at / 1000)}</span></li>`).join('')}</ul>` : '<p class="small">No warning signs yet.</p>'}
+    ${g.level === 'high' ? '<p class="small"><b>Suggested:</b> call the member now on the number on file. Don’t use any number from the call.</p>' : ''}</div>`;
+}
+
+async function gStart(src) {
+  if (G) return;
+  if (!window.MediaRecorder) return toast('Listening isn’t available in this browser.');
+  let stream, ctx = new (window.AudioContext || window.webkitAudioContext)(), player = null;
+  try {
+    if (src === 'sample') {
+      const buf = await ctx.decodeAudioData(await (await fetch('/static/sample-call.m4a')).arrayBuffer());
+      player = ctx.createBufferSource(); player.buffer = buf;
+      const dest = ctx.createMediaStreamDestination(); player.connect(dest); player.connect(ctx.destination); stream = dest.stream;
+    } else {
+      // Raw mic: echo cancelling and noise suppression can erase a phone on speaker.
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+    }
+  } catch { ctx.close(); return toast(src === 'sample' ? 'Couldn’t play the sample call.' : 'Microphone access is blocked. Allow it in your browser settings.'); }
+  const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
+  const share = !!$('#g-share')?.checked;
+  await gfetch('start', { share });
+  G = { src, stream, ctx, player, an, on: true, start: Date.now(), queue: Promise.resolve(), peak: 0 };
+  // Track loudness so silent chunks are skipped (Whisper invents words on silence).
+  const lvl = new Float32Array(an.fftSize);
+  G.meter = setInterval(() => { an.getFloatTimeDomainData(lvl); let m = 0; for (const v of lvl) m = Math.max(m, Math.abs(v)); G.peak = Math.max(G.peak, m); const el = $('#g-time'); if (el) el.textContent = mmss((Date.now() - G.start) / 1000); }, 100);
+  if (player) { player.onended = () => setTimeout(() => G && G.on && gStop(), 600); player.start(); }
+  gCycle(); poll();
+}
+
+// A fresh recorder per chunk so every chunk is a complete file the server can decode on its own.
+function gCycle() {
+  if (!G || !G.on) return;
+  const mr = new MediaRecorder(G.stream), parts = [];
+  G.peak = 0;
+  mr.ondataavailable = e => e.data.size && parts.push(e.data);
+  mr.onstop = () => {
+    const loud = G.peak > 0.02, blob = new Blob(parts, { type: mr.mimeType || 'audio/webm' });
+    if (loud && blob.size > 1000) G.queue = G.queue.then(() => gSend(blob));
+    if (G.on) gCycle(); else G.queue.then(gFinish);
+  };
+  mr.start(); G.mr = mr;
+  G.timer = setTimeout(() => mr.state === 'recording' && mr.stop(), 4000);
+}
+
+async function gSend(blob) {
+  const j = await gfetch('chunk', { data: (await readB64(blob)).split(',')[1] });
+  if (S.guardian && j.line) {
+    S.guardian.lines.push(j.line); S.guardian.alerts.push(...(j.alerts || [])); S.guardian.level = j.level;
+    render(); const t = $('#g-transcript'); if (t) t.scrollTop = t.scrollHeight;
+  }
+}
+
+function gStop() {
+  if (!G || !G.on) return;
+  G.on = false; clearTimeout(G.timer); clearInterval(G.meter);
+  try { G.player?.stop(); } catch {}
+  if (G.mr && G.mr.state === 'recording') G.mr.stop(); else G.queue.then(gFinish);
+  toast('Finishing up…');
+}
+
+async function gFinish() {
+  if (!G) return;
+  G.stream.getTracks().forEach(t => t.stop()); G.ctx.close().catch(() => {});
+  G = null;
+  await gfetch('stop', {}); await poll(); render(true);
+}
+
 /* ---------------- Chat attachments ---------------- */
 const mmss = s => `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}`;
 const attLabel = a => a.kind === 'audio' ? `Voice note · ${mmss(a.seconds || 0)}` : a.kind === 'pdf' ? `PDF · ${a.name}` : a.name || 'Photo';
@@ -403,7 +513,7 @@ function employeeView() {
   const cbCard = S.callbacks.length ? `<div class="card"><div class="console-head"><h2>Members asking to talk</h2><span class="small muted">${waiting.length} waiting · never quieted by alert limits</span></div>
     ${S.callbacks.map(x => `<div class="callback ${x.status}">${x.urgent ? '<span class="in-badge in-badge--risk">Urgent</span> ' : ''}<b>${esc(x.reason)}</b><div class="small muted">${esc(S.member.id)} · ${esc(x.source)} · ${esc(x.ts_text.split(' ')[1])}${x.status === 'done' ? ` · done: ${esc(x.note)}` : ''}</div>
       ${x.status === 'waiting' ? `<div class="row" style="margin-top:6px"><button class="primary" data-act="cb_done" data-id="${x.id}">Called the member</button>${x.reason.includes('money already') ? '<button data-act="cb_done" data-id="' + x.id + '" data-note="Recovery request started">Start recovery request</button>' : ''}</div>` : ''}</div>`).join('')}</div>` : '';
-  let out = sharedCard('general') + cbCard + `<div class="card"><div class="console-head"><h2>Sound employee console <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
+  let out = guardianCard() + sharedCard('general') + cbCard + `<div class="card"><div class="console-head"><h2>Sound employee console <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
     <div class="table-wrap"><table><thead><tr><th>Member</th><th>Payment</th><th>Why</th><th>Status</th><th>Hold left</th></tr></thead><tbody>
     ${open.map(rowHtml).join('') || '<tr><td colspan="5" class="muted">No open items.</td></tr>'}
     ${closed.length ? `<tr><td colspan="5" class="muted small">Closed</td></tr>` + closed.map(rowHtml).join('') : ''}</tbody></table></div></div>`;
@@ -506,6 +616,11 @@ document.addEventListener('click', async e => {
       if (j && j.reply) { if (j.att && j.att.length) mine.att = j.att; chatLog.push({ role: 'assistant', text: j.reply, source: j.source }); }
       else if (att.length) { chatLog.splice(chatLog.indexOf(mine), 1); pendingAtt = att; } // keep the files so the member can try again
       return render(true); }
+    case 'g_start': return gStart(b.dataset.src);
+    case 'g_stop': return gStop();
+    case 'g_hangup': gStop(); await post('callback', { kind: 'talk', caseId: 0 }); return toast('Hang up now. A Sound team member will call you at the number on file.');
+    case 'g_talk': { const j = await post('callback', { kind: 'talk', caseId: 0 }); if (j && j.ok) toast('A Sound team member will call you at the number on file.'); return; }
+    case 'g_reset': await gfetch('reset', {}); S.guardian = null; return render(true);
     case 'attach': return $('#chatfile')?.click();
     case 'att_remove': pendingAtt.splice(Number(b.dataset.i), 1); return render(true);
     case 'rec_start': return startRec();
