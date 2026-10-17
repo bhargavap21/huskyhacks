@@ -55,10 +55,12 @@ function render(force = false) {
   $('#clock').textContent = S.sim_text;
   $('#speed').textContent = S.awaiting ? '(hold clock at 60×: 4 h ≈ 4 min)' : `(${Math.round(S.speed)}×)`;
   $('#blurb').textContent = (S.mode === 'as_is' ? 'Kit replay, as it happened. ' : 'With Second Look (proposed design). ') + S.scene.blurb;
+  document.querySelector('.phone').classList.toggle('in-chat', screen === 'chat' && !!chatCase);
   const g = $('#grid'); g.className = 'grid' + (view === 'member' ? ' only-member' : view === 'employee' ? ' only-employee' : '');
   document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
   document.querySelectorAll('[data-screen]').forEach(b => b.dataset.screen === screen ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   keep(() => { $('#member').innerHTML = memberView(); $('#employee').innerHTML = employeeView(); });
+  const cs = $('#chatscroll'); if (cs) cs.scrollTop = cs.scrollHeight;
   tickText();
 }
 
@@ -204,17 +206,22 @@ function chatView() {
   if (!general && !c) { screen = 'home'; return homeView(); }
   const asked = kind => S.callbacks.some(x => x.status === 'waiting' && x.source.includes(general ? 'feels off' : `case ${chatCase}`) && x.reason.toLowerCase().includes({ talk: 'talk to a person', sent: 'money already', report: 'reporting' }[kind]));
   const intro = general ? 'I’m here to help you think it through. What happened? For example: who contacted you, and what are they asking you to do?' : 'I’m here to help you think this through. You decide. What would you like to check first?';
-  return `<div class="row"><button class="quiet" data-act="back">← Back</button><span class="in-badge in-badge--neutral">${general ? 'Something feels off' : `About: ${usd(payOf(c).amount)} ${esc(payOf(c).rail)}`}</span></div>
-    ${general ? '' : `<div class="card small"><b>Evidence I’m using</b>${plainEvidence(c)}</div>`}
-    <div class="chat" aria-live="polite" aria-relevant="additions">${[{ role: 'assistant', text: intro }, ...chatLog].map(m => `<div class="msg ${m.role}${m.pending ? ' pending' : ''}">${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('')}</div>
-    <label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="2" placeholder="Type a message"></textarea>
-    <button class="primary" data-act="send">Send</button>
-    <div class="chat-actions" role="group" aria-label="Get help">
-      <button data-act="cb" data-kind="talk" ${asked('talk') ? 'disabled' : ''}>${asked('talk') ? 'A person at Sound will call you' : 'Talk to a person at Sound'}</button>
-      <button data-act="cb" data-kind="sent" ${asked('sent') ? 'disabled' : ''}>${asked('sent') ? 'Recovery team notified' : 'I already sent money'}</button>
-      <button class="quiet" data-act="cb" data-kind="report" ${asked('report') ? 'disabled' : ''}>${asked('report') ? 'Reported' : 'Report a scam'}</button>
-    </div>
-    <p class="small muted">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide.</p>`;
+  const subject = general ? 'Something feels off' : `About your ${usd0(payOf(c).amount)} ${esc(payOf(c).rail.toLowerCase())}`;
+  const help = [['talk', 'Talk to a person at Sound', 'A person at Sound will call you'], ['sent', 'I already sent money', 'Recovery team notified'], ['report', 'Report a scam', 'Reported']];
+  const starters = general ? ['Someone says they’re from my bank', 'I’m being asked to pay with gift cards', 'Someone I met online needs money'] : ['Who should I check this with?', 'Is this a common scam?', 'I know this person'];
+  const msgs = [{ role: 'assistant', text: intro }, ...chatLog];
+  return `<div class="chat-screen">
+    <div class="chat-top"><button class="quiet chat-back" data-act="back" aria-label="Back">←</button>
+      <div class="chat-title"><div class="chat-name">Second Look</div><div class="chat-sub">${subject}</div></div></div>
+    ${general ? '' : det('chat-ev-' + c.id, 'What Second Look can see', `<div class="chat-evidence">${plainEvidence(c)}</div>`)}
+    <div class="chat-scroll" id="chatscroll"><div class="chat" aria-live="polite" aria-relevant="additions">${msgs.map(m => `<div class="msg ${m.role}${m.pending ? ' pending' : ''}">${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('')}</div>
+      ${chatLog.length ? '' : `<div class="chat-starters">${starters.map(t => `<button class="chat-starter" data-act="send" data-text="${esc(t)}">${esc(t)}</button>`).join('')}</div>`}</div>
+    <div class="chat-dock">
+      <div class="chat-chips" role="group" aria-label="Get help">${help.map(([k, label, done]) => `<button class="chat-chip" data-act="cb" data-kind="${k}" ${asked(k) ? 'disabled' : ''}>${asked(k) ? done : label}</button>`).join('')}</div>
+      <div class="composer"><label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="1" placeholder="Message Second Look"></textarea>
+        <button class="primary composer-send" data-act="send" aria-label="Send">↑</button></div>
+      <p class="chat-note">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide.</p>
+    </div></div>`;
 }
 
 /* ---------------- Employee console ---------------- */
@@ -320,7 +327,7 @@ document.addEventListener('click', async e => {
     case 'cb_done': return post('callback/' + b.dataset.id + '/done', { note: b.dataset.note || 'Called the member' });
     case 'chat': chatCase = cid; screen = 'chat'; chatLog = await (await fetch('/api/chat/' + cid)).json(); return render();
     case 'back': screen = 'home'; return render();
-    case 'send': { const t = $('#chatin').value.trim(); if (!t) return; $('#chatin').value = '';
+    case 'send': { const t = (b.dataset.text || $('#chatin').value).trim(); if (!t) return; $('#chatin').value = '';
       chatLog.push({ role: 'user', text: t }); const pend = { role: 'assistant', text: 'Second Look is thinking…', pending: true }; chatLog.push(pend); render(true);
       const j = await post('chat/' + chatCase, { text: t });
       chatLog.splice(chatLog.indexOf(pend), 1);
@@ -353,7 +360,13 @@ document.addEventListener('click', async e => {
   }
 });
 document.addEventListener('toggle', e => { if (e.target.id) openDet.set(e.target.id, e.target.open); }, true);
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('tr[data-act]')) e.target.click(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('tr[data-act]')) e.target.click();
+  // Chat composer: Enter sends, Shift+Enter adds a line.
+  if (e.key === 'Enter' && !e.shiftKey && e.target.id === 'chatin') { e.preventDefault(); $('.composer-send')?.click(); }
+});
+// Composer grows with its text, up to a few lines.
+document.addEventListener('input', e => { if (e.target.id === 'chatin') { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 140) + 'px'; } });
 document.addEventListener('change', e => {
   if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked });
   if (e.target.id === 'quiet') post('member/alert_settings', { quiet: e.target.checked });
