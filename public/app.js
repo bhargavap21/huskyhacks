@@ -187,11 +187,14 @@ function onboardingView() {
     <p class="small muted">You can change this any time in Settings. We won’t keep asking.</p></div>`;
 }
 
+// Escape first, then allow only **bold** and line breaks (no raw HTML from the model).
+const fmtReply = t => esc(t).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+
 function chatView() {
   const c = caseById(chatCase); if (!c) { screen = 'home'; return homeView(); }
   return `<div class="row"><button class="quiet" data-act="back">← Back</button><span class="in-badge in-badge--neutral">About: ${usd(payOf(c).amount)} ${esc(payOf(c).rail)}</span></div>
     <div class="card small"><b>Evidence I’m using</b>${plainEvidence(c)}</div>
-    <div class="chat" aria-live="polite" aria-relevant="additions">${chatLog.map(m => `<div class="msg ${m.role}">${esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('') || '<div class="msg assistant">I’m here to help you think this through. You decide. What would you like to check first?</div>'}</div>
+    <div class="chat" aria-live="polite" aria-relevant="additions">${chatLog.map(m => `<div class="msg ${m.role}">${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('') || '<div class="msg assistant">I’m here to help you think this through. You decide. What would you like to check first?</div>'}</div>
     <p class="small muted">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide.</p>
     <label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="2" placeholder="Type a message"></textarea>
     <button class="primary" data-act="send">Send</button>`;
