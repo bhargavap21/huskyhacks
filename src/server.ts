@@ -11,6 +11,7 @@ import { TransitionError } from './payments.ts';
 import { chat, chatHistory, GENERAL } from './chat.ts';
 import { prepare, loadAsr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
+import { tacticsIn } from './tactics.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -52,7 +53,43 @@ app.onError((err, c) => {
   return c.json({ error: 'Something went wrong' }, 500);
 });
 
-app.get('/api/state', c => c.json({ ...snapshot(), csrf: csrfFor(c.get('sid')) }));
+// "Live in the room": a phone joins this browser's simulation by a short code (synthetic data only).
+const rooms = new Map<string, string>(); // code -> sid
+const roomOf = new Map<string, string>(); // sid -> code
+app.post('/api/room', c => {
+  const sid = c.get('sid');
+  let code = roomOf.get(sid);
+  if (!code) { do code = randomBytes(4).toString('hex').slice(0, 6); while (rooms.has(code)); rooms.set(code, sid); roomOf.set(sid, code); }
+  return c.json({ ok: true, code });
+});
+app.get('/join/:code', c => {
+  const sid = rooms.get(c.req.param('code').toLowerCase());
+  if (!sid) return c.text('That join link has expired. Ask the presenter for a new one.', 404);
+  setCookie(c, 'sl_sid', sid, { httpOnly: true, sameSite: 'Lax', secure: PROD, path: '/' });
+  return c.redirect('/?page=home&joined=1');
+});
+
+// Chats the member chose to share with Sound staff (off unless the member turns it on).
+const shared = new Map<string, boolean>(); // `${sid}:${scene}:${case}` -> on
+const chatId = (c: any, caseId: number) => `${chatKey(c)}:${caseId}`;
+function sharedChats(c: any) {
+  const snap = snapshot(), out: Record<string, { messages: { text: string; tactics: { key: string; label: string }[] }[] }> = {};
+  for (const id of [GENERAL, ...snap.cases.map((k: any) => k.id)]) {
+    if (!shared.get(chatId(c, id))) continue;
+    // The member's typed words plus any voice-note transcripts (screenshots and PDFs aren't quoted here).
+    const msgs = (chatHistory(chatKey(c), id) as { role: string; text: string; att?: { kind: string; transcript?: string }[] }[])
+      .filter(m => m.role === 'user')
+      .map(m => [m.text, ...(m.att ?? []).filter(a => a.kind === 'audio' && a.transcript).map(a => `(voice note) ${a.transcript}`)].filter(Boolean).join(' ').trim())
+      .filter(Boolean);
+    out[id === GENERAL ? 'general' : String(id)] = { messages: msgs.map(text => ({ text, tactics: tacticsIn(text) })) };
+  }
+  return out;
+}
+
+app.get('/api/state', c => {
+  const ids = Object.fromEntries([...shared].filter(([k, v]) => v && k.startsWith(chatKey(c) + ':')).map(([k]) => [k.slice(chatKey(c).length + 1), true]));
+  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, csrf: csrfFor(c.get('sid')) });
+});
 app.post('/api/scene/:id', c => { loadScene(c.req.param('id'), c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/member/:action', async c => { member(c.req.param('action'), await c.req.json().catch(() => ({}))); return c.json({ ok: true }); });
@@ -61,6 +98,7 @@ const chatKey = (c: any) => `${c.get('sid')}:${snapshot().scene.id}`;
 app.post('/api/callback', async c => { const b = await c.req.json().catch(() => ({})); return c.json({ ok: true, id: requestCallback(String(b.kind), Number(b.caseId) || 0) }); });
 app.post('/api/callback/:id/done', async c => { const b = await c.req.json().catch(() => ({})); callbackDone(Number(c.req.param('id')), String(b.note ?? '')); return c.json({ ok: true }); });
 const caseParam = (c: any) => (c.req.param('caseId') === 'general' ? GENERAL : Number(c.req.param('caseId')));
+app.post('/api/chat/:caseId/share', async c => { const b = await c.req.json().catch(() => ({})); shared.set(chatId(c, caseParam(c)), !!b.on); return c.json({ ok: true }); });
 app.get('/api/chat/:caseId', c => c.json(chatHistory(chatKey(c), caseParam(c))));
 // Photos, PDFs and voice notes ride along as base64; 30 MB covers three max-size attachments.
 app.post('/api/chat/:caseId', bodyLimit({ maxSize: 30 * 1024 * 1024, onError: c => c.json({ error: 'Those files are too large to send together' }, 413) }), async c => {

@@ -309,3 +309,17 @@ td:nth-child(2), td:nth-child(4), td:nth-child(5) { white-space: nowrap; }
 .msg-att img { display: block; max-width: 220px; max-height: 260px; border: 1px solid var(--line); }
 .att-file { font-size: 14px; font-weight: 600; color: var(--ink); }
 .att-heard { margin: var(--space-1) 0 0; font-size: 14px; line-height: 20px; color: var(--ink-body); font-style: italic; }
+/* Live in the room: invite dialog, share toggle, shared chat on the console */
+.invite-dlg { max-width: min(420px, calc(100vw - 32px)); padding: var(--space-5); border: 1px solid var(--line-strong); background: var(--surface-raised); color: var(--ink-body); text-align: center; }
+.invite-dlg::backdrop { background: rgba(0, 18, 51, .45); }
+.invite-dlg h2 { margin: 0 0 var(--space-2); font-size: 32px; line-height: 40px; }
+.invite-qr { width: 260px; height: 260px; margin: var(--space-4) auto; background: #fff; display: flex; align-items: center; justify-content: center; }
+.invite-qr svg { width: 100%; height: 100%; }
+.invite-url { font: 500 17px/24px var(--font-sans); color: var(--ink); overflow-wrap: anywhere; margin: 0 0 var(--space-4); }
+.chat-share { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0 0 var(--space-2); font: 400 13px/18px var(--font-sans); color: var(--ink-body); }
+.chat-share input { margin: 2px 0 0; width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
+.shared-card { border-left: 4px solid var(--risk); }
+.shared-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; }
+.shared-list li { padding: var(--space-3) 0; border-top: 1px solid var(--line); }
+.shared-list blockquote { margin: 0 0 var(--space-2); font-family: var(--font-serif); font-size: 19px; line-height: 28px; color: var(--ink); }
+.questions .in-badge { margin-right: var(--space-1); }

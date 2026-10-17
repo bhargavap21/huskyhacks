@@ -16,6 +16,7 @@
   <span class="topbar-title">Second Look</span>
   <span class="topbar-meta">Concept for HuskyHack 2026 · synthetic data</span>
   <span class="topbar-spacer"></span>
+  <button id="invite" class="quiet">Invite a phone</button>
   <button id="copilot-toggle" class="primary" aria-controls="copilot" aria-expanded="true">Second Look chat</button>
 </header>
 <div class="demo-bar" role="toolbar" aria-label="Demo controls">
@@ -58,6 +59,13 @@
   </main>
   <aside class="copilot" id="copilot" aria-label="Second Look chat"><div id="copilot-body" class="copilot-body"></div></aside>
 </div>
+<dialog class="invite-dlg" id="invite-dlg" aria-labelledby="invite-title">
+  <h2 id="invite-title">Join on your phone</h2>
+  <p class="small">Scan to open Linda’s member app on your phone, linked to this demo. Everything stays synthetic: no real money, no sign-in.</p>
+  <div class="invite-qr" id="invite-qr" aria-hidden="true"></div>
+  <p class="invite-url" id="invite-url"></p>
+  <button class="primary" id="invite-close">Done</button>
+</dialog>
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="/static/app.js"></script>
 </body>

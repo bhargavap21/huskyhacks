@@ -365,6 +365,7 @@ function chatView() {
       ${chatLog.length ? '' : `<div class="chat-starters">${starters.map(t => `<button class="chat-starter" data-act="send" data-text="${esc(t)}">${esc(t)}</button>`).join('')}</div>`}</div>
     <div class="chat-dock">
       <div class="chat-chips" role="group" aria-label="Get help">${help.map(([k, label, done]) => `<button class="chat-chip" data-act="cb" data-kind="${k}" ${asked(k) ? 'disabled' : ''}>${asked(k) ? done : label}</button>`).join('')}</div>
+      <label class="chat-share"><input type="checkbox" id="chatshare" ${S.share_on?.[general ? '0' : String(chatCase)] ? 'checked' : ''}> Share this chat with the Sound employee helping me</label>
       ${pendingAtt.length ? `<ul class="att-tray" aria-label="Ready to send">${pendingAtt.map((a, i) => `<li class="att-chip">${a.kind === 'image' ? `<img src="${a.preview}" alt="">` : ''}<span>${esc(attLabel(a))}</span><button class="icon-btn" data-act="att_remove" data-i="${i}" aria-label="Remove ${esc(attLabel(a))}">×</button></li>`).join('')}</ul>` : ''}
       ${rec ? `<div class="rec-bar" role="status"><span class="rec-dot" aria-hidden="true"></span><span>Recording <span id="rec-time">0:00</span></span><button class="primary" data-act="rec_stop">Stop and add</button><button class="quiet" data-act="rec_cancel">Cancel</button></div>` : ''}
       <div class="composer"><label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="1" placeholder="Message Second Look"></textarea>
@@ -397,13 +398,23 @@ function employeeView() {
   const cbCard = S.callbacks.length ? `<div class="card"><div class="console-head"><h2>Members asking to talk</h2><span class="small muted">${waiting.length} waiting · never quieted by alert limits</span></div>
     ${S.callbacks.map(x => `<div class="callback ${x.status}">${x.urgent ? '<span class="in-badge in-badge--risk">Urgent</span> ' : ''}<b>${esc(x.reason)}</b><div class="small muted">${esc(S.member.id)} · ${esc(x.source)} · ${esc(x.ts_text.split(' ')[1])}${x.status === 'done' ? ` · done: ${esc(x.note)}` : ''}</div>
       ${x.status === 'waiting' ? `<div class="row" style="margin-top:6px"><button class="primary" data-act="cb_done" data-id="${x.id}">Called the member</button>${x.reason.includes('money already') ? '<button data-act="cb_done" data-id="' + x.id + '" data-note="Recovery request started">Start recovery request</button>' : ''}</div>` : ''}</div>`).join('')}</div>` : '';
-  let out = cbCard + `<div class="card"><div class="console-head"><h2>Sound employee console <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
+  let out = sharedCard('general') + cbCard + `<div class="card"><div class="console-head"><h2>Sound employee console <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
     <div class="table-wrap"><table><thead><tr><th>Member</th><th>Payment</th><th>Why</th><th>Status</th><th>Hold left</th></tr></thead><tbody>
     ${open.map(rowHtml).join('') || '<tr><td colspan="5" class="muted">No open items.</td></tr>'}
     ${closed.length ? `<tr><td colspan="5" class="muted small">Closed</td></tr>` + closed.map(rowHtml).join('') : ''}</tbody></table></div></div>`;
-  if (c) out += caseDetail(c);
+  if (c) out += sharedCard(String(c.id)) + caseDetail(c);
   if (S.mode === 'as_is') out += timelineCard(true); // the as-is replay is the timeline
   return out;
+}
+
+// Chat the member chose to share: their words, with the pressure tactics they mention (prompts for the call, not proof).
+const PROMOTE = { secrecy: /quiet|what to say|not to tell/i, coached: /phone with you|what to say/i, family: /own words|number you already/i, authority: /number you already|unsafe|investigation|not to tell/i, urgency: /own words/i, payment: /cash for|withdraw/i, code: /one-time code/i, online: /met|video|withdraw/i };
+const sharedTactics = id => new Set((S.shared?.[id]?.messages || []).flatMap(m => m.tactics.map(t => t.key)));
+function sharedCard(id) {
+  const sh = S.shared?.[id]; if (!sh) return '';
+  return `<div class="card shared-card" aria-live="polite"><div class="console-head"><h2>What the member told Second Look</h2><span class="in-badge in-badge--neutral">Shared by the member</span></div>
+    <p class="small muted">The member chose to share this ${id === 'general' ? '“Something feels off”' : 'payment'} chat. Their own words, not verified. The patterns are prompts for your call, not proof.</p>
+    ${sh.messages.length ? `<ul class="shared-list">${sh.messages.slice(-4).map(m => `<li><blockquote>“${esc(m.text)}”</blockquote>${m.tactics.length ? `<div class="row">${m.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t.label)}</span>`).join('')}</div>` : ''}</li>`).join('')}</ul>` : '<p class="small">Nothing typed yet.</p>'}</div>`;
 }
 
 const PRESETS = { Held: ['Member confirmed by phone: legitimate', 'Verified with a contact the member already had', 'Member reconfirmed in branch'] };
@@ -415,7 +426,11 @@ function caseDetail(c) {
   const kind = p.rail === 'P2P' ? 'P2P payment' : p.rail === 'Cash' ? 'cash withdrawal' : p.rail.toLowerCase();
   const state = !open ? `Closed: ${p.status}` : p.status === 'Held' ? 'On hold' : p.gate === 'presubmit_review' ? 'Waiting before submit' : p.gate === 'branch_conversation' ? 'Branch conversation' : p.gate === 'banner_confirm' ? 'Member is confirming' : p.status;
   const memberView = c.member_label === 'looks_fine' ? `Member marked it fine${c.label_seconds != null ? ` in ${c.label_seconds}s` : ''}` : c.member_label === 'reported' ? 'Member reported a scam' : c.callback_requested ? 'Member asked to talk' : '';
-  const q = GUIDE[c.rule] || GUIDE.STD;
+  // Questions matching what the member shared move up; secrecy and coaching first (they block checking with others).
+  const W = { secrecy: 3, coached: 3, authority: 2, code: 2 };
+  const tk = sharedTactics(String(c.id)), score = x => [...tk].reduce((n, k) => n + (PROMOTE[k]?.test(x) ? (W[k] || 1) : 0), 0), hit = x => score(x) > 0;
+  const q = [...(GUIDE[c.rule] || GUIDE.STD)].sort((a, b) => score(b) - score(a));
+  const qli = x => `<li>${hit(x) ? '<span class="in-badge in-badge--neutral">From the chat</span> ' : ''}${esc(x)}</li>`;
   let step2 = '';
   if (can.release) step2 = `<li><b>Record the outcome</b>
       <div class="row presets">${PRESETS.Held.map(t => `<button class="chipbtn" data-act="preset" data-text="${esc(t)}">${esc(t)}</button>`).join('')}</div>
@@ -440,8 +455,8 @@ function caseDetail(c) {
       <h2>What to do next</h2>
       <ol class="steps">
         ${open && c.rule !== 'STD' ? `<li><b>Call the member</b> <span class="small muted">on the number on file, not one given to you now</span>
-          <ul class="questions">${q.slice(0, 2).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-          ${q.length > 2 ? det('e-q-' + c.id, `${q.length - 2} more questions and red flags`, `<ul class="questions">${q.slice(2).map(x => `<li>${esc(x)}</li>`).join('')}</ul><p class="small">${esc(CUES)}</p>`) : ''}
+          <ul class="questions">${q.slice(0, 2).map(qli).join('')}</ul>
+          ${q.length > 2 ? det('e-q-' + c.id, `${q.length - 2} more questions and red flags`, `<ul class="questions">${q.slice(2).map(qli).join('')}</ul><p class="small">${esc(CUES)}</p>`) : ''}
           <div class="row" style="margin-top:var(--space-2)"><button data-act="e_outreach">Log the call</button></div></li>` : ''}
         ${step2}
       </ol>
@@ -542,6 +557,7 @@ document.addEventListener('change', e => {
   if (e.target.id === 'chatfile') { addFiles([...e.target.files]); e.target.value = ''; }
   if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked });
   if (e.target.id === 'quiet') post('member/alert_settings', { quiet: e.target.checked });
+  if (e.target.id === 'chatshare') post('chat/' + chatCase + '/share', { on: e.target.checked }).then(() => toast(e.target.checked ? 'Shared. The Sound employee can see what you type here.' : 'This chat is private again.'));
 });
 $('#scene').addEventListener('change', async e => { chatAuto = true; selCase = null; chatCase = 'general'; chatLog = []; showMore = {}; await post('scene/' + e.target.value); });
 $('#play').addEventListener('click', () => post('control/' + (S.running ? 'pause' : 'play')));
@@ -583,12 +599,27 @@ $('#theme').addEventListener('click', () => {
 });
 syncTheme();
 
+// Invite a phone: a short join link (and QR code) into this demo's simulation.
+let qrLib = null;
+const loadQr = () => qrLib || (qrLib = new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'; s.onload = () => ok(window.qrcode); s.onerror = no; document.head.append(s); }));
+$('#invite').addEventListener('click', async () => {
+  const j = await post('room'); if (!j || !j.code) return;
+  const url = `${location.origin}/join/${j.code}`;
+  $('#invite-url').textContent = url.replace(/^https?:\/\//, '');
+  $('#invite-qr').innerHTML = '';
+  $('#invite-dlg').showModal();
+  try { const qr = (await loadQr())(0, 'M'); qr.addData(url); qr.make(); $('#invite-qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); }
+  catch { $('#invite-qr').textContent = 'QR code unavailable offline. Type the link instead.'; }
+});
+$('#invite-close').addEventListener('click', () => $('#invite-dlg').close());
+
 // Deep links for slides: /?scene=m1057&play=1&view=employee
 (async () => {
   const q = new URLSearchParams(location.search);
   const v = q.get('view'), pg = q.get('page');
   if (v === 'member') page = 'home'; else if (v === 'employee') page = 'console'; else if (v === 'both') page = 'split';
   if (['home', 'inbox', 'settings', 'profile', 'onboarding', 'console', 'split', 'timeline'].includes(pg)) page = pg;
+  if (q.get('joined') === '1') { page = 'home'; copilotOpen = false; setTimeout(() => toast('You’re on Linda’s phone in the presenter’s demo.'), 600); history.replaceState(null, '', '/'); }
   if (q.get('chat') === 'general') { chatAuto = false; chatCase = 'general'; copilotOpen = true; }
   await poll();
   if (q.get('scene') && S.scenes.some(x => x.id === q.get('scene'))) { await post('scene/' + q.get('scene')); if (q.get('jump') === '1') for (let i = 0; i < 60 && !S.awaiting && !S.ended; i++) await post('control/next');
