@@ -45,3 +45,18 @@ test('alert policy in the sim: Linda’s hold interrupts once (content-safe); M1
   assert.equal(t.notifications.length, 0);
   assert.equal(t.cases[0]?.alert?.banner_in_place, true);
 });
+
+test('members can ask for a person from any chat; one request per reason; employee closes it', async () => {
+  const { requestCallback, callbackDone } = await import('../src/sim.ts');
+  useWorld('cb'); loadScene('m1037', 'cb');
+  const a = requestCallback('sent', 0);
+  assert.equal(requestCallback('sent', 0), a);
+  requestCallback('talk', 0);
+  let s = snapshot();
+  assert.equal(s.callbacks.length, 2);
+  assert.ok(s.callbacks.find((x: any) => x.id === a)?.urgent);
+  callbackDone(a, 'Recovery request started');
+  s = snapshot();
+  assert.equal(s.callbacks.find((x: any) => x.id === a)?.status, 'done');
+  assert.throws(() => requestCallback('wire it for me', 0));
+});

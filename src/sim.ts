@@ -46,6 +46,7 @@ type World = {
   confirm_code: { code: string; pid: string; sent_to: string; why: string } | null; ended: boolean;
   next_case: number; seen: number;
   policy: PolicyState; notifications: { ts: number; text: string; case_id: number }[];
+  callbacks: { id: number; ts: number; reason: string; source: string; urgent: boolean; status: 'waiting' | 'done'; note: string }[];
 };
 
 // One simulation per browser session so viewers don't interfere with each other.
@@ -82,7 +83,7 @@ function blank(scene: Scene): World {
   const start = toMs(scene.start);
   const w0: World = {
     scene, mode: scene.mode, sim: start, speed: NORMAL_SPEED, running: false, cursor: 0, events, timeline: [],
-    payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null, next_case: 1, seen: Date.now(), policy: newPolicy(), notifications: [],
+    payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null, next_case: 1, seen: Date.now(), policy: newPolicy(), notifications: [], callbacks: [],
     member: { id: scene.member, name: scene.name, enrolled: scene.mode === 'second_look', trusted_contact: null, contact_changed_sim: null, pre_change_contact: 'phone ending 4471 (on file since 2019)', current_contact: 'phone ending 4471' },
   };
   // Fast-forward silently to the scene start so balances, recipients and flags are in place.
@@ -270,6 +271,31 @@ export function member(action: string, b: any) {
   settle(p);
 }
 
+const REASONS: Record<string, { text: string; urgent: boolean }> = {
+  talk: { text: 'Member asked to talk to a person', urgent: false },
+  sent: { text: 'Member says money already went out: start recovery now', urgent: true },
+  report: { text: 'Member is reporting a possible scam', urgent: true },
+};
+/** Member asks for a person (from any chat). Lands in the employee queue; never budgeted or quieted. */
+export function requestCallback(kind: string, caseId: number) {
+  const r = REASONS[kind];
+  if (!r) throw new TransitionError('Unknown request');
+  const open = w.callbacks.find(x => x.status === 'waiting' && x.reason === r.text);
+  if (open) return open.id; // one request per reason
+  const id = w.callbacks.length + 1;
+  const source = caseId ? `chat about case ${caseId}` : 'Something feels off chat';
+  w.callbacks.unshift({ id, ts: w.sim, reason: r.text, source, urgent: r.urgent, status: 'waiting', note: '' });
+  audit('member', 'callback_requested', `${kind} from ${source}`);
+  if (caseId) { const c = w.cases.find(x => x.id === caseId); if (c) { c.callback_requested = true; act(c, 'member', 'asked_to_talk', r.text); } }
+  return id;
+}
+export function callbackDone(id: number, note: string) {
+  const cb = w.callbacks.find(x => x.id === id);
+  if (!cb) throw new TransitionError('Unknown request');
+  cb.status = 'done'; cb.note = note.slice(0, 300) || 'Called member';
+  audit('employee', 'callback_done', `request ${id}: ${cb.note}`);
+}
+
 /** Employee console actions. Every one is audited. */
 export function employee(action: string, b: any) {
   const c = caseOf(Number(b.caseId)); const p = pay(c.pid);
@@ -319,6 +345,7 @@ export function snapshot() {
   return {
     scene: w.scene, scenes: SCENES.map(s => ({ id: s.id, title: s.title })), mode: w.mode, sim: w.sim, sim_text: fmt(w.sim),
     speed: w.speed, running: w.running, ended: w.ended, awaiting: w.awaiting, member: w.member,
+    callbacks: w.callbacks.map(c => ({ ...c, ts_text: fmt(c.ts) })),
     alerts: { sensitivity: w.policy.sensitivity, quiet: !!w.policy.quiet }, notifications: w.notifications.slice(0, 5).map(n => ({ ...n, ts_text: fmt(n.ts) })),
     timeline: w.timeline.slice(-40).map(t => ({ ...t, ts_text: fmt(t.ts) })), payments: pays.reverse(), cases: w.cases,
     confirm_code: w.confirm_code ? { sent_to: w.confirm_code.sent_to, why: w.confirm_code.why, pid: w.confirm_code.pid, demo_code: w.confirm_code.code } : null,

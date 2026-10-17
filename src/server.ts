@@ -6,9 +6,9 @@ import { Hono } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { tickAll, useWorld, loadScene, control, member, employee, snapshot } from './sim.ts';
+import { tickAll, useWorld, loadScene, control, member, employee, snapshot, requestCallback, callbackDone } from './sim.ts';
 import { TransitionError } from './payments.ts';
-import { chat, chatHistory } from './chat.ts';
+import { chat, chatHistory, GENERAL } from './chat.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -53,10 +53,13 @@ app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('sid')); 
 app.post('/api/member/:action', async c => { member(c.req.param('action'), await c.req.json().catch(() => ({}))); return c.json({ ok: true }); });
 app.post('/api/employee/:action', async c => { employee(c.req.param('action'), await c.req.json().catch(() => ({}))); return c.json({ ok: true }); });
 const chatKey = (c: any) => `${c.get('sid')}:${snapshot().scene.id}`;
-app.get('/api/chat/:caseId', c => c.json(chatHistory(chatKey(c), Number(c.req.param('caseId')))));
+app.post('/api/callback', async c => { const b = await c.req.json().catch(() => ({})); return c.json({ ok: true, id: requestCallback(String(b.kind), Number(b.caseId) || 0) }); });
+app.post('/api/callback/:id/done', async c => { const b = await c.req.json().catch(() => ({})); callbackDone(Number(c.req.param('id')), String(b.note ?? '')); return c.json({ ok: true }); });
+const caseParam = (c: any) => (c.req.param('caseId') === 'general' ? GENERAL : Number(c.req.param('caseId')));
+app.get('/api/chat/:caseId', c => c.json(chatHistory(chatKey(c), caseParam(c))));
 app.post('/api/chat/:caseId', async c => {
   const b = await c.req.json().catch(() => ({}));
-  return c.json(await chat(chatKey(c), Number(c.req.param('caseId')), String(b.text ?? '')));
+  return c.json(await chat(chatKey(c), caseParam(c), String(b.text ?? '')));
 });
 
 const page = (f: string) => readFileSync(join(import.meta.dirname, '..', 'public', f), 'utf8');

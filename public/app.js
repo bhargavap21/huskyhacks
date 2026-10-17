@@ -82,6 +82,7 @@ function homeView() {
   if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   if (active) out += activePayment(active, caseById(active.case_id));
+  out += `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money or contacts anyone for you.</p><button class="primary" data-act="chat_general">Talk to Second Look</button></div>`;
   const recent = S.payments.slice(0, 4);
   out += `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
   return out;
@@ -176,7 +177,7 @@ function settingsView() {
       <label for="tcname">Name</label><input type="text" id="tcname" data-keep><label for="tcrel">Relationship</label><input type="text" id="tcrel" data-keep>
       <div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="tc_add">Add trusted contact</button></div>`}</div>
     <div class="card"><h2>Report a scam</h2><p class="small">If money already moved, tell us right away. Wire recalls and ACH returns can be requested but aren’t guaranteed, and the chance falls with time. Person-to-person payments can’t be recalled. You can also report to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).</p>
-    ${S.cases[0] ? `<button class="primary" data-act="report" data-pid="${S.cases[0].pid}">Report the latest payment</button>` : ''}</div>`;
+    <div class="row">${S.cases[0] ? `<button class="primary" data-act="report" data-pid="${S.cases[0].pid}">Report the latest payment</button>` : ''}<button data-act="chat_general">Talk to Second Look</button></div></div>`;
 }
 
 function onboardingView() {
@@ -190,14 +191,30 @@ function onboardingView() {
 // Escape first, then allow only **bold** and line breaks (no raw HTML from the model).
 const fmtReply = t => esc(t).replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
 
+const RECOVERY = `If money already went out, every hour matters:
+- **Tell Sound now.** We can request a wire recall or an ACH return. These are possible but not guaranteed, and the chance falls with time.
+- Person-to-person payments usually can’t be pulled back. Contact the app you used and report it there too.
+- If you shared a password or one-time code, we’ll help you secure your account.
+- You can also report it to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).
+You did the right thing by speaking up.`;
+
 function chatView() {
-  const c = caseById(chatCase); if (!c) { screen = 'home'; return homeView(); }
-  return `<div class="row"><button class="quiet" data-act="back">← Back</button><span class="in-badge in-badge--neutral">About: ${usd(payOf(c).amount)} ${esc(payOf(c).rail)}</span></div>
-    <div class="card small"><b>Evidence I’m using</b>${plainEvidence(c)}</div>
-    <div class="chat" aria-live="polite" aria-relevant="additions">${chatLog.map(m => `<div class="msg ${m.role}">${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('') || '<div class="msg assistant">I’m here to help you think this through. You decide. What would you like to check first?</div>'}</div>
-    <p class="small muted">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide.</p>
+  const general = chatCase === 'general';
+  const c = general ? null : caseById(chatCase);
+  if (!general && !c) { screen = 'home'; return homeView(); }
+  const asked = kind => S.callbacks.some(x => x.status === 'waiting' && x.source.includes(general ? 'feels off' : `case ${chatCase}`) && x.reason.toLowerCase().includes({ talk: 'talk to a person', sent: 'money already', report: 'reporting' }[kind]));
+  const intro = general ? 'I’m here to help you think it through. What happened? For example: who contacted you, and what are they asking you to do?' : 'I’m here to help you think this through. You decide. What would you like to check first?';
+  return `<div class="row"><button class="quiet" data-act="back">← Back</button><span class="in-badge in-badge--neutral">${general ? 'Something feels off' : `About: ${usd(payOf(c).amount)} ${esc(payOf(c).rail)}`}</span></div>
+    ${general ? '' : `<div class="card small"><b>Evidence I’m using</b>${plainEvidence(c)}</div>`}
+    <div class="chat" aria-live="polite" aria-relevant="additions">${[{ role: 'assistant', text: intro }, ...chatLog].map(m => `<div class="msg ${m.role}${m.pending ? ' pending' : ''}">${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('')}</div>
     <label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="2" placeholder="Type a message"></textarea>
-    <button class="primary" data-act="send">Send</button>`;
+    <button class="primary" data-act="send">Send</button>
+    <div class="chat-actions" role="group" aria-label="Get help">
+      <button data-act="cb" data-kind="talk" ${asked('talk') ? 'disabled' : ''}>${asked('talk') ? 'A person at Sound will call you' : 'Talk to a person at Sound'}</button>
+      <button data-act="cb" data-kind="sent" ${asked('sent') ? 'disabled' : ''}>${asked('sent') ? 'Recovery team notified' : 'I already sent money'}</button>
+      <button class="quiet" data-act="cb" data-kind="report" ${asked('report') ? 'disabled' : ''}>${asked('report') ? 'Reported' : 'Report a scam'}</button>
+    </div>
+    <p class="small muted">Second Look can’t send money, release payments, click links or contact anyone. It only helps you decide.</p>`;
 }
 
 /* ---------------- Employee console ---------------- */
@@ -218,7 +235,11 @@ function employeeView() {
   const afterHours = p => { if (!p.hold_started_at) return false; const d = new Date(p.hold_started_at); const h = d.getUTCHours(), wd = d.getUTCDay(); return h < 9 || h >= 18 || wd === 0 || wd === 6; };
   const rowHtml = x => { const p = payOf(x); const left = p.status === 'Held' ? `<span data-expires="${p.hold_expires_at}">${hm(p.hold_expires_at - S.sim)}</span>` : '—';
     return `<tr class="click ${x.id === selCase ? 'sel' : ''}" data-act="select" data-case="${x.id}" tabindex="0"><td>${esc(S.member.id)}</td><td>${usd0(p.amount)} ${esc(p.rail)}</td><td>${esc(x.title)}</td><td>${esc(p.status === 'Held' ? 'On hold' : p.gate === 'presubmit_review' && p.status === 'Pending' ? 'Waiting: verify first' : p.gate === 'branch_conversation' && p.status === 'Pending' ? 'Branch conversation' : p.gate === 'banner_confirm' && p.status === 'Pending' ? 'Member confirming' : p.status)}${x.callback_requested ? ' · <b>member asked to talk</b>' : ''}${afterHours(p) ? ' · after hours' : ''}</td><td class="countdown">${left}</td></tr>`; };
-  let out = `<div class="card"><div class="console-head"><h2>Sound employee console <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
+  const waiting = S.callbacks.filter(x => x.status === 'waiting').sort((a, b) => b.urgent - a.urgent);
+  const cbCard = S.callbacks.length ? `<div class="card"><div class="console-head"><h2>Members asking to talk</h2><span class="small muted">${waiting.length} waiting · never quieted by alert limits</span></div>
+    ${S.callbacks.map(x => `<div class="callback ${x.status}">${x.urgent ? '<span class="in-badge in-badge--risk">Urgent</span> ' : ''}<b>${esc(x.reason)}</b><div class="small muted">${esc(S.member.id)} · ${esc(x.source)} · ${esc(x.ts_text.split(' ')[1])}${x.status === 'done' ? ` · done: ${esc(x.note)}` : ''}</div>
+      ${x.status === 'waiting' ? `<div class="row" style="margin-top:6px"><button class="primary" data-act="cb_done" data-id="${x.id}">Called the member</button>${x.reason.includes('money already') ? '<button data-act="cb_done" data-id="' + x.id + '" data-note="Recovery request started">Start recovery request</button>' : ''}</div>` : ''}</div>`).join('')}</div>` : '';
+  let out = cbCard + `<div class="card"><div class="console-head"><h2>Sound employee console <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">Sorted by time left in hold (the 4-hour clock is the SLA)</span></div>
     <div class="table-wrap"><table><thead><tr><th>Member</th><th>Payment</th><th>Why</th><th>Status</th><th>Hold left</th></tr></thead><tbody>
     ${open.map(rowHtml).join('') || '<tr><td colspan="5" class="muted">No open items.</td></tr>'}
     ${closed.length ? `<tr><td colspan="5" class="muted small">Closed</td></tr>` + closed.map(rowHtml).join('') : ''}</tbody></table></div></div>`;
@@ -287,10 +308,24 @@ document.addEventListener('click', async e => {
   switch (a) {
     case 'select': selCase = cid; return render();
     case 'more': showMore[cid] = !showMore[cid]; return render();
+    case 'chat_general': chatCase = 'general'; screen = 'chat'; chatLog = await (await fetch('/api/chat/general')).json(); return render(true);
+    case 'cb': {
+      const kind = b.dataset.kind;
+      const j = await post('callback', { kind, caseId: chatCase === 'general' ? 0 : chatCase });
+      if (j && j.ok) {
+        if (kind === 'sent') chatLog.push({ role: 'assistant', text: RECOVERY, source: 'guide' });
+        toast(kind === 'talk' ? 'A Sound team member will call you at the number on file.' : kind === 'sent' ? 'Our recovery team has been told. They’ll call you.' : 'Thanks for reporting. A case is open and Sound will contact you.');
+      }
+      return render(true); }
+    case 'cb_done': return post('callback/' + b.dataset.id + '/done', { note: b.dataset.note || 'Called the member' });
     case 'chat': chatCase = cid; screen = 'chat'; chatLog = await (await fetch('/api/chat/' + cid)).json(); return render();
     case 'back': screen = 'home'; return render();
-    case 'send': { const t = $('#chatin').value.trim(); if (!t) return; $('#chatin').value = ''; chatLog.push({ role: 'user', text: t }); render();
-      const j = await post('chat/' + chatCase, { text: t }); if (j && j.reply) chatLog.push({ role: 'assistant', text: j.reply, source: j.source }); return render(); }
+    case 'send': { const t = $('#chatin').value.trim(); if (!t) return; $('#chatin').value = '';
+      chatLog.push({ role: 'user', text: t }); const pend = { role: 'assistant', text: 'Second Look is thinking…', pending: true }; chatLog.push(pend); render(true);
+      const j = await post('chat/' + chatCase, { text: t });
+      chatLog.splice(chatLog.indexOf(pend), 1);
+      if (j && j.reply) chatLog.push({ role: 'assistant', text: j.reply, source: j.source });
+      return render(true); }
     case 'onboarding': screen = 'onboarding'; return render();
     case 'enroll_on': await post('member/enroll', { on: true }); screen = 'home'; return toast('Second Look is on. Turn it off any time in Settings.');
     case 'enroll_skip': await post('member/enroll', { on: false }); screen = 'home'; return;
@@ -343,6 +378,7 @@ syncTheme();
 (async () => {
   const q = new URLSearchParams(location.search);
   if (['both', 'member', 'employee'].includes(q.get('view'))) view = q.get('view');
+  if (q.get('chat') === 'general') { chatCase = 'general'; screen = 'chat'; }
   await poll();
   if (q.get('scene') && S.scenes.some(x => x.id === q.get('scene'))) { await post('scene/' + q.get('scene')); if (q.get('jump') === '1') for (let i = 0; i < 60 && !S.awaiting && !S.ended; i++) await post('control/next');
     if (q.get('play') === '1') await post('control/play'); }

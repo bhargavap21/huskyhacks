@@ -164,3 +164,8 @@ tr.sel.click:hover td { background: var(--safe-soft); }
 .toast { position: fixed; bottom: var(--space-4); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); max-width: calc(100% - 32px); z-index: 10; }
 
 th { white-space: nowrap; }
+
+.chat-actions { display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); margin-top: var(--space-2, 8px); }
+.msg.pending { opacity: .7; font-style: italic; }
+.callback { padding: var(--space-3, 12px) 0; border-bottom: 1px solid var(--line, #d6dee4); }
+.callback.done { opacity: .65; }
