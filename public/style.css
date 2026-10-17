@@ -98,7 +98,7 @@ fieldset legend { margin-bottom: var(--space-2); }
 
 /* Chat */
 .chat { display: flex; flex-direction: column; gap: var(--space-2); }
-.msg { padding: var(--space-3) var(--space-4); max-width: 90%; }
+.msg { padding: var(--space-3) var(--space-4); max-width: 90%; white-space: pre-line; }
 .msg.user { align-self: flex-end; background: var(--accent); color: var(--on-accent); }
 .msg.user .muted { color: inherit; }
 .msg.assistant { align-self: flex-start; background: var(--safe-soft); color: var(--ink-body); }
