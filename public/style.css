@@ -251,3 +251,21 @@ td:nth-child(2), td:nth-child(4), td:nth-child(5) { white-space: nowrap; }
 .main .grid .console-head h2 { font-size: 26px; line-height: 32px; }
 .page-timeline .timeline { max-height: none; }
 .main .grid th:nth-child(1), .main .grid td:nth-child(1):not([colspan]), .main .grid th:nth-child(3), .main .grid td:nth-child(3) { display: none; }
+
+/* Sign-in, setup steps and profile (member app) */
+.signin p { margin: var(--space-2) 0 var(--space-4); }
+.ob .eyebrow { margin-bottom: var(--space-1); }
+.ob-progress { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); color: var(--ink-muted); }
+.ob-bar { display: flex; gap: var(--space-1); flex: 1; max-width: 160px; }
+.ob-bar span { flex: 1; height: 4px; background: var(--line); }
+.ob-bar span.on { background: var(--accent); }
+.ob-list { margin: var(--space-3) 0 var(--space-4); }
+.ob-list > li { font-size: 15px; line-height: 24px; padding: 2px 0 2px 4px; }
+.ob-field { border: 0; padding: 0; margin: var(--space-3) 0 0; }
+.ob-nav { margin-top: var(--space-4); }
+.ob-summary { margin: var(--space-3) 0; }
+.profile-head { display: flex; align-items: center; gap: var(--space-4); }
+.profile-head h2 { margin: 0; }
+.avatar { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; background: var(--surface-band); color: var(--ink); font-family: var(--font-serif); font-size: 24px; }
+.profile-actions { margin-top: var(--space-3); }
+.copilot-signedout { padding: var(--space-5) var(--space-4); }

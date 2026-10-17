@@ -6,7 +6,13 @@ const stored = k => { try { return localStorage.getItem(k); } catch { return nul
 const store = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const narrow = () => matchMedia('(max-width: 900px)').matches;
 let sideCollapsed = stored('sl-side') === '1', copilotOpen = narrow() ? false : stored('sl-copilot') !== '0';
-const MEMBER_PAGES = ['home', 'inbox', 'settings', 'onboarding'];
+const MEMBER_PAGES = ['home', 'inbox', 'settings', 'onboarding', 'profile'];
+// Demo-only sign-in, per tab: a cold visit starts signed in so links and scenes never hit a gate.
+const sess = k => { try { return sessionStorage.getItem(k); } catch { return null; } };
+const sessSet = (k, v) => { try { sessionStorage.setItem(k, v); } catch {} };
+let signedIn = sess('sl-signed-in') !== '0', obStep = 0;
+// The chat follows a held payment until the member picks "Something feels off" themselves.
+let chatAuto = true;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -26,7 +32,10 @@ async function post(path, body = {}) {
 }
 
 async function poll() {
-  const r = await fetch('/api/state'); S = await r.json(); csrf = S.csrf; render();
+  const r = await fetch('/api/state'); S = await r.json(); csrf = S.csrf;
+  const held = chatAuto && chatCase === 'general' && S.awaiting && S.payments.find(p => p.pid === S.awaiting);
+  if (held && held.case_id && caseById(held.case_id)) { chatCase = held.case_id; chatLog = await (await fetch('/api/chat/' + chatCase)).json(); }
+  render();
 }
 
 // Keep typed input and focus across re-renders (focus is matched by id, or by action + target).
@@ -41,7 +50,7 @@ function keep(fn) {
 
 // Only rebuild when something other than the clock changed; clock and countdowns update in place.
 let lastKey = '';
-function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, showMore, sideCollapsed, copilotOpen]); }
+function structuralKey() { const { sim, sim_text, csrf: _c, ...rest } = S; return JSON.stringify([rest, page, selCase, chatCase, chatLog.length, showMore, sideCollapsed, copilotOpen, signedIn, obStep]); }
 function tickText() {
   $('#clock').textContent = S.sim_text;
   document.querySelectorAll('[data-expires]').forEach(el => { const t = hm(Number(el.dataset.expires) - S.sim); el.textContent = t; el.setAttribute('aria-label', 'Time left ' + t); });
@@ -72,7 +81,7 @@ function render(force = false) {
   const openCases = S.cases.filter(c => c.status === 'open').length;
   $('#count-console').textContent = openCases + S.callbacks.filter(x => x.status === 'waiting').length || '';
   $('#count-inbox').textContent = S.cases.length || '';
-  keep(() => { $('#page').innerHTML = pageView(); $('#copilot-body').innerHTML = copilotOpen ? chatView() : ''; });
+  keep(() => { $('#page').innerHTML = pageView(); $('#copilot-body').innerHTML = !copilotOpen ? '' : signedIn ? chatView() : '<p class="copilot-signedout small muted">Sign in to the Sound app to talk to Second Look.</p>'; });
   const cs = $('#chatscroll'); if (cs) cs.scrollTop = cs.scrollHeight;
   tickText();
 }
@@ -96,7 +105,9 @@ const payOf = c => S.payments.find(p => p.pid === c.pid);
 const plainEvidence = c => `<ul>${c.evidence.map(e => `<li>${esc(e.why)}: <b>${esc(e.value)}</b></li>`).join('')}</ul>`;
 
 function memberView() {
+  if (!signedIn) return signInView();
   if (page === 'onboarding') return onboardingView();
+  if (page === 'profile') return profileView();
   if (page === 'settings') return settingsView();
   if (page === 'inbox') return inboxView();
   return homeView();
@@ -194,7 +205,7 @@ function settingsView() {
   return `<div class="card"><h2>Second Look</h2>
     <div class="switch"><label for="enroll">Watch for signs someone may be manipulating me, and let a Sound employee step in before money moves</label><input type="checkbox" id="enroll" ${m.enrolled ? 'checked' : ''}></div>
     <details><summary>What we use / what we never do</summary><p class="small"><b>We use</b> the payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes. <b>We never</b> read your texts, calls, email or browsing, never freeze your account, and never make a decision about your own payment for you.</p></details>
-    <button class="quiet" data-act="onboarding">See the onboarding screen</button></div>
+    <button class="quiet" data-act="onboarding">Run setup again</button></div>
     <div class="card"><h2>Alerts</h2><p class="small">We stay quiet unless something is worth a look. When money is about to move, we always show it in the payment screen.</p>
     <fieldset style="border:0;padding:0;margin:0"><legend class="small muted">How many alerts</legend><div class="row">${['fewer', 'standard', 'more'].map(v => `<button data-act="sens" data-v="${v}" aria-pressed="${S.alerts.sensitivity === v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div></fieldset>
     <div class="switch" style="margin-top:var(--space-2)"><label for="quiet">Quiet hours, 9 pm to 7 am (a paused payment still reaches you)</label><input type="checkbox" id="quiet" ${S.alerts.quiet ? 'checked' : ''}></div></div>
@@ -207,12 +218,53 @@ function settingsView() {
     <div class="row">${S.cases[0] ? `<button class="primary" data-act="report" data-pid="${S.cases[0].pid}">Report the latest payment</button>` : ''}<button data-act="chat_general">Talk to Second Look</button></div></div>`;
 }
 
+function signInView() {
+  const m = S.member;
+  return `<div class="card signin"><h2>Sign in to Sound</h2>
+    <p>Welcome back. Second Look lives inside the Sound app, so there is no new account or password.</p>
+    <div class="stack"><button class="primary" data-act="sign_in">Sign in as ${esc(m.name)} (demo)</button>
+      <button data-act="sign_in_setup">First time in the app? Sign in and set up</button></div>
+    <p class="small muted">Demo sign-in. The real app would use Sound’s normal member sign-in; nothing here asks for a password.</p></div>`;
+}
+
+// Setup in short steps: Second Look (with a skip), alerts, trusted contact, then a summary.
+// Each choice saves right away through the same settings the Settings page uses.
 function onboardingView() {
-  return `<div class="card"><h2>Turn on Second Look?</h2>
+  const m = S.member, t = m.trusted_contact, A = S.alerts;
+  const progress = n => `<div class="ob-progress" aria-label="Step ${n} of 3"><span class="small">Step ${n} of 3</span><div class="ob-bar">${[1, 2, 3].map(i => `<span class="${i <= n ? 'on' : ''}"></span>`).join('')}</div></div>`;
+  const back = `<button class="quiet" data-act="ob_back">Back</button>`;
+  if (obStep === 0) return `<div class="card ob"><p class="eyebrow">Welcome, ${esc(m.name)}</p><h2>Let’s set up your app</h2>
+    <p>Three short steps: scam protection, how often we alert you, and an optional trusted contact. You can change any of it later in Settings.</p>
+    <div class="stack"><button class="primary" data-act="ob_next">Get started</button><button class="quiet" data-act="ob_done">Skip setup</button></div></div>`;
+  if (obStep === 1) return `<div class="card ob">${progress(1)}<h2>Turn on Second Look?</h2>
     <p>We watch for signs someone may be manipulating you, and a Sound employee can step in before money moves.</p>
-    <details><summary>What we use / what we never do</summary><p class="small">We use the payment details Sound already has. We never read your texts, calls or email. Your own payments stay your decision.</p></details>
-    <div class="stack"><button class="primary" data-act="enroll_on">Turn on</button><button data-act="enroll_skip">Not now</button></div>
-    <p class="small muted">You can change this any time in Settings. We won’t keep asking.</p></div>`;
+    <ul class="in-ul ob-list"><li>We use payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes.</li><li>We never read your texts, calls, email or browsing, and never freeze your account.</li><li>Your own payments stay your decision.</li></ul>
+    <div class="stack"><button class="primary" data-act="ob_on">Turn on Second Look</button><button data-act="ob_skip">Not now</button></div>
+    <p class="small muted">If you choose not now, it stays off and we won’t keep asking.</p></div>`;
+  if (obStep === 2) return `<div class="card ob">${progress(2)}<h2>How often should we alert you?</h2>
+    <p class="small">We stay quiet unless something is worth a look. When money is about to move, we always show it in the payment screen.</p>
+    <fieldset class="ob-field"><legend class="small muted">How many alerts</legend><div class="row">${['fewer', 'standard', 'more'].map(v => `<button data-act="sens" data-v="${v}" aria-pressed="${A.sensitivity === v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div></fieldset>
+    <div class="switch ob-field"><label for="quiet">Quiet hours, 9 pm to 7 am (a paused payment still reaches you)</label><input type="checkbox" id="quiet" ${A.quiet ? 'checked' : ''}></div>
+    <div class="row ob-nav">${back}<button class="primary" data-act="ob_next">Continue</button></div></div>`;
+  if (obStep === 3) return `<div class="card ob">${progress(3)}<h2>Add a trusted contact? <span class="in-badge in-badge--neutral">optional</span></h2>
+    ${t ? `<p>${esc(t.name)} (${esc(t.relation)}) will be told when a payment is paused.</p><div class="row ob-nav">${back}<button class="primary" data-act="ob_next">Continue</button></div>`
+      : `<p class="small">Choose someone you trust who is <b>not involved</b> in your payments. They’re only informed when a payment is paused, never given access or control.</p>
+    <label for="tcname">Name</label><input type="text" id="tcname" data-keep><label for="tcrel">Relationship</label><input type="text" id="tcrel" data-keep>
+    <div class="row ob-nav">${back}<button class="primary" data-act="tc_add">Add and continue</button><button class="quiet" data-act="ob_next">Skip</button></div>`}</div>`;
+  return `<div class="card ob"><h2>You’re all set</h2>
+    <dl class="kv ob-summary"><dt>Second Look</dt><dd>${m.enrolled ? 'On' : 'Off'}</dd>${m.enrolled ? `<dt>Alerts</dt><dd>${A.sensitivity[0].toUpperCase() + A.sensitivity.slice(1)}${A.quiet ? ', quiet hours on' : ''}</dd><dt>Trusted contact</dt><dd>${t ? esc(t.name) : 'None'}</dd>` : ''}</dl>
+    <p class="small muted">Change any of this in Settings, or run setup again from your profile.</p>
+    <button class="primary" data-act="ob_done">Go to home</button></div>`;
+}
+
+function profileView() {
+  const m = S.member, t = m.trusted_contact, A = S.alerts;
+  const initials = m.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  return `<div class="card profile-head"><span class="avatar" aria-hidden="true">${esc(initials)}</span><div><h2>${esc(m.name)}</h2><div class="small muted">Member ${esc(m.id)} · synthetic kit member</div></div></div>
+    <div class="card"><h3>Contact and sign-in</h3><dl class="kv"><dt>Phone on file</dt><dd>${esc(m.current_contact)}</dd><dt>Sign-in</dt><dd>Sound app sign-in (demo)</dd></dl></div>
+    <div class="card"><h3>Second Look</h3><dl class="kv"><dt>Status</dt><dd>${m.enrolled ? 'On' : 'Off'}</dd><dt>Alerts</dt><dd>${A.sensitivity[0].toUpperCase() + A.sensitivity.slice(1)}${A.quiet ? ', quiet hours on' : ''}</dd><dt>Trusted contact</dt><dd>${t ? `${esc(t.name)} (${esc(t.relation)})` : 'None'}</dd></dl>
+      <div class="row profile-actions"><button data-page="settings">Change settings</button><button class="quiet" data-act="onboarding">Run setup again</button></div></div>
+    <div class="card"><button data-act="sign_out">Sign out</button><p class="small muted">Signing out only affects this demo tab.</p></div>`;
 }
 
 // Escape first, then allow only **bold** and line breaks (no raw HTML from the model).
@@ -339,7 +391,7 @@ document.addEventListener('click', async e => {
   switch (a) {
     case 'select': selCase = cid; return render();
     case 'more': showMore[cid] = !showMore[cid]; return render();
-    case 'chat_general': chatCase = 'general'; openCopilot(); chatLog = await (await fetch('/api/chat/general')).json(); return render(true);
+    case 'chat_general': chatAuto = false; chatCase = 'general'; openCopilot(); chatLog = await (await fetch('/api/chat/general')).json(); return render(true);
     case 'cb': {
       const kind = b.dataset.kind;
       const j = await post('callback', { kind, caseId: chatCase === 'general' ? 0 : chatCase });
@@ -357,11 +409,19 @@ document.addEventListener('click', async e => {
       chatLog.splice(chatLog.indexOf(pend), 1);
       if (j && j.reply) chatLog.push({ role: 'assistant', text: j.reply, source: j.source });
       return render(true); }
-    case 'onboarding': page = 'onboarding'; return render();
+    case 'onboarding': page = 'onboarding'; obStep = 0; return render();
+    case 'sign_in': signedIn = true; sessSet('sl-signed-in', '1'); page = 'home'; return render();
+    case 'sign_in_setup': signedIn = true; sessSet('sl-signed-in', '1'); page = 'onboarding'; obStep = 0; return render();
+    case 'sign_out': signedIn = false; sessSet('sl-signed-in', '0'); page = 'home'; return render();
+    case 'ob_next': obStep = Math.min(obStep + 1, 4); return render();
+    case 'ob_back': obStep = Math.max(obStep - 1, 0); return render();
+    case 'ob_on': await post('member/enroll', { on: true }); obStep = 2; return render();
+    case 'ob_skip': await post('member/enroll', { on: false }); obStep = 4; return render();
+    case 'ob_done': page = 'home'; obStep = 0; return render();
     case 'enroll_on': page = 'home'; await post('member/enroll', { on: true }); return toast('Second Look is on. Turn it off any time in Settings.');
     case 'enroll_skip': page = 'home'; await post('member/enroll', { on: false }); return;
     case 'sens': return post('member/alert_settings', { sensitivity: b.dataset.v });
-    case 'tc_add': return post('member/trusted_contact', { name: $('#tcname').value, relation: $('#tcrel').value });
+    case 'tc_add': { const j = await post('member/trusted_contact', { name: $('#tcname').value, relation: $('#tcrel').value }); if (j && j.ok && page === 'onboarding') { obStep = 4; render(); } return; }
     case 'tc_remove': return post('member/trusted_contact', { remove: true });
     case 'release': return post('member/override_release', { pid, code: $('#code').value });
     case 'looks_fine': case 'cancel': case 'request_code': case 'reconfirm': case 'callback': case 'report': {
@@ -395,11 +455,11 @@ document.addEventListener('change', e => {
   if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked });
   if (e.target.id === 'quiet') post('member/alert_settings', { quiet: e.target.checked });
 });
-$('#scene').addEventListener('change', async e => { selCase = null; chatCase = 'general'; chatLog = []; showMore = {}; await post('scene/' + e.target.value); });
+$('#scene').addEventListener('change', async e => { chatAuto = true; selCase = null; chatCase = 'general'; chatLog = []; showMore = {}; await post('scene/' + e.target.value); });
 $('#play').addEventListener('click', () => post('control/' + (S.running ? 'pause' : 'play')));
 $('#next').addEventListener('click', () => post('control/next'));
 $('#faster').addEventListener('click', () => post('control/faster'));
-$('#reset').addEventListener('click', () => { selCase = null; chatCase = 'general'; chatLog = []; post('control/reset'); });
+$('#reset').addEventListener('click', () => { chatAuto = true; selCase = null; chatCase = 'general'; chatLog = []; post('control/reset'); });
 function openCopilot() { copilotOpen = true; if (!narrow()) store('sl-copilot', '1'); }
 $('#side-toggle').addEventListener('click', () => { sideCollapsed = !sideCollapsed; store('sl-side', sideCollapsed ? '1' : '0'); render(true); });
 $('#copilot-toggle').addEventListener('click', async () => {
@@ -424,8 +484,8 @@ syncTheme();
   const q = new URLSearchParams(location.search);
   const v = q.get('view'), pg = q.get('page');
   if (v === 'member') page = 'home'; else if (v === 'employee') page = 'console'; else if (v === 'both') page = 'split';
-  if (['home', 'inbox', 'settings', 'console', 'split', 'timeline'].includes(pg)) page = pg;
-  if (q.get('chat') === 'general') { chatCase = 'general'; copilotOpen = true; }
+  if (['home', 'inbox', 'settings', 'profile', 'onboarding', 'console', 'split', 'timeline'].includes(pg)) page = pg;
+  if (q.get('chat') === 'general') { chatAuto = false; chatCase = 'general'; copilotOpen = true; }
   await poll();
   if (q.get('scene') && S.scenes.some(x => x.id === q.get('scene'))) { await post('scene/' + q.get('scene')); if (q.get('jump') === '1') for (let i = 0; i < 60 && !S.awaiting && !S.ended; i++) await post('control/next');
     if (q.get('play') === '1') await post('control/play'); }
