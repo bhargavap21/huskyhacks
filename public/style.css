@@ -453,3 +453,28 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 .fwd-code { margin-top: var(--space-3); padding: var(--space-3); border: 1px solid var(--line-strong); background: var(--surface-band); }
 .fwd-code .code { font-size: 22px; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
 .g-way code { font-size: 14px; background: var(--surface-band); padding: 0 var(--space-1); }
+
+/* Denser type on desktop (phones keep the larger sizes and 44 px targets).
+   About one step down the Instinct scale: body 17 to 15, card titles 32 to 24, page titles 34 to 26. */
+@media (min-width: 901px) {
+  body { font-size: 15px; line-height: 24px; }
+  .topbar-title { font-size: 22px; line-height: 28px; }
+  .blurb, .blurb p, .lede { font-size: 15px; line-height: 24px; }
+  .card h2, .banner h2, .invite-dlg h2 { font-size: 24px; line-height: 30px; }
+  .card h3 { font-size: 17px; line-height: 26px; }
+  .eyebrow { font-size: 13px; line-height: 18px; }
+  .app-head b { font-size: 26px; line-height: 32px; }
+  .app-head { padding: var(--space-3) var(--space-4); }
+  button, select, label, details > summary { font-size: 14px; }
+  .side button, .side .side-link { font-size: 14px; min-height: 40px; }
+  .chat-name { font-size: 17px; }
+  .console-head h2, .employee .card h2, .employee .console-head h2, .main .grid .console-head h2 { font-size: 20px; line-height: 28px; }
+  .case-summary h2, .employee .case-summary h2 { font-size: 26px; line-height: 32px; }
+  .case-name, .case-left .countdown { font-size: 20px; line-height: 26px; }
+  .signal-value { font-size: 17px; line-height: 26px; }
+  .shared-list blockquote { font-size: 17px; line-height: 26px; }
+  .in-header__title { font-size: 26px; line-height: 32px; }
+  .in-section__heading { font-size: 26px; line-height: 32px; }
+  .in-section__lead { font-size: 17px; line-height: 28px; }
+  .in-ol > li, .in-ul > li { font-size: 15px; line-height: 26px; }
+}
