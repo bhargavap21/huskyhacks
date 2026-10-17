@@ -3,6 +3,7 @@ import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Hono } from 'hono';
+import { db } from './db.ts';
 import { getCookie, setCookie } from 'hono/cookie';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -16,6 +17,9 @@ import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.
 import { phoneState, link, unlink, callMe, watchCalls, PhoneError } from './phone.ts';
 import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError, reportEmailById } from './email.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
+import { settings, saveSettings, detections, pushKey, addPushSub, removePushSubs, reportDetection, record } from './monitor.ts';
+import { gmailEnabled, authUrl, callback as gmailCallback, disconnect as gmailDisconnect, watchGmail } from './gmail.ts';
+import { sendEmail } from './email.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -92,7 +96,7 @@ function sharedChats(c: any) {
 
 app.get('/api/state', c => {
   const ids = Object.fromEntries([...shared].filter(([k, v]) => v && k.startsWith(chatKey(c) + ':')).map(([k]) => [k.slice(chatKey(c).length + 1), true]));
-  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), email: emailState(c.get('sid')), csrf: csrfFor(c.get('sid')) });
+  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), email: emailState(c.get('sid')), channels: channelState(c.get('sid')), csrf: csrfFor(c.get('sid')) });
 });
 app.post('/api/scene/:id', c => { loadScene(c.req.param('id'), c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('sid')); return c.json({ ok: true }); });
@@ -124,6 +128,34 @@ app.post('/api/report', async c => {
   await fileReport(sid, normalize({ ...base, ...(d ?? {}), tactics: [...new Set([...(d?.tactics ?? []), ...base.tactics])] }, 'call guardian', { linked: true }));
   return c.json({ ok: true });
 });
+// Connected channels: what the member turned on, recent alerts, and how alerts reach them.
+function channelState(sid: string) {
+  const s = settings(sid);
+  return { email_watch: s.email_watch, screening: s.screening, texts: s.texts, push: s.push, forward_confirm: s.forward_confirm, gmail: s.gmail ? { address: s.gmail.address } : null, gmail_available: gmailEnabled, push_key: pushKey(), detections: detections(sid) };
+}
+app.post('/api/channels', async c => {
+  const b = await c.req.json().catch(() => ({})), sid = c.get('sid'), patch: any = {};
+  for (const k of ['email_watch', 'screening', 'texts'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
+  if (patch.screening) patch.screening_since = Date.now();
+  if (b.dismiss_confirm) patch.forward_confirm = null;
+  saveSettings(sid, patch);
+  return c.json({ ok: true });
+});
+app.post('/api/push/subscribe', async c => { const b = await c.req.json().catch(() => ({})); addPushSub(c.get('sid'), b.sub); return c.json({ ok: true }); });
+app.post('/api/push/unsubscribe', c => { removePushSubs(c.get('sid')); return c.json({ ok: true }); });
+// A sample alert, so the member (and judges) can see what one looks like before anything real arrives.
+app.post('/api/push/test', async c => {
+  const sid = c.get('sid'), em = (emailState(sid)?.linked ? (db.prepare('SELECT address FROM email_links WHERE sid = ?').get(sid) as any)?.address : null) ?? null;
+  await record(sid, { channel: 'email', risk: 'high', title: 'Sample alert: an email from “Sound Security” asks you to confirm a code', summary: 'This is a sample of what a Second Look alert looks like. Nothing real happened.', why: ['Claims to be Sound', 'Asks for a one-time code', '“within 1 hour”'], advice: 'Don’t click links or share codes. Check by typing soundcu.com yourself.', from: 'Sample', subject: 'Sample alert' }, em, sendEmail);
+  return c.json({ ok: true });
+});
+app.post('/api/detections/:id/report', async c => { const out = await reportDetection(c.get('sid'), Number(c.req.param('id'))); return c.json({ ok: true, case_id: out.case_id }); });
+app.get('/auth/google/start', c => (gmailEnabled ? c.redirect(authUrl(c.get('sid'))) : c.text('Gmail sign-in isn’t set up on this server.', 404)));
+app.get('/auth/google/callback', async c => {
+  try { await gmailCallback(c.req.query('state') ?? '', c.req.query('code') ?? ''); return c.redirect('/?page=channels&gmail=connected'); }
+  catch (e) { return c.redirect('/?page=channels&gmail=' + encodeURIComponent((e as Error).message)); }
+});
+app.post('/api/gmail/disconnect', async c => { await gmailDisconnect(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/email/unlink', c => { unlinkEmail(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/phone/unlink', c => { unlink(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/phone/call_me', async c => {
@@ -151,6 +183,8 @@ app.post('/api/chat/:caseId', bodyLimit({ maxSize: 30 * 1024 * 1024, onError: c 
 const page = (f: string) => readFileSync(join(import.meta.dirname, '..', 'public', f), 'utf8');
 app.get('/', c => c.html(page('index.html')));
 app.get('/about', c => c.html(page('about.html')));
+// The push service worker must be served from the root to cover the whole app.
+app.get('/sw.js', c => c.body(page('sw.js'), 200, { 'content-type': 'text/javascript', 'service-worker-allowed': '/' }));
 app.use('/ds/*', serveStatic({ root: './design-system', rewriteRequestPath: p => p.replace(/^\/ds/, '') }));
 app.use('/static/*', serveStatic({ root: './public', rewriteRequestPath: p => p.replace(/^\/static/, '') }));
 
@@ -163,4 +197,5 @@ if (process.env.NODE_ENV !== 'test') {
   loadAsr(); // warm up on-device voice-note transcription
   watchCalls(sid => { useWorld(sid); return `${sid}:${snapshot().scene.id}`; }); // Second Look's phone line
   watchInbox(sid => sid); // Second Look's inbox
+  watchGmail(); // Connected Gmail accounts (if Google sign-in is configured)
 }

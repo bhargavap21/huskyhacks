@@ -446,3 +446,10 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 .fr-kv { margin: 0 0 var(--space-2); font-size: 14px; }
 .fr-steps { margin: var(--space-1) 0 0; padding-left: var(--space-5); font-size: 14px; }
 .page-member .g-link { max-width: 640px; }
+
+/* Connected channels */
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; font-weight: 500; color: var(--ink); }
+.switch-row input { width: 44px; height: 24px; flex: none; }
+.fwd-code { margin-top: var(--space-3); padding: var(--space-3); border: 1px solid var(--line-strong); background: var(--surface-band); }
+.fwd-code .code { font-size: 22px; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.g-way code { font-size: 14px; background: var(--surface-band); padding: 0 var(--space-1); }

@@ -11,6 +11,7 @@ import { db } from './db.ts';
 import { client, MODEL } from './chat.ts';
 import { tacticsIn } from './tactics.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
+import { settings, saveSettings, assess, record, detections, reportDetection } from './monitor.ts';
 
 const KEY = process.env.AGENTMAIL_API_KEY;
 export const INBOX = process.env.AGENTMAIL_INBOX_ID ?? null;
@@ -131,6 +132,31 @@ function followUps(note: string) {
   return ask.length ? ` If you can, also tell me ${ask.join(' and ')}.` : '';
 }
 
+// Gmail asks the new forwarding address to confirm. We never click it; we show the member the code and link.
+async function forwardingConfirmation(m: any) {
+  const full = await api('GET', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}`);
+  const text = String(full.text ?? '');
+  const code = /confirmation code:\s*(\d{6,12})/i.exec(text)?.[1] ?? /\(#(\d{6,12})\)/.exec(full.subject ?? '')?.[1] ?? '';
+  const who = addr(/([^\s<>()]+@[^\s<>()]+) has requested to automatically forward/i.exec(text)?.[1] ?? /from ([^\s<>()]+@[^\s<>()]+)/i.exec(full.subject ?? '')?.[1] ?? '');
+  const link = /(https:\/\/mail(?:-settings)?\.google\.com\/mail\/[^\s<>"]+)/.exec(text)?.[1] ?? '';
+  const l = db.prepare('SELECT sid FROM email_links WHERE address = ?').get(who) as { sid: string } | undefined;
+  if (!l) { console.log('email: Gmail forwarding confirmation for an unlinked address, ignored'); return; }
+  saveSettings(l.sid, { forward_confirm: { code, link, from: mask(who), ts: Date.now() }, email_watch: true });
+  console.log('email: Gmail forwarding confirmation received for a member');
+}
+
+// Mail a member's Gmail forwarded on its own. Checked quietly; kept and alerted only if it's worth a look.
+async function watchedMail(m: any, sid: string, memberAddress: string) {
+  const full = await api('GET', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}`);
+  const extra = (full.labels ?? []).includes('unauthenticated') ? ['The sender failed email authentication checks'] : [];
+  const d = await assess('email', String(full.from ?? m.from ?? ''), String(full.subject ?? ''), String(full.text ?? full.extracted_text ?? full.preview ?? ''), extra);
+  if (!d) return; // ordinary mail: nothing kept
+  await record(sid, d, memberAddress, sendEmail);
+}
+export async function sendEmail(to: string, subject: string, text: string) {
+  await api('POST', `/inboxes/${encodeURIComponent(INBOX!)}/messages/send`, { to: [to], subject, text: text + FOOTER });
+}
+
 const FOOTER = `\n\n—\nSecond Look never asks for codes or passwords and never moves money. This is a concept demo for HuskyHack 2026.`;
 
 // File a fraud report for a forwarded email (also used by the app's "Report to Sound" button).
@@ -166,8 +192,15 @@ const recent = new Map<string, number[]>(); // per-sender replies in the last ho
 
 async function handle(m: any, keyFor: (sid: string) => string) {
   const from = addr(m.from ?? '');
+  if (from === 'forwarding-noreply@google.com') return forwardingConfirmation(m);
   const link = db.prepare('SELECT sid, share FROM email_links WHERE address = ?').get(from) as { sid: string; share: number } | undefined;
-  if (!link) { console.log(`email: ignored mail from an unlinked address (${mask(from)}), left unread`); return; }
+  if (!link) {
+    // Auto-forwarded by a member who turned on email watching: the original To/Cc still names them.
+    const rcpts = [...(m.to ?? []), ...(m.cc ?? [])].map((x: string) => addr(x));
+    const watched = rcpts.map(a => ({ a, l: db.prepare('SELECT sid FROM email_links WHERE address = ?').get(a) as { sid: string } | undefined })).find(x => x.l && settings(x.l.sid).email_watch);
+    if (watched) return watchedMail(m, watched.l!.sid, watched.a);
+    console.log(`email: ignored mail from an unlinked address (${mask(from)}), left unread`); return;
+  }
   if ((m.labels ?? []).includes('unauthenticated')) { console.log(`email: skipped unauthenticated mail claiming ${mask(from)}`); return; }
   const hits = (recent.get(from) ?? []).filter(t => Date.now() - t < 3600_000);
   if (hits.length >= 10) { console.log('email: hourly limit reached for', mask(from)); return; }
@@ -181,6 +214,15 @@ async function handle(m: any, keyFor: (sid: string) => string) {
   if (/^\s*re:/i.test(full.subject ?? '') && /^\s*(yes|yep|yeah|ok(ay)?|sure|please( do)?|go ahead|report( it)?)\b/i.test(own)) {
     const row = (db.prepare('SELECT id, report FROM email_reports WHERE sid = ? ORDER BY id DESC LIMIT 5').all(link.sid) as { id: number; report: string }[])
       .find(x => (JSON.parse(x.report) as Report).thread_id === full.thread_id);
+    if (!row && /^\s*re:\s*second look:/i.test(full.subject ?? '')) {
+      // "REPORT" in reply to a monitoring alert: file the latest detection that isn't reported yet.
+      const d = detections(link.sid).find(x => !x.reported);
+      if (d) {
+        const out = await reportDetection(link.sid, d.id);
+        await send(`Done. I’ve passed it to Sound’s fraud team as case ${out.case_id}, and a Sound team member will call you on the number on file.\n\nSecond Look`).catch(() => {});
+        return;
+      }
+    }
     if (row) {
       const prev = JSON.parse(row.report) as Report;
       if (!prev.reported) {

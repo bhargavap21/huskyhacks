@@ -6,7 +6,7 @@ const stored = k => { try { return localStorage.getItem(k); } catch { return nul
 const store = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const narrow = () => matchMedia('(max-width: 900px)').matches;
 let sideCollapsed = stored('sl-side') === '1', copilotOpen = narrow() ? false : stored('sl-copilot') !== '0';
-const MEMBER_PAGES = ['home', 'inbox', 'guardian', 'email', 'settings', 'onboarding', 'profile'];
+const MEMBER_PAGES = ['home', 'inbox', 'guardian', 'email', 'channels', 'settings', 'onboarding', 'profile'];
 // Demo-only sign-in, per tab: a cold visit starts signed in so links and scenes never hit a gate.
 const sess = k => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sessSet = (k, v) => { try { sessionStorage.setItem(k, v); } catch {} };
@@ -24,7 +24,7 @@ let plusOpen = false, outcomeSel = '', blurbSeen = new Set(); const shareAnswere
 const svg = d => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const ICON = { chat: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'), plus: svg('<path d="M12 5v14M5 12h14"/>'), mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'), up: svg('<path d="M12 19V5M6 11l6-6 6 6"/>') };
 // Attachments waiting in the composer (photos, PDFs, voice notes) and the voice note being recorded.
-let pendingAtt = [], rec = null;
+let pendingAtt = [], rec = null, lastDet = null;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const usd = n => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,6 +45,9 @@ async function post(path, body = {}) {
 
 async function poll() {
   const r = await fetch('/api/state'); S = await r.json(); csrf = S.csrf;
+  const top = S.channels?.detections?.[0]?.id ?? 0;
+  if (lastDet !== null && top > lastDet) toast('Second Look: ' + S.channels.detections[0].title);
+  lastDet = top;
   const held = chatAuto && chatCase === 'general' && S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   if (held && held.case_id && caseById(held.case_id)) { chatCase = held.case_id; chatLog = await (await fetch('/api/chat/' + chatCase)).json(); }
   render();
@@ -103,6 +106,7 @@ function render(force = false) {
   $('#acct-btn').classList.toggle('current', ['profile', 'settings'].includes(page));
   const openCases = S.cases.filter(c => c.status === 'open').length;
   $('#count-console').textContent = openCases + S.callbacks.filter(x => x.status === 'waiting').length || '';
+  { const el = $('#count-channels'); if (el) el.textContent = (S.channels?.detections || []).filter(d => !d.reported && Date.now() - d.ts < 86400000).length || ''; }
   $('#count-inbox').textContent = S.cases.length || '';
   keep(() => { $('#page').innerHTML = pageView(); $('#copilot-body').innerHTML = !copilotOpen ? '' : signedIn ? chatView() : '<p class="copilot-signedout small muted">Sign in to the Sound app to ask Second Look.</p>'; });
   const cs = $('#chatscroll'); if (cs) cs.scrollTop = cs.scrollHeight;
@@ -137,6 +141,7 @@ function memberView() {
   if (page === 'inbox') return inboxView();
   if (page === 'guardian') return guardianView();
   if (page === 'email') return emailView();
+  if (page === 'channels') return channelsView();
   return homeView();
 }
 
@@ -222,6 +227,11 @@ function activePayment(p, c) {
 }
 
 function inboxView() {
+  const dets = (S.channels?.detections || []).slice(0, 3);
+  const fromChannels = dets.length ? `<div class="card"><h3>From your connected channels</h3><ul class="em-links">${dets.map(d => `<li><b>${esc(d.title)}</b> <span class="small muted">${emAgo(d.ts)}${d.reported ? ' · reported to Sound' : ''}</span></li>`).join('')}</ul><div class="row"><button data-page="channels">See details</button></div></div>` : '';
+  return fromChannels + inboxCases();
+}
+function inboxCases() {
   if (!S.cases.length) return `<div class="card"><h2>Alerts</h2><p class="muted">Nothing here. We stay quiet unless something is worth a second look.</p></div>`;
   return `<div class="card"><h2>Alerts</h2><p class="small muted">Things Second Look noticed, with the evidence. We only interrupt you when money is about to move.</p></div>` + S.cases.map(c => {
     const p = payOf(c);
@@ -333,6 +343,64 @@ function fraudDetail(r) {
     ${r.quotes.map(q => `<blockquote>“${esc(q)}”</blockquote>`).join('')}
     ${det('fr-steps-' + r.case_id, 'Suggested next steps', `<ol class="fr-steps">${r.next_steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`)}
     ${r.missing.length ? `<p class="small muted"><b>Ask on the callback:</b> ${esc(r.missing.join(', '))}.</p>` : ''}</div>`;
+}
+
+/* ---------------- Connected channels ---------------- */
+// Second Look watches the channels the member turns on and alerts them before they act.
+const SL_NUMBER = () => fmtPhone(S.phone?.number || '');
+function detCard(d) {
+  return `<li class="em-report">
+    <div class="g-head"><span class="in-badge in-badge--${d.risk === 'high' ? 'risk' : 'review'}">${d.risk === 'high' ? 'Worth a look now' : 'Worth a look'}</span><span class="small muted">${esc({ email: 'Forwarded email', gmail: 'Gmail', 'call screening': 'Screened call', text: 'Forwarded text' }[d.channel] || d.channel)} · ${emAgo(d.ts)}</span></div>
+    <b>${esc(d.title)}</b>${d.summary ? `<p class="small">${esc(d.summary)}</p>` : ''}
+    ${d.why?.length ? `<ul class="em-links">${d.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
+    <p class="small"><b>What to do:</b> ${esc(d.advice)}</p>
+    <div class="row">${d.reported ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : `<button data-act="det_report" data-id="${d.id}">Report to Sound</button>`}${d.alerted_by?.length ? `<span class="small muted">Told you by ${esc(d.alerted_by.join(', '))}</span>` : ''}</div></li>`;
+}
+function channelsView() {
+  const ch = S.channels, ph = S.phone, em = S.email;
+  if (!ch) return '<div class="card"><h2>Connected channels</h2><p>Not available on this server.</p></div>';
+  const sw = (key, on, label) => `<label class="switch-row"><span>${label}</span><input type="checkbox" role="switch" data-ch="${key}" ${on ? 'checked' : ''}></label>`;
+  const needEmail = !em?.linked ? `<p class="small muted">First link your email on <button class="quiet" data-page="email">Email check</button>.</p>` : '';
+  const needPhone = !ph?.linked ? `<p class="small muted">First link your phone on <button class="quiet" data-page="guardian">Call guardian</button>.</p>` : '';
+  const fc = ch.forward_confirm;
+  return `<div class="card guardian"><h2>Connected channels</h2>
+      <p>Turn on the channels you want Second Look to watch. When something arrives that looks like a scam, it alerts you before you act, and you can report it to Sound in one tap.</p>
+      <p class="small muted">Read-only, and only the channels you turn on. Ordinary messages are checked and then thrown away; Second Look keeps only what it warns you about. Turn any channel off at any time.</p></div>
+    <div class="card g-way"><h3>Alerts on this device</h3>
+      <p class="small">Get a notification the moment Second Look spots something, even when the app is closed.</p>
+      <div class="row">${ch.push ? '<span class="in-badge in-badge--safe">On</span><button class="quiet" data-act="push_off">Turn off</button>' : `<button class="primary" data-act="push_on" ${ch.push_key ? '' : 'disabled'}>Turn on alerts</button>`}<button data-act="push_test">Send a sample alert</button></div>
+      <p class="small muted">On iPhone, first add this page to your Home Screen (Share, then Add to Home Screen). Without notifications, alerts come by email to your linked address.</p></div>
+    <div class="card g-way"><h3>Email</h3>
+      ${ch.gmail ? `<p class="small"><span class="in-badge in-badge--safe">Connected</span> ${esc(ch.gmail.address)}. New inbox mail is checked every minute. <button class="quiet" data-act="gmail_off">Disconnect</button></p>`
+        : ch.gmail_available ? `<div class="row"><a class="in-btn in-btn--primary g-tel" href="/auth/google/start">Connect Gmail (read-only)</a></div><p class="small muted">Or use auto-forwarding below.</p>` : ''}
+      ${sw('email_watch', ch.email_watch, 'Watch mail my Gmail forwards to Second Look')}${needEmail}
+      <details><summary>Set up auto-forwarding in Gmail (2 minutes)</summary><ol class="in-ol g-steps">
+        <li><span>In Gmail on a computer: <b>Settings</b> → <b>See all settings</b> → <b>Forwarding and POP/IMAP</b> → <b>Add a forwarding address</b>: <b>${esc(em?.address || '')}</b>.</span></li>
+        <li><span>Gmail sends Second Look a confirmation code. It shows up right here; enter it in Gmail.</span></li>
+        <li><span>Create a filter so only likely scams are forwarded: <b>Filters and blocked addresses</b> → <b>Create a new filter</b> → in <b>Has the words</b> paste <code>verify OR suspended OR "gift card" OR wire OR invoice OR urgent OR password OR refund</code> → <b>Forward it to</b> ${esc(em?.address || '')}.</span></li></ol></details>
+      ${fc ? `<div class="fwd-code" role="status"><p class="small">Gmail asked to confirm forwarding for <b>${esc(fc.from)}</b>.</p><p>Confirmation code: <b class="code">${esc(fc.code || 'see link')}</b></p>${fc.link ? `<p class="small"><a href="${esc(fc.link)}" target="_blank" rel="noopener noreferrer">Or confirm in Gmail</a></p>` : ''}<button class="quiet" data-act="fwd_dismiss">Done</button></div>` : ''}</div>
+    <div class="card g-way"><h3>Calls</h3>
+      ${sw('screening', ch.screening, 'Screen calls I don’t answer')}
+      <p class="small">Second Look answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${SL_NUMBER()}</b>:</p>
+      <ul class="em-links"><li>AT&amp;T or T-Mobile: dial <code>**61*1${esc((S.phone?.number || '').replace(/\D/g, '').slice(-10))}#</code> and press call. To stop: <code>##61#</code>.</li><li>Verizon: dial <code>*71${esc((S.phone?.number || '').replace(/\D/g, '').slice(-10))}</code>. To stop: <code>*73</code>.</li></ul></div>
+    <div class="card g-way"><h3>Texts</h3>
+      ${sw('texts', ch.texts, 'Check texts I forward')}${needPhone}
+      <p class="small">iPhones don’t let apps read your texts, so forward the ones that feel off to <b>${SL_NUMBER()}</b> from your linked phone. Second Look checks them and alerts you here.</p></div>
+    <div class="card g-way"><h3>WhatsApp</h3><p class="small"><span class="in-badge in-badge--neutral">Not in this demo</span> WhatsApp chats are end-to-end encrypted, so no app can watch them. Next step: forward messages to Second Look’s WhatsApp number.</p></div>
+    <div class="card"><h3>Recent alerts</h3>${ch.detections.length ? `<ul class="em-list">${ch.detections.map(detCard).join('')}</ul>` : '<p class="small muted">Nothing yet. When Second Look spots something on a connected channel, it shows up here.</p>'}</div>`;
+}
+async function pushOn() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return toast('This browser can’t show notifications. Alerts will come by email.');
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return toast('Notifications are blocked. You can allow them in your browser settings.');
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    await navigator.serviceWorker.ready;
+    const key = Uint8Array.from(atob(S.channels.push_key.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    const j = await post('push/subscribe', { sub: sub.toJSON() });
+    if (j && j.ok) toast('Alerts are on for this device.');
+  } catch (e) { toast('Couldn’t turn on alerts: ' + (e.message || e)); }
 }
 
 /* ---------------- Email check ---------------- */
@@ -750,6 +818,12 @@ document.addEventListener('click', async e => {
     case 'ph_unlink': return post('phone/unlink');
     case 'em_link': { const j = await post('email/link', { address: $('#em-addr').value, share: $('#em-share').checked }); if (j && j.ok) toast('Email linked. Forward a message to Second Look to try it.'); return; }
     case 'em_unlink': return post('email/unlink');
+    case 'push_on': return pushOn();
+    case 'push_off': { try { const reg = await navigator.serviceWorker.getRegistration('/'); const s = await reg?.pushManager.getSubscription(); await s?.unsubscribe(); } catch {} return post('push/unsubscribe'); }
+    case 'push_test': { const j = await post('push/test'); if (j && j.ok) toast('Sample alert sent.'); return; }
+    case 'det_report': { const j = await post('detections/' + b.dataset.id + '/report'); if (j && j.ok) toast(`Reported to Sound as case ${j.case_id}. Someone will call you.`); return; }
+    case 'gmail_off': return post('gmail/disconnect');
+    case 'fwd_dismiss': return post('channels', { dismiss_confirm: true });
     case 'em_report': { const j = await post('report', { channel: 'email', id: Number(b.dataset.id) }); if (j && j.ok) toast('Reported. Sound’s fraud team has what Second Look found, and someone will call you.'); return; }
     case 'g_report': { const j = await post('report', { channel: 'call guardian' }); if (j && j.ok) { reportedCall = S.guardian.started; toast('Reported. Sound’s fraud team has the warnings from this call, and someone will call you.'); render(true); } return; }
     case 'ph_call_me': { const j = await post('phone/call_me', { caseId: S.cases.find(c => c.status === 'open')?.id }); if (j && j.ok) toast('Second Look is calling your phone now.'); return; }
@@ -819,6 +893,7 @@ document.addEventListener('dragover', e => { if (e.target.closest?.('#copilot'))
 document.addEventListener('drop', e => { if (e.target.closest?.('#copilot') && e.dataTransfer?.files.length) { e.preventDefault(); addFiles([...e.dataTransfer.files]); } });
 document.addEventListener('change', e => {
   if (e.target.name === 'outcome') { outcomeSel = e.target.value; return render(true); }
+  if (e.target.dataset && e.target.dataset.ch) post('channels', { [e.target.dataset.ch]: e.target.checked });
   if (e.target.id === 'chatfile') { addFiles([...e.target.files]); e.target.value = ''; }
   if (e.target.id === 'enroll') post('member/enroll', { on: e.target.checked });
   if (e.target.id === 'quiet') post('member/alert_settings', { quiet: e.target.checked });
@@ -883,7 +958,8 @@ $('#invite-close').addEventListener('click', () => $('#invite-dlg').close());
   const q = new URLSearchParams(location.search);
   const v = q.get('view'), pg = q.get('page');
   if (v === 'member') page = 'home'; else if (v === 'employee') page = 'console'; else if (v === 'both') page = 'split';
-  if (['home', 'inbox', 'settings', 'profile', 'onboarding', 'console', 'split', 'timeline'].includes(pg)) page = pg;
+  if (['home', 'inbox', 'settings', 'profile', 'onboarding', 'console', 'split', 'timeline', 'guardian', 'email', 'channels'].includes(pg)) page = pg;
+  if (q.get('gmail')) { const g = q.get('gmail'); setTimeout(() => toast(g === 'connected' ? 'Gmail connected. Second Look checks new mail every minute.' : 'Gmail: ' + g), 800); history.replaceState(null, '', '/?page=channels'); }
   if (q.get('joined') === '1') { joined = true; sessSet('sl-joined', '1'); page = 'home'; copilotOpen = false; setTimeout(() => toast('You’re on Linda’s phone in the presenter’s demo.'), 600); history.replaceState(null, '', '/'); }
   if (q.get('chat') === 'general') { chatAuto = false; chatCase = 'general'; copilotOpen = true; }
   await poll();
