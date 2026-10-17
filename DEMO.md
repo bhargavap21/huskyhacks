@@ -6,6 +6,7 @@ Link: **https://second-look-demo.vercel.app** (forwards to the laptop; see `depl
 - **Page list** (left; collapse with ☰): **Home**, **Second Look** and **Console** show one page at a time; **Side by side** shows member and employee together (best on a laptop); **App setup** opens the member's setup steps; **Kit timeline**; **About this concept**.
 - **Account menu** (bottom left, "Linda"): **Profile**, **Settings**, **Appearance** (light or dark) and **Sign out**. Sign-in is demo-only: no account or password, and a fresh visit starts signed in.
 - **Second Look chat** opens on the right (button in the top bar). While a payment is held, the chat follows that payment unless you chose **Something feels off?**.
+- **Invite a phone** (top bar): shows a QR code and a short link. Whoever scans it gets Linda's member app on their own phone, in this same simulation. Codes reset if the server restarts, so open it again for a fresh one.
 - Deep links: `?page=home|console|split|profile|onboarding&scene=m1057&jump=1`, and `?chat=general` for the "feels off" chat.
 
 Say these out loud every time:
@@ -22,6 +23,7 @@ Say these out loud every time:
 | 0:00 | "Linda, M1001, is told her grandson is in jail and to keep it secret. In the kit her $8,500 wire was held, she confirmed, and it went out. Recovery failed." | Scene: **Linda: with Second Look**. Press Play. |
 | 0:20 | "Second Look is a setting she turned on inside the Sound app. The moment she starts the wire, rule R1 fires on Sound's own data: first wire in 2,411 days, a brand-new recipient, 4.77 times her usual." | Point at the hold notice (member) and the queue row (employee). |
 | 0:45 | "The hold lands with the evidence, and the employee gets a conversation guide right away instead of a generic callback 90 minutes later. Her override stays one tap away." | Point at the guide, then **It’s me, send it now**. Don't press it. |
+| 0:55 | (Live, if a judge is willing) "Try it yourself: you're Linda." | **Invite a phone**, judge scans. On their phone: **Talk it through**, tick **Share this chat with the Sound employee helping me**, type "He said not to tell my mom". On the console: their words appear under **What the member told Second Look**, tagged *Asked to keep it secret*, and the secrecy question moves to the top of the guide. |
 | 1:05 | "Same trigger, legitimate: M1057's $51,586 closing wire. The answer isn't a looser rule; it's release in minutes." | Scene: **M1057**. Play. Type a reason, **Log the call**, **Release hold**. |
 | 1:30 | "And a scam we miss: M1102 wired $5,000 for a 'federal agent'. Not unusual enough for R1. We show that instead of hiding it." | Scene: **M1102** (optional if short on time). |
 | 1:40 | (Optional) "And members can talk it through before any money moves." | Home card **Something feels off?** → type one line → **Talk to a person at Sound**. |
@@ -34,6 +36,7 @@ Say these out loud every time:
 0. **Opt-in, no new app** (30 s, optional). Page list → **App setup** (or the **Finish setting up** card on Home). Step 1 offers Second Look with **Not now** right beside it ("if you choose not now, it stays off and we won't keep asking"). Turn it on, pick **Standard** alerts, skip the trusted contact, and show the summary. "It's a setting inside the app members already use. No new account, no new app." Then open the account menu → **Profile** to show the same choices.
 1. **Linda as it happened** (30 s). Scene **Linda: what happened in the kit**, Play. State the facts only: held 14:21, outreach 15:42, she confirmed, released 17:04. The next-day cash request was the one stopped. Don't diagnose.
 2. **Linda with Second Look** (90 s). The R1 hold appears at 14:11, at initiation, with the three kit fields. Employee: read guide question 3 ("Has anyone asked you to keep this quiet?"). Member: **Talk it through**, type "He said not to tell mom". The reply notes secrecy and suggests calling a number she already had. Then she presses **Cancel this payment**. "Our hypothesis is that evidence plus an early guided conversation changes decisions. The pilot is how you'd measure it."
+2b. **Live in the room** (60 s, the centrepiece). Before step 2 ends, **Invite a phone** and ask a judge to scan. Press **Restart** then **Play** so the judge's phone shows the hold as the console row appears. On the judge's phone: **Talk it through**, tick **Share this chat…**, then type or record a voice note in their own words. On the console: **What the member told Second Look** shows their exact words and the patterns they mention (prompts for the call, not proof), and the guide reorders to match. Say: "Nothing is shared unless the member chooses to. Sound only sees what she typed, and it turns a warning into a conversation with someone who already knows what she said." Fallback: scan it with your own phone.
 3. **Quiet default and restraint: M1037** (40 s). Typical amount, P2P, so R1 does not fire. One standard banner, **Yes, send it**. The Second Look tab shows "You marked this fine (N s)".
 4. **Same-trigger false positive: M1057** (50 s). R1 fires exactly as for Linda. Employee releases with a reason in under a minute; or the member taps **It’s me, send it now** and enters the demo code (step-up confirmation).
 5. **Takeover pattern: M1003** (40 s, if time). Pre-submit check with confirmation to *pre-change* contact details. Show **Stop payment** refused, then **Takeover confirmed (scripted premise)**, then **Stop**. The second payment joins the same case. "The pattern routes to verification. It doesn't prove a takeover by itself."
@@ -43,6 +46,7 @@ Say these out loud every time:
 
 ## If something breaks
 - Page stuck: **Restart**.
+- Phone join link says it expired: the server restarted. Open **Invite a phone** again for a new code.
 - Member app shows "Sign in to Sound": tap **Sign in as Linda (demo)**, or open the link in a new tab (sign-in resets per tab).
 - Chat slow or offline: it falls back to scripted replies labeled "offline reply".
 - Link down: the laptop must be awake and online. Run `npm start` locally, and the tunnel again if needed.
