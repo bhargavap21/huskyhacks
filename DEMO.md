@@ -1,6 +1,6 @@
 # Demo script
 
-Link: the prototype URL. Use the **Demo controls** bar: pick a scene, press **Play**. When a payment needs people, the replay stops and the hold clock runs at 60x (4 hours ≈ 4 minutes). Use **Both** view on a laptop; on a phone, switch **Member** / **Employee**.
+Link: the prototype URL. Use the **Demo controls** bar: pick a scene, press **Play**. When a payment needs people, the replay stops and the hold clock runs at 60x (4 hours ≈ 4 minutes). Use the left page list: **Side by side** shows member and employee together (best on a laptop); **Home** / **Console** show one at a time. The **Second Look chat** opens on the right (collapse it with **Hide chat**, the page list with ☰). Deep links: `?page=home|console|split&scene=m1057&jump=1`.
 
 Say these out loud every time:
 - "Everything is simulated on the kit's synthetic data. The member app is a concept mock, not Sound software."
