@@ -12,6 +12,27 @@ a:hover { color: var(--accent-hover); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 code { font-size: 14px; }
 
+/* Theme. Sound's brand is light, so light is the default (data-theme="light" on <html>).
+   The optional dark theme is neutral charcoal instead of the system's all-navy one,
+   so blue stays on actions and links rather than every surface. */
+:root[data-theme="dark"] {
+  --surface: #121417;
+  --surface-raised: #1b1e22;
+  --surface-band: #202429;
+  --line: #2e333a;
+  --line-strong: #6b7380;
+  --ink: #f3f5f7;
+  --ink-body: #d9dde2;
+  --ink-muted: #a3abb5;
+  --accent: var(--sky);
+  --accent-hover: #8fd2ee;
+  --on-accent: var(--navy);
+  --risk-text: #ff8a66;
+  --risk-soft: #3a1a10;
+  --safe-soft: #1e2a31;
+  --focus: var(--gold);
+}
+
 /* Controls: plain buttons read as in-btn--secondary; .primary / .quiet / .danger map to the other weights. */
 button, select, input, textarea { font: inherit; }
 button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); min-height: 44px; padding: var(--space-3) var(--space-5); font: 500 15px/20px var(--font-sans); border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: transparent; color: var(--ink); cursor: pointer; text-align: center; transition: background-color 150ms ease-out, color 150ms ease-out; }
@@ -83,6 +104,7 @@ label { font: 500 15px/20px var(--font-sans); display: block; margin: var(--spac
 .banner ul { margin: var(--space-2) 0; padding-left: 22px; }
 .eyebrow { margin: 0; font: 500 15px/20px var(--font-sans); color: var(--ink-body); }
 .eyebrow.in-badge { display: inline-flex; }
+.eyebrow.in-badge--review { color: var(--on-highlight); }
 .banner .reasons { margin: var(--space-3) 0 var(--space-4); }
 .reasons li::marker { color: var(--ink-body); }
 .countdown-inline { font-variant-numeric: tabular-nums; }

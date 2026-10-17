@@ -329,6 +329,16 @@ $('#next').addEventListener('click', () => post('control/next'));
 $('#faster').addEventListener('click', () => post('control/faster'));
 $('#reset').addEventListener('click', () => { selCase = null; chatCase = null; screen = 'home'; post('control/reset'); });
 
+// Theme toggle: light by default (Sound's brand); dark is opt-in and remembered per browser.
+function syncTheme() { const d = document.documentElement.dataset.theme === 'dark'; const b = $('#theme'); b.setAttribute('aria-pressed', String(d)); }
+$('#theme').addEventListener('click', () => {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('sl-theme', next); } catch {}
+  syncTheme();
+});
+syncTheme();
+
 // Deep links for slides: /?scene=m1057&play=1&view=employee
 (async () => {
   const q = new URLSearchParams(location.search);

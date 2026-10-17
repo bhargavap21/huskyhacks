@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Second Look Demo</title>
 <meta name="description" content="Concept demo: Second Look inside a simulated Sound app, with an employee console. Synthetic kit data only.">
+<script>try{var t=localStorage.getItem("sl-theme");if(t==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <link rel="stylesheet" href="/ds/tokens.css">
 <link rel="stylesheet" href="/ds/components.css">
 <link rel="stylesheet" href="/static/style.css">
@@ -24,6 +25,7 @@
   <button id="faster" title="Speed up the replay clock">Faster</button>
   <button id="reset">Restart scene</button>
   <span class="clock" aria-live="off">Kit time <span id="clock">–</span> <span id="speed" class="muted small"></span></span>
+  <button id="theme" aria-pressed="false">Dark theme</button>
   <span class="row" role="group" aria-label="View as">
     <button data-view="both" aria-pressed="true">Both</button>
     <button data-view="member" aria-pressed="false">Member</button>
