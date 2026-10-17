@@ -427,3 +427,6 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 .em-report { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) 0; border-top: 1px solid var(--line); }
 .em-report:first-child { border-top: 0; }
 .em-links { margin: 0; padding-left: var(--space-5); font-size: 14px; color: var(--ink-body); }
+
+.feels-ways { margin: var(--space-3) 0 0; color: var(--ink-muted); }
+.feels-ways button.quiet { min-height: 36px; padding: 0 var(--space-1); }

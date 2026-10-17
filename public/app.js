@@ -146,7 +146,8 @@ function homeView() {
     <div class="row small"><span class="in-badge in-badge--neutral">Second Look: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="in-badge in-badge--neutral">Kit replay: Second Look not in use</span>' : ''}</div></div>`;
   if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
-  const feelsOff = `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money or contacts anyone for you.</p><div class="row"><button class="primary" data-act="chat_general">Ask Second Look</button>${S.cases[0] ? `<button class="quiet" data-act="report" data-pid="${S.cases[0].pid}">Report a scam</button>` : ''}</div></div>`;
+  const feelsOff = `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money or contacts anyone for you.</p><div class="row"><button class="primary" data-act="chat_general">Ask Second Look</button>${S.cases[0] ? `<button class="quiet" data-act="report" data-pid="${S.cases[0].pid}">Report a scam</button>` : ''}</div>
+    <p class="small feels-ways">Other ways to get a second look: <button class="quiet" data-page="guardian">Bring it into a call</button> · <button class="quiet" data-page="email">Forward it an email</button></p></div>`;
   const recent = S.payments.slice(0, 4);
   const recentCard = `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
   // While money is waiting on the member, the home screen is only about that.
@@ -267,7 +268,7 @@ function onboardingView() {
     <div class="stack"><button class="primary" data-act="ob_next">Get started</button><button class="quiet" data-act="ob_done">Skip setup</button></div></div>`;
   if (obStep === 1) return `<div class="card ob">${progress(1)}<h2>Turn on Second Look?</h2>
     <p>We watch for signs someone may be manipulating you, and a Sound employee can step in before money moves.</p>
-    <ul class="in-ul ob-list"><li>We use payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes.</li><li>We never read your texts, email or browsing, and never freeze your account. We only listen to a call when you bring us in: Call guardian, adding Second Look’s number to the call, or calling it.</li><li>Your own payments stay your decision.</li></ul>
+    <ul class="in-ul ob-list"><li>We use payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes.</li><li>We never read your texts, email or browsing on our own, and never freeze your account. We only see an email when you forward it to Second Look, and only listen to a call when you bring us in: Call guardian, adding Second Look’s number to the call, or calling it.</li><li>Your own payments stay your decision.</li></ul>
     <div class="stack"><button class="primary" data-act="ob_on">Turn on Second Look</button><button data-act="ob_skip">Not now</button></div>
     <p class="small muted">If you choose not now, it stays off and we won’t keep asking.</p></div>`;
   if (obStep === 2) return `<div class="card ob">${progress(2)}<h2>How often should we alert you?</h2>
@@ -560,6 +561,7 @@ function chatView() {
   const plusMenu = plusOpen ? `<div class="plus-menu" role="menu" aria-label="More">
       <button role="menuitem" data-act="attach">Add a photo, screenshot or PDF</button>
       <button role="menuitem" data-page="guardian">Listen to a call with me</button>
+      <button role="menuitem" data-page="email">Forward an email to Second Look</button>
       <button role="menuitem" data-act="${shareOn ? 'share_stop' : 'share_yes'}">${shareOn ? 'Stop sharing with Sound' : 'Share this chat with Sound'}</button>
       <div class="plus-sep"></div>
       ${help.map(([k, label, done]) => `<button role="menuitem" data-act="cb" data-kind="${k}" ${asked(k) ? 'disabled' : ''}>${asked(k) ? done : label}</button>`).join('')}

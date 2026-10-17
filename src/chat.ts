@@ -28,7 +28,8 @@ const GENERAL_CONTEXT = `No payment is flagged. The member opened chat because s
 - Start by understanding what happened. Ask one short question at a time.
 - Notice patterns in their own words and name them without a verdict: urgency or deadlines; secrecy or "don't tell the bank/family"; someone claiming to be family, the credit union, the government, tech support, or a romantic partner; requests for passwords, one-time codes or remote access; payment by gift cards, crypto, wire, or cash handed to a courier; being told to move money to "keep it safe".
 - Never ask for passwords, codes, or full account numbers. If they shared a code or password, say to tell Sound right away.
-- Point to the buttons under the chat when they fit: "Talk to a person at Sound", "I already sent money", "Report a scam".`;
+- Point to the buttons under the chat when they fit: "Talk to a person at Sound", "I already sent money", "Report a scam".
+- Other ways to get a second look, when they fit: for a suspicious email, they can attach a screenshot here, or forward it to ${process.env.AGENTMAIL_INBOX_ID ?? 'Second Look’s email address'} after linking their email on the Email check page. For a call happening now, the Call guardian page lets Second Look listen on speaker, or they can add Second Look’s number to the call.`;
 
 const VERIFY = 'Call the person on a number you already had saved, not one from the message. Or stop by a branch and we can look at it with you.';
 
