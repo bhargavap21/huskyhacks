@@ -6,7 +6,7 @@ const stored = k => { try { return localStorage.getItem(k); } catch { return nul
 const store = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const narrow = () => matchMedia('(max-width: 900px)').matches;
 let sideCollapsed = stored('sl-side') === '1', copilotOpen = narrow() ? false : stored('sl-copilot') !== '0';
-const MEMBER_PAGES = ['home', 'inbox', 'guardian', 'settings', 'onboarding', 'profile'];
+const MEMBER_PAGES = ['home', 'inbox', 'guardian', 'email', 'settings', 'onboarding', 'profile'];
 // Demo-only sign-in, per tab: a cold visit starts signed in so links and scenes never hit a gate.
 const sess = k => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sessSet = (k, v) => { try { sessionStorage.setItem(k, v); } catch {} };
@@ -136,6 +136,7 @@ function memberView() {
   if (page === 'settings') return settingsView();
   if (page === 'inbox') return inboxView();
   if (page === 'guardian') return guardianView();
+  if (page === 'email') return emailView();
   return homeView();
 }
 
@@ -314,6 +315,44 @@ const RECOVERY = `If money already went out, every hour matters:
 - If you shared a password or one-time code, we’ll help you secure your account.
 - You can also report it to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).
 You did the right thing by speaking up.`;
+
+/* ---------------- Email check ---------------- */
+// Members forward an email that feels off (or ask a question) to Second Look's inbox and get a reply.
+// Only mail from the address they link here is read; everything else is left unread.
+const emAgo = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+function emailReport(r, staff = false) {
+  const flagged = r.links.filter(l => l.note && !l.note.startsWith('This is'));
+  return `<li class="em-report">
+    <div class="g-head"><b>${esc(r.subject || '(no subject)')}</b><span class="small muted">${r.kind === 'forwarded' ? 'Forwarded' : 'Question'} · ${emAgo(r.received)}</span></div>
+    ${r.tactics.length ? `<div class="row">${r.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t.label)}</span>`).join('')}</div>` : ''}
+    ${flagged.length ? `<ul class="em-links">${flagged.map(l => `<li><b>${esc(l.domain)}</b>: ${esc(l.note)}</li>`).join('')}</ul>` : ''}
+    ${staff ? '' : det('em-' + r.id, r.sent ? 'Second Look’s reply (also in your email)' : 'Second Look’s reply', `<div class="msg assistant">${fmtReply(r.reply)}</div>`)}
+  </li>`;
+}
+function emailView() {
+  const e = S.email;
+  if (!e) return `<div class="card"><h2>Email check</h2><p>Second Look’s inbox isn’t set up on this server.</p></div>`;
+  const linkCard = e.linked
+    ? `<p class="small">Your email: <b>${esc(e.linked)}</b> · ${e.share ? 'Sound can see these reports' : 'reports stay with you'} <button class="quiet" data-act="em_unlink">Change</button></p>`
+    : `<div class="g-link"><label for="em-addr">Your email address</label><div class="row"><input type="email" id="em-addr" data-keep autocomplete="email" placeholder="you@example.com"><button class="primary" data-act="em_link">Link my email</button></div>
+        <label class="check"><input type="checkbox" id="em-share" data-keep checked> Let Sound see what Second Look finds</label>
+        <p class="small muted">Second Look only reads mail sent from this address. Anything else sent to it is left unread.</p></div>`;
+  return `<div class="card guardian"><h2>Email check</h2>
+    <p>Got an email or text that feels off? Forward it to Second Look. It replies within a minute with what the message is asking for, the warning signs, and what to do. You can also email it a question.</p>
+    <p class="em-address"><span class="small muted">Second Look’s address</span><br><b>${esc(e.address)}</b></p>
+    ${linkCard}</div>
+    <div class="card g-way"><h3>How to forward</h3>
+      <ol class="in-ol g-steps"><li><span>Open the email and tap <b>Forward</b>. For a text, copy it into a new email.</span></li><li><span>Send it to <b>${esc(e.address)}</b> from your linked email.</span></li><li><span>Read the reply in your email. It also shows up below.</span></li></ol>
+      <p class="small muted">Don’t click links in the message first. Second Look never opens links and never asks for codes or passwords.</p></div>
+    <div class="card"><h3>What Second Look found</h3>${e.reports.length ? `<ul class="em-list">${e.reports.map(r => emailReport(r)).join('')}</ul>` : `<p class="small muted">${e.linked ? 'Nothing yet. Forward an email and it will show up here.' : 'Link your email to see reports here.'}</p>`}</div>`;
+}
+// Staff see forwarded-email reports only if the member chose to share them.
+function emailCard() {
+  const e = S.email; if (!e || !e.share || !e.reports.length) return '';
+  return `<div class="card guardian-console"><div class="console-head"><h2>Emails the member forwarded to Second Look</h2><span class="in-badge in-badge--neutral">Shared by the member</span></div>
+    <p class="small muted">What the forwarded messages asked for, from automatic checks. Prompts for your outreach, not proof.</p>
+    <ul class="em-list">${e.reports.slice(0, 3).map(r => emailReport(r, true)).join('')}</ul></div>`;
+}
 
 /* ---------------- Call guardian ---------------- */
 // Second Look listens to a call on speaker: ~4 s chunks go to the server, which transcribes them (local Whisper,
@@ -572,7 +611,7 @@ function employeeView() {
   const cbRow = x => `<tr class="cbrow ${x.status}"><td>${esc(S.member.id)}</td><td>${x.urgent ? '<span class="in-badge in-badge--risk">Urgent</span>' : '<span class="in-badge in-badge--neutral">Asked to talk</span>'}</td><td>${esc(x.reason)}<div class="small muted">${esc(x.source)} · ${esc(x.ts_text.split(' ')[1])}${x.status === 'done' ? ` · done: ${esc(x.note)}` : ''}</div></td>
     <td colspan="2">${x.status === 'waiting' ? `<div class="row"><button data-act="cb_done" data-id="${x.id}">Called the member</button>${x.reason.includes('money already') ? '<button data-act="cb_done" data-id="' + x.id + '" data-note="Recovery request started">Start recovery</button>' : ''}</div>` : 'Done'}</td></tr>`;
   const n = waiting.length + open.length;
-  let out = guardianCard() + sharedCard('general') + `<div class="card queue"><div class="console-head"><h2>Work queue <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">${n ? `${n} waiting on a person` : 'Nothing waiting'} · requests first, then by hold time left</span></div>
+  let out = guardianCard() + emailCard() + sharedCard('general') + `<div class="card queue"><div class="console-head"><h2>Work queue <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">${n ? `${n} waiting on a person` : 'Nothing waiting'} · requests first, then by hold time left</span></div>
     <div class="table-wrap"><table><thead><tr><th>Member</th><th>Payment</th><th>Why</th><th>Status</th><th>Hold left</th></tr></thead><tbody>
     ${waiting.map(cbRow).join('')}${open.map(rowHtml).join('')}${n ? '' : '<tr><td colspan="5" class="muted">Nothing waiting on a person.</td></tr>'}
     ${closed.length || doneCb.length ? `<tr class="q-sep"><td colspan="5" class="muted small">Done</td></tr>` + closed.map(rowHtml).join('') + doneCb.map(cbRow).join('') : ''}</tbody></table></div></div>`;
@@ -688,6 +727,8 @@ document.addEventListener('click', async e => {
     case 'g_start': return gStart(b.dataset.src);
     case 'ph_link': { const j = await post('phone/link', { number: $('#ph-num').value, share: $('#ph-share').checked }); if (j && j.ok) toast('Phone linked. Calls with Second Look will show up here.'); return; }
     case 'ph_unlink': return post('phone/unlink');
+    case 'em_link': { const j = await post('email/link', { address: $('#em-addr').value, share: $('#em-share').checked }); if (j && j.ok) toast('Email linked. Forward a message to Second Look to try it.'); return; }
+    case 'em_unlink': return post('email/unlink');
     case 'ph_call_me': { const j = await post('phone/call_me', { caseId: S.cases.find(c => c.status === 'open')?.id }); if (j && j.ok) toast('Second Look is calling your phone now.'); return; }
     case 'g_stop': return gStop();
     case 'g_hangup': gStop(); await post('callback', { kind: 'talk', caseId: 0 }); return toast('Hang up now. A Sound team member will call you at the number on file.');

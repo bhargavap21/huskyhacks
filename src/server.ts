@@ -14,6 +14,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
 import { phoneState, link, unlink, callMe, watchCalls, PhoneError } from './phone.ts';
+import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError } from './email.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -50,7 +51,7 @@ app.use('/api/*', async (c, next) => { useWorld(c.get('sid')); await next(); });
 
 app.onError((err, c) => {
   if (err instanceof TransitionError) return c.json({ error: err.message }, 409);
-  if (err instanceof AttachmentError || err instanceof PhoneError) return c.json({ error: err.message }, 400);
+  if (err instanceof AttachmentError || err instanceof PhoneError || err instanceof EmailError) return c.json({ error: err.message }, 400);
   console.error(err);
   return c.json({ error: 'Something went wrong' }, 500);
 });
@@ -90,7 +91,7 @@ function sharedChats(c: any) {
 
 app.get('/api/state', c => {
   const ids = Object.fromEntries([...shared].filter(([k, v]) => v && k.startsWith(chatKey(c) + ':')).map(([k]) => [k.slice(chatKey(c).length + 1), true]));
-  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), csrf: csrfFor(c.get('sid')) });
+  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), email: emailState(c.get('sid')), csrf: csrfFor(c.get('sid')) });
 });
 app.post('/api/scene/:id', c => { loadScene(c.req.param('id'), c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('sid')); return c.json({ ok: true }); });
@@ -110,6 +111,8 @@ app.post('/api/guardian/reset', c => { clearCall(chatKey(c)); return c.json({ ok
 app.post('/api/guardian/stop', async c => c.json(await stopCall(chatKey(c)) ?? { error: 'No call' }));
 // Second Look's phone line: link the member's phone, and "Have Second Look call me" (with what the app knows).
 app.post('/api/phone/link', async c => { const b = await c.req.json().catch(() => ({})); link(c.get('sid'), b.number, !!b.share); return c.json({ ok: true }); });
+app.post('/api/email/link', async c => { const b = await c.req.json().catch(() => ({})); linkEmail(c.get('sid'), b.address, !!b.share); return c.json({ ok: true }); });
+app.post('/api/email/unlink', c => { unlinkEmail(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/phone/unlink', c => { unlink(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/phone/call_me', async c => {
   const b = await c.req.json().catch(() => ({}));
@@ -147,4 +150,5 @@ serve({ fetch: app.fetch, port }, () => console.log(`Second Look demo on http://
 if (process.env.NODE_ENV !== 'test') {
   loadAsr(); // warm up on-device voice-note transcription
   watchCalls(sid => { useWorld(sid); return `${sid}:${snapshot().scene.id}`; }); // Second Look's phone line
+  watchInbox(sid => sid); // Second Look's inbox
 }
