@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { db } from './db.ts';
 import { caseForChat } from './sim.ts';
 import { type Attachment, audioText } from './media.ts';
-import { fileReport, normalize, INTAKE_SCHEMA } from './reports.ts';
+import { fileReport, normalize, INTAKE_SCHEMA, type Channel } from './reports.ts';
 
 const key = process.env.ANTHROPIC_API_KEY ?? process.env.LLM_API_KEY;
 export const client = key ? new Anthropic({ apiKey: key }) : null;
@@ -93,10 +93,17 @@ const REPORT_TOOL = {
   input_schema: INTAKE_SCHEMA,
 };
 
-export async function chat(scene: string, caseId: number, text: string, att: Attachment[] = []): Promise<{ reply: string; source: 'claude' | 'offline'; att: ReturnType<typeof attView>; reported: boolean }> {
+// Other channels (WhatsApp) reuse this chat: their own channel name, a longer message limit for forwarded
+// text, a note on formatting, and evidence their own checks found, attached to the case if the member reports.
+export type ChatOpts = { channel?: Channel; maxLen?: number; note?: string; evidence?: () => Record<string, unknown> };
+const withEvidence = (raw: any, opts: ChatOpts) => {
+  const ev: any = opts.evidence?.() ?? {};
+  return { ...raw, ...ev, tactics: [...new Set([...(raw?.tactics ?? []), ...(ev.tactics ?? [])])] };
+};
+export async function chat(scene: string, caseId: number, text: string, att: Attachment[] = [], opts: ChatOpts = {}): Promise<{ reply: string; source: 'claude' | 'offline'; att: ReturnType<typeof attView>; reported: boolean }> {
   const general = caseId === GENERAL;
   const k = general ? null : caseForChat(caseId);
-  const msg = text.slice(0, 1000);
+  const msg = text.slice(0, opts.maxLen ?? 1000);
   db.prepare('INSERT INTO chat_messages (scene, case_id, role, text, att, ts) VALUES (?, ?, ?, ?, ?, ?)').run(scene, caseId, 'user', msg, att.length ? JSON.stringify(att) : null, Date.now());
   let reply = '', source: 'claude' | 'offline' = 'offline', reported = false;
   if (client) {
@@ -105,7 +112,7 @@ export async function chat(scene: string, caseId: number, text: string, att: Att
       const ctx = !k ? GENERAL_CONTEXT : `Case evidence (from the credit union's own records):\nRule ${k.c.rule}: ${k.c.title}\n${k.c.evidence.map(e => `- ${e.field}: ${e.value} (${e.why})`).join('\n')}\nPayment: ${k.p.rail} $${k.p.amount.toFixed(2)}, status ${k.p.state.status}.`;
       const params: any = {
         tools: [REPORT_TOOL],
-        model: MODEL, max_tokens: 2000, output_config: { effort: 'low' }, system: SYSTEM + '\n\n' + ctx,
+        model: MODEL, max_tokens: 2000, output_config: { effort: 'low' }, system: SYSTEM + '\n\n' + ctx + (opts.note ? '\n\n' + opts.note : ''),
         messages: content(history),
       };
       // Server-side refusal fallback only on models that accept it.
@@ -116,7 +123,7 @@ export async function chat(scene: string, caseId: number, text: string, att: Att
       // The member agreed: file the report, then let Claude tell them it's done.
       const use = r.content.find((b: any) => b.type === 'tool_use' && b.name === 'report_to_sound') as any;
       if (use && r.stop_reason === 'tool_use') {
-        const out = await fileReport(scene.split(':')[0], normalize(use.input, 'chat', { linked: true }));
+        const out = await fileReport(scene.split(':')[0], normalize(withEvidence(use.input, opts), opts.channel ?? 'chat', { linked: true }));
         reported = true;
         final = await client.messages.create({ ...params, messages: [...params.messages, { role: 'assistant', content: r.content }, { role: 'user', content: [{ type: 'tool_result', tool_use_id: use.id, content: `Filed as case ${out.case_id}. In the employee work queue as urgent${out.emailed ? ', and emailed to the fraud team' : ''}. A Sound team member will call the member on the number on file.` }] }] } as any, { timeout: 45_000 });
       }
@@ -131,7 +138,7 @@ export async function chat(scene: string, caseId: number, text: string, att: Att
   }
   // Offline: the member explicitly asks to report it, so file with what they typed.
   if (!reply && /\b(report (it|this)|tell sound|let sound know|notify sound|yes,? (please )?(report|tell))\b/i.test(msg)) {
-    await fileReport(scene.split(':')[0], normalize({ summary: chatHistory(scene, caseId).filter((m: any) => m.role === 'user').map((m: any) => m.text).join(' ').slice(-600), money_sent: /\b(sent|paid|transferred|wired)\b/i.test(msg) ? true : undefined }, 'chat', { linked: true }));
+    await fileReport(scene.split(':')[0], normalize(withEvidence({ summary: chatHistory(scene, caseId).filter((m: any) => m.role === 'user').map((m: any) => m.text).join(' ').slice(-600), money_sent: /\b(sent|paid|transferred|wired)\b/i.test(msg) ? true : undefined }, opts), opts.channel ?? 'chat', { linked: true }));
     reported = true;
     reply = 'Done. I’ve told Sound’s fraud team what you shared, and a Sound team member will call you on the number on file.';
   }

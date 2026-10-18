@@ -403,8 +403,25 @@ function channelsView() {
     <div class="card g-way"><h3>Texts</h3>
       ${sw('texts', ch.texts, 'Check texts I forward')}${needPhone}
       <p class="small">iPhones don’t let apps read your texts, so forward the ones that feel off to <b>${SL_NUMBER()}</b> from your linked phone. Second Look checks them and alerts you here.</p></div>
-    <div class="card g-way"><h3>WhatsApp</h3><p class="small"><span class="in-badge in-badge--neutral">Not in this demo</span> WhatsApp chats are end-to-end encrypted, so no app can watch them. Next step: forward messages to Second Look’s WhatsApp number.</p></div>
+    ${waCard()}
     <div class="card"><h3>Recent alerts</h3>${ch.detections.length ? `<ul class="em-list">${ch.detections.map(detCard).join('')}</ul>` : '<p class="small muted">Nothing yet. When Second Look spots something on a connected channel, it shows up here.</p>'}</div>`;
+}
+// WhatsApp is end-to-end encrypted, so nothing can watch it: the member forwards what feels off to Second Look's
+// WhatsApp number, and Second Look replies in that chat. It never messages first.
+function waCard() {
+  const ch = S.channels, ph = S.phone, wa = ch.whatsapp_number;
+  const sw = (key, on, label) => `<label class="switch-row"><span>${label}</span><input type="checkbox" role="switch" data-ch="${key}" ${on ? 'checked' : ''}></label>`;
+  if (!wa) return `<div class="card g-way"><h3>WhatsApp</h3><p class="small"><span class="in-badge in-badge--neutral">Not set up on this server</span> WhatsApp chats are end-to-end encrypted, so no app can watch them. With WhatsApp set up, you forward a message that feels off to Second Look’s WhatsApp number and get a reply in the chat.</p></div>`;
+  const digits = wa.replace(/\D/g, '');
+  const needLink = !ph?.linked ? `<p class="small muted">First link your phone on <button class="quiet" data-page="guardian">Call guardian</button>. Your first WhatsApp message from it confirms the number.</p>` : '';
+  return `<div class="card g-way"><h3>WhatsApp</h3>
+      ${sw('whatsapp', ch.whatsapp, 'Check WhatsApp messages I forward')}${needLink}
+      <p class="small">WhatsApp chats are end-to-end encrypted, so no app can watch them. Instead, forward the ones that feel off to Second Look on WhatsApp: <b>${fmtPhone(wa)}</b>.</p>
+      <ol class="in-ol g-steps">
+        <li><span>Open a chat with Second Look: <a href="https://wa.me/${esc(digits)}?text=${encodeURIComponent('Hi Second Look')}" target="_blank" rel="noopener noreferrer">wa.me/${esc(digits)}</a>, or save the number as a contact.</span></li>
+        <li><span>In the chat that feels off, press and hold the message, tap <b>Forward</b>, and pick <b>Second Look</b>. Screenshots and voice notes work too, or just ask a question.</span></li>
+        <li><span>Second Look replies in the chat with what it notices and what to do, and can report it to Sound for you when you say yes.</span></li></ol>
+      <p class="small muted">Second Look only reads messages from your linked number, only while this is on, and never messages you first.</p></div>`;
 }
 async function pushOn() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return toast('This browser can’t show notifications. Alerts will come by email.');

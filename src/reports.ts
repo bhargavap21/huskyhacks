@@ -24,6 +24,7 @@ export type FraudCase = {
   threat: { type: string; claimed_identity: string; contact_method: string; first_contact: string; scammer_phone: string; scammer_email: string; scammer_website: string; scammer_name: string; asked_for: string; amount_requested: string; payment_method: string; deadline: string; tactics: string[] };
   exposure: { money_sent: boolean | null; amount_sent: string; sent_method: string; sent_when: string; sent_to: string; info_shared: string[]; shared_nothing: boolean; remote_access: boolean | null; still_in_contact: boolean | null };
   summary: string; quotes: string[]; next_steps: string[]; missing: string[];
+  files: { kind: string; name: string; note: string }[]; // screenshots, PDFs, voice notes the member sent (names and transcripts, not the files)
   signals: Signal[]; // per-signal evidence from a connected-channel alert (signals/v1), each with its quoted span
   // Flat fields the console list already reads.
   asked_for: string; money_sent: boolean; tactics: string[]; contact: string;
@@ -122,6 +123,7 @@ export function normalize(raw: any, channel: Channel, known: Partial<FraudCase['
     summary: t(raw.summary, 700) || 'The member asked Second Look to report a possible scam.',
     quotes: list(raw.quotes, 3, 220).filter(q => q.split(' ').length >= 3), // "Yeah." is not evidence
     next_steps: [], missing: [], asked_for: '', money_sent: false, tactics: [], contact: '',
+    files: (Array.isArray(raw.files) ? raw.files : []).slice(0, 6).map((f: any) => ({ kind: t(f?.kind, 20), name: t(f?.name, 80), note: t(f?.note, 300) })).filter((f: any) => f.kind),
     signals: (Array.isArray(raw.signals) ? raw.signals : []).filter((x: any) => SIGNAL_KEYS.includes(x?.key) && typeof x.span === 'string' && x.span.trim() && Number.isFinite(Number(x.score)))
       .slice(0, 7).map((x: any) => ({ key: x.key, label: SIGNAL_LABELS[x.key as Signal['key']], score: Math.min(1, Math.max(0, Number(x.score))), span: t(x.span, 220), source: x.source === 'model' ? 'model' : 'rules' })),
   };
@@ -171,6 +173,7 @@ function emailText(c: FraudCase) {
   const out = [`SECOND LOOK FRAUD CASE ${c.case_id}`, `Priority: ${PRI[c.priority]}: ${c.priority_reason}`, `Filed ${when(c.filed_at)} via ${c.channel}, at the member’s request.`, '', 'WHAT HAPPENED', c.summary, ''];
   for (const [h, rows] of sections(c)) { out.push(h.toUpperCase()); for (const [k, v] of rows) out.push(`  ${k}: ${v}`); out.push(''); }
   if (c.signals.length) out.push('WARNING SIGNS, WITH THE WORDS THAT SHOW THEM', ...c.signals.map(x => `  ${x.label} (${strength(x.score)}, ${x.score.toFixed(2)}): “${x.span}”`), '');
+  if (c.files.length) out.push('FILES THE MEMBER SENT (kept in the member’s chat, not attached here)', ...c.files.map(f => `  ${f.kind}: ${f.name}${f.note ? `: ${f.note}` : ''}`), '');
   if (c.quotes.length) out.push('IN THE MEMBER’S WORDS', ...c.quotes.map(q => `  “${q}”`), '');
   out.push('SUGGESTED NEXT STEPS', ...c.next_steps.map((s, i) => `  ${i + 1}. ${s}`), '');
   if (c.missing.length) out.push('STILL UNKNOWN: ASK ON THE CALLBACK', ...c.missing.map(s => `  - ${s}`), '');
@@ -188,6 +191,7 @@ function emailHtml(c: FraudCase) {
   ${h('What happened')}<p style="margin:0;font-size:15px">${esc(c.summary)}</p>
   ${sections(c).map(([title, rows]) => h(title) + table(rows)).join('')}
   ${c.signals.length ? h('Warning signs, with the words that show them') + table(c.signals.map(x => [`${x.label} · ${strength(x.score)} ${x.score.toFixed(2)}`, `“${x.span}”`])) : ''}
+  ${c.files.length ? h('Files the member sent') + table(c.files.map(f => [f.kind, f.name + (f.note ? `: ${f.note}` : '')])) : ''}
   ${c.quotes.length ? h('In the member’s words') + c.quotes.map(q => `<p style="margin:4px 0;padding-left:10px;border-left:3px solid #ccc;font-style:italic">“${esc(q)}”</p>`).join('') : ''}
   ${h('Suggested next steps')}<ol style="margin:0;padding-left:20px;font-size:14px">${c.next_steps.map(s => `<li style="margin:3px 0">${esc(s)}</li>`).join('')}</ol>
   ${c.missing.length ? h('Still unknown: ask on the callback') + `<ul style="margin:0;padding-left:20px;font-size:14px;color:#555">${c.missing.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}

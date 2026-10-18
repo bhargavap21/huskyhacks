@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS detections (id INTEGER PRIMARY KEY, sid TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, sid TEXT NOT NULL, json TEXT NOT NULL);
 `);
 
-export type Settings = { email_watch: boolean; screening: boolean; screening_since: number | null; texts: boolean; push: boolean; gmail: { address: string; refresh: string; since: number } | null; forward_confirm: { code: string; link: string; from: string; ts: number } | null };
-const DEFAULTS: Settings = { email_watch: false, screening: false, screening_since: null, texts: false, push: false, gmail: null, forward_confirm: null };
+export type Settings = { email_watch: boolean; screening: boolean; screening_since: number | null; texts: boolean; whatsapp: boolean; push: boolean; gmail: { address: string; refresh: string; since: number } | null; forward_confirm: { code: string; link: string; from: string; ts: number } | null };
+const DEFAULTS: Settings = { email_watch: false, screening: false, screening_since: null, texts: false, whatsapp: false, push: false, gmail: null, forward_confirm: null };
 
 export function settings(sid: string): Settings {
   const r = db.prepare('SELECT json FROM channels WHERE sid = ?').get(sid) as { json: string } | undefined;
@@ -43,6 +43,7 @@ export type Detection = {
   why: string[]; // flat list for email alerts and reports; derived from signals + other
   from: string; subject?: string; links?: { domain: string; note: string | null }[]; numbers?: string[];
   excerpt?: string; reported?: boolean; alerted_by?: string[];
+  files?: { kind: string; name: string; note: string }[]; // what the member sent along (names and transcripts only)
 };
 export function detections(sid: string) {
   return (db.prepare('SELECT id, ts, json FROM detections WHERE sid = ? ORDER BY id DESC LIMIT 20').all(sid) as { id: number; ts: number; json: string }[])
@@ -173,9 +174,10 @@ async function alertMember(sid: string, id: number, d: Detection, emailTo: strin
 }
 
 /** Keep a detection and alert the member. */
-export async function record(sid: string, d: Detection, emailTo: string | null, sendEmail: (to: string, subject: string, text: string) => Promise<void>) {
+// `notify: false` when the member is already reading Second Look's reply (WhatsApp): kept in the app, no push.
+export async function record(sid: string, d: Detection, emailTo: string | null, sendEmail: (to: string, subject: string, text: string) => Promise<void>, notify = true) {
   const id = Number(db.prepare('INSERT INTO detections (sid, ts, json) VALUES (?, ?, ?)').run(sid, Date.now(), JSON.stringify(d)).lastInsertRowid);
-  d.alerted_by = await alertMember(sid, id, d, emailTo, sendEmail);
+  d.alerted_by = notify ? await alertMember(sid, id, d, emailTo, sendEmail) : ['app', ...(d.channel === 'whatsapp' ? ['WhatsApp reply'] : [])];
   updateDetection(sid, id, d);
   console.log(`monitor: ${d.channel} detection for a member (${d.risk}), alerted by ${d.alerted_by.join(', ')}`);
   return id;

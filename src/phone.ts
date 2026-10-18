@@ -47,11 +47,14 @@ export function unlink(sid: string) { db.prepare('DELETE FROM phone_links WHERE 
 const linkFor = (sid: string) => db.prepare('SELECT number, share, verified FROM phone_links WHERE sid = ?').get(sid) as { number: string; share: number; verified: number } | undefined;
 const sidFor = (number: string) => (db.prepare('SELECT sid, share FROM phone_links WHERE number = ? AND verified = 1').get(number) as { sid: string; share: number } | undefined);
 export const phoneVerified = (sid: string) => !!linkFor(sid)?.verified;
-/** An inbound call from a number that's linked but not yet verified proves the member has that phone. */
-function verifyByCall(number: string) {
+/** An inbound call (or WhatsApp message: WhatsApp authenticates the sender) from a number that's linked but not yet verified proves the member has that phone. */
+export function verifyPhone(number: string, how = 'their call') {
   const r = db.prepare('UPDATE phone_links SET verified = 1 WHERE number = ? AND verified = 0').run(number);
-  if (r.changes) console.log(`phone: verified a member's phone (…${number.slice(-4)}) by their call`);
+  if (r.changes) console.log(`phone: verified a member's phone (…${number.slice(-4)}) by ${how}`);
 }
+const verifyByCall = (number: string) => verifyPhone(number);
+/** The member who linked this number (verified or not), for channels whose sender ID is itself authenticated. */
+export const linkedMember = (number: string) => db.prepare('SELECT sid, verified FROM phone_links WHERE number = ?').get(number) as { sid: string; verified: number } | undefined;
 
 // What the member's app shows: Second Look's number and their own (masked).
 export function phoneState(sid: string) {

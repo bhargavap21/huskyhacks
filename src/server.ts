@@ -21,6 +21,7 @@ import { settings, saveSettings, detections, pushKey, addPushSub, removePushSubs
 import { gmailEnabled, authUrl, callback as gmailCallback, disconnect as gmailDisconnect, watchGmail } from './gmail.ts';
 import { sendEmail } from './email.ts';
 import { SIGNALS_VERSION, SIGNAL_LABELS } from './signals.ts';
+import { whatsappEnabled, WA_NUMBER, verifyHandshake, signatureOk, onWebhook } from './whatsapp.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -134,13 +135,14 @@ app.post('/api/report', async c => {
 // Connected channels: what the member turned on, recent alerts, and how alerts reach them.
 function channelState(sid: string) {
   const s = settings(sid);
-  return { email_watch: s.email_watch, screening: s.screening, texts: s.texts, push: s.push, forward_confirm: s.forward_confirm, gmail: s.gmail ? { address: s.gmail.address } : null, gmail_available: gmailEnabled, push_key: pushKey(), detections: detections(sid) };
+  return { email_watch: s.email_watch, screening: s.screening, texts: s.texts, whatsapp: s.whatsapp, whatsapp_number: whatsappEnabled ? WA_NUMBER : null, push: s.push, forward_confirm: s.forward_confirm, gmail: s.gmail ? { address: s.gmail.address } : null, gmail_available: gmailEnabled, push_key: pushKey(), detections: detections(sid) };
 }
 app.post('/api/channels', async c => {
   const b = await c.req.json().catch(() => ({})), sid = c.get('sid'), patch: any = {};
-  for (const k of ['email_watch', 'screening', 'texts'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
+  for (const k of ['email_watch', 'screening', 'texts', 'whatsapp'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
   if (patch.email_watch && !emailState(sid)?.verified) return c.json({ error: 'Confirm your email first on Email check' }, 400);
   if (patch.screening && !phoneVerified(sid)) return c.json({ error: 'Confirm your phone first: link it on Call guardian and call Second Look once from it' }, 400);
+  if (patch.whatsapp && !(whatsappEnabled && phoneState(sid)?.linked)) return c.json({ error: whatsappEnabled ? 'Link your phone first on Call guardian' : 'WhatsApp isn’t set up on this server' }, 400);
   if (patch.screening) patch.screening_since = Date.now();
   if (b.dismiss_confirm) patch.forward_confirm = null;
   saveSettings(sid, patch);
@@ -157,6 +159,21 @@ app.post('/api/push/test', async c => {
   return c.json({ ok: true });
 });
 app.post('/api/detections/:id/report', async c => { const out = await reportDetection(c.get('sid'), Number(c.req.param('id'))); return c.json({ ok: true, case_id: out.case_id }); });
+// WhatsApp Cloud API webhook. GET: Meta's subscription handshake. POST: messages, signature-checked on the raw
+// bytes before anything is parsed; answered 200 right away and handled in the background.
+app.get('/webhooks/whatsapp', c => {
+  const ok = verifyHandshake(c.req.query('hub.mode'), c.req.query('hub.verify_token'), c.req.query('hub.challenge'));
+  return ok ? c.text(ok) : c.text('Forbidden', 403);
+});
+app.post('/webhooks/whatsapp', bodyLimit({ maxSize: 1024 * 1024, onError: c => c.text('Too large', 413) }), async c => {
+  if (!whatsappEnabled) return c.text('Not configured', 404);
+  const raw = Buffer.from(await c.req.arrayBuffer());
+  if (!signatureOk(raw, c.req.header('x-hub-signature-256'))) { console.error('whatsapp: webhook with a bad signature; dropped'); return c.text('Bad signature', 401); }
+  let payload: unknown;
+  try { payload = JSON.parse(raw.toString('utf8')); } catch { return c.text('Bad JSON', 400); }
+  void onWebhook(payload);
+  return c.text('OK');
+});
 app.get('/auth/google/start', c => (gmailEnabled ? c.redirect(authUrl(c.get('sid'))) : c.text('Gmail sign-in isn’t set up on this server.', 404)));
 app.get('/auth/google/callback', async c => {
   try { await gmailCallback(c.req.query('state') ?? '', c.req.query('code') ?? ''); return c.redirect('/?page=channels&gmail=connected'); }
