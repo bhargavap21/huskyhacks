@@ -345,6 +345,26 @@ function fraudDetail(r) {
     ${r.missing.length ? `<p class="small muted"><b>Ask on the callback:</b> ${esc(r.missing.join(', '))}.</p>` : ''}</div>`;
 }
 
+// Automatic email watching: shared by Email check and Connected channels.
+function emailWatchCard(title) {
+  const ch = S.channels, em = S.email;
+  if (!ch || !em) return '';
+  const sw = (key, on, label) => `<label class="switch-row"><span>${label}</span><input type="checkbox" role="switch" data-ch="${key}" ${on ? 'checked' : ''}></label>`;
+  const needEmail = !em.linked ? `<p class="small muted">First link your email${page === 'email' ? ' above' : ` on <button class="quiet" data-page="email">Email check</button>`}.</p>` : '';
+  const fc = ch.forward_confirm, on = ch.email_watch || !!ch.gmail;
+  return `<div class="card g-way"><div class="g-head"><h3>${title}</h3><span class="in-badge in-badge--${on ? 'safe' : 'neutral'}">${on ? 'Watching' : 'Off'}</span></div>
+      <p class="small">Second Look checks new mail on its own and alerts you the moment something looks like a scam, before you click or reply. Ordinary mail is checked and thrown away.</p>
+      ${ch.gmail ? `<p class="small"><span class="in-badge in-badge--safe">Connected</span> ${esc(ch.gmail.address)}. New inbox mail is checked every minute. <button class="quiet" data-act="gmail_off">Disconnect</button></p>`
+        : ch.gmail_available ? `<div class="row"><a class="in-btn in-btn--primary g-tel" href="/auth/google/start">Connect Gmail (read-only)</a></div><p class="small muted">Or set up auto-forwarding below.</p>` : ''}
+      ${sw('email_watch', ch.email_watch, 'Watch mail my Gmail forwards to Second Look')}${needEmail}
+      <details ${ch.email_watch && !fc ? '' : 'open'}><summary>Set up auto-forwarding in Gmail (2 minutes)</summary><ol class="in-ol g-steps">
+        <li><span>In Gmail on a computer: <b>Settings</b> → <b>See all settings</b> → <b>Forwarding and POP/IMAP</b> → <b>Add a forwarding address</b>: <b>${esc(em.address || '')}</b>.</span></li>
+        <li><span>Gmail sends Second Look a confirmation code. It shows up right here; enter it in Gmail.</span></li>
+        <li><span>Create a filter so only likely scams are forwarded: <b>Filters and blocked addresses</b> → <b>Create a new filter</b> → in <b>Has the words</b> paste <code>verify OR suspended OR "gift card" OR wire OR invoice OR urgent OR password OR refund</code> → <b>Forward it to</b> ${esc(em.address || '')}.</span></li></ol></details>
+      ${fc ? `<div class="fwd-code" role="status"><p class="small">Gmail asked to confirm forwarding for <b>${esc(fc.from)}</b>.</p><p>Confirmation code: <b class="code">${esc(fc.code || 'see link')}</b></p>${fc.link ? `<p class="small"><a href="${esc(fc.link)}" target="_blank" rel="noopener noreferrer">Or confirm in Gmail</a></p>` : ''}<button class="quiet" data-act="fwd_dismiss">Done</button></div>` : ''}
+      <p class="small muted">Alerts reach you ${ch.push ? 'as a notification on this device' : `by email${page === 'email' ? ` · <button class="quiet" data-page="channels">Turn on notifications</button>` : ''}`}.</p></div>`;
+}
+
 /* ---------------- Connected channels ---------------- */
 // Second Look watches the channels the member turns on and alerts them before they act.
 const SL_NUMBER = () => fmtPhone(S.phone?.number || '');
@@ -370,15 +390,7 @@ function channelsView() {
       <p class="small">Get a notification the moment Second Look spots something, even when the app is closed.</p>
       <div class="row">${ch.push ? '<span class="in-badge in-badge--safe">On</span><button class="quiet" data-act="push_off">Turn off</button>' : `<button class="primary" data-act="push_on" ${ch.push_key ? '' : 'disabled'}>Turn on alerts</button>`}<button data-act="push_test">Send a sample alert</button></div>
       <p class="small muted">On iPhone, first add this page to your Home Screen (Share, then Add to Home Screen). Without notifications, alerts come by email to your linked address.</p></div>
-    <div class="card g-way"><h3>Email</h3>
-      ${ch.gmail ? `<p class="small"><span class="in-badge in-badge--safe">Connected</span> ${esc(ch.gmail.address)}. New inbox mail is checked every minute. <button class="quiet" data-act="gmail_off">Disconnect</button></p>`
-        : ch.gmail_available ? `<div class="row"><a class="in-btn in-btn--primary g-tel" href="/auth/google/start">Connect Gmail (read-only)</a></div><p class="small muted">Or use auto-forwarding below.</p>` : ''}
-      ${sw('email_watch', ch.email_watch, 'Watch mail my Gmail forwards to Second Look')}${needEmail}
-      <details><summary>Set up auto-forwarding in Gmail (2 minutes)</summary><ol class="in-ol g-steps">
-        <li><span>In Gmail on a computer: <b>Settings</b> → <b>See all settings</b> → <b>Forwarding and POP/IMAP</b> → <b>Add a forwarding address</b>: <b>${esc(em?.address || '')}</b>.</span></li>
-        <li><span>Gmail sends Second Look a confirmation code. It shows up right here; enter it in Gmail.</span></li>
-        <li><span>Create a filter so only likely scams are forwarded: <b>Filters and blocked addresses</b> → <b>Create a new filter</b> → in <b>Has the words</b> paste <code>verify OR suspended OR "gift card" OR wire OR invoice OR urgent OR password OR refund</code> → <b>Forward it to</b> ${esc(em?.address || '')}.</span></li></ol></details>
-      ${fc ? `<div class="fwd-code" role="status"><p class="small">Gmail asked to confirm forwarding for <b>${esc(fc.from)}</b>.</p><p>Confirmation code: <b class="code">${esc(fc.code || 'see link')}</b></p>${fc.link ? `<p class="small"><a href="${esc(fc.link)}" target="_blank" rel="noopener noreferrer">Or confirm in Gmail</a></p>` : ''}<button class="quiet" data-act="fwd_dismiss">Done</button></div>` : ''}</div>
+    ${emailWatchCard('Email')}
     <div class="card g-way"><h3>Calls</h3>
       ${sw('screening', ch.screening, 'Screen calls I don’t answer')}
       <p class="small">Second Look answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${SL_NUMBER()}</b>:</p>
@@ -424,15 +436,20 @@ function emailView() {
     ? `<p class="small">Your email: <b>${esc(e.linked)}</b> · ${e.share ? 'Sound can see these reports' : 'reports stay with you'} <button class="quiet" data-act="em_unlink">Change</button></p>`
     : `<div class="g-link"><label for="em-addr">Your email address</label><div class="row"><input type="email" id="em-addr" data-keep autocomplete="email" placeholder="you@example.com"><button class="primary" data-act="em_link">Link my email</button></div>
         <label class="check"><input type="checkbox" id="em-share" data-keep checked> Let Sound see what Second Look finds</label>
-        <p class="small muted">Second Look only reads mail sent from this address. Anything else sent to it is left unread.</p></div>`;
+        <p class="small muted">Second Look only reads mail from this address, or mail your Gmail forwards for you once you turn on watching. Anything else sent to it is left unread.</p></div>`;
+  const found = [
+    ...(S.channels?.detections || []).filter(d => d.channel === 'email' || d.channel === 'gmail').map(d => ({ ts: d.ts, html: detCard(d) })),
+    ...e.reports.map(r => ({ ts: r.received, html: emailReport(r) })),
+  ].sort((a, b) => b.ts - a.ts);
   return `<div class="card guardian"><h2>Email check</h2>
-    <p>Got an email or text that feels off? Forward it to Second Look. It replies within a minute with what the message is asking for, the warning signs, and what to do. You can also email it a question.</p>
+    <p>Second Look can watch your inbox and warn you on its own when a scam email arrives. You can also forward any single message to get a second look at it.</p>
     <p class="em-address"><span class="small muted">Second Look’s address</span><br><b>${esc(e.address)}</b></p>
     ${linkCard}</div>
-    <div class="card g-way"><h3>How to forward</h3>
-      <ol class="in-ol g-steps"><li><span>Open the email and tap <b>Forward</b>. For a text, copy it into a new email.</span></li><li><span>Send it to <b>${esc(e.address)}</b> from your linked email.</span></li><li><span>Read the reply in your email. It also shows up below.</span></li></ol>
+    ${emailWatchCard('Watch my inbox automatically')}
+    <div class="card g-way"><h3>Check one message now</h3>
+      <ol class="in-ol g-steps"><li><span>Open the email and tap <b>Forward</b>. For a text, copy it into a new email.</span></li><li><span>Send it to <b>${esc(e.address)}</b> from your linked email.</span></li><li><span>Second Look replies within a minute. The reply also shows up below.</span></li></ol>
       <p class="small muted">Don’t click links in the message first. Second Look never opens links and never asks for codes or passwords.</p></div>
-    <div class="card"><h3>What Second Look found</h3>${e.reports.length ? `<ul class="em-list">${e.reports.map(r => emailReport(r)).join('')}</ul>` : `<p class="small muted">${e.linked ? 'Nothing yet. Forward an email and it will show up here.' : 'Link your email to see reports here.'}</p>`}</div>`;
+    <div class="card em-found"><h3>What Second Look found</h3>${found.length ? `<ul class="em-list">${found.map(f => f.html).join('')}</ul>` : `<p class="small muted">${e.linked ? 'Nothing yet. Alerts from automatic watching and replies to messages you forward show up here.' : 'Link your email to see results here.'}</p>`}</div>`;
 }
 // Staff see forwarded-email reports only if the member chose to share them.
 function emailCard() {

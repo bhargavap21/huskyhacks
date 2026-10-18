@@ -478,3 +478,4 @@ body.joined .shell.copilot-closed .copilot { display: none; }
   .in-section__lead { font-size: 17px; line-height: 28px; }
   .in-ol > li, .in-ul > li { font-size: 15px; line-height: 26px; }
 }
+.page-member .app-body > .em-found { grid-column: 1 / -1; }
