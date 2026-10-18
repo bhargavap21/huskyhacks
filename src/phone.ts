@@ -106,9 +106,14 @@ export async function callAboutThreat(sid: string, id: number, d: Detection) {
   pendingThreat.set(sid, { id, at: Date.now() });
   const what = CHANNEL_NAME[d.channel] ?? 'message';
   const evidence = (d.signals ?? []).slice(0, 4).map(x => `- ${x.label}: "${x.span}"`).join('\n');
+  // A call Vantis screened never reached the member, and Vantis already heard everything the caller said.
+  const heard = d.channel === 'call screening' ? screenedWords.get(sid) : undefined;
+  screenedWords.delete(sid);
   await api('POST', '/v1/calls', {
     agentId: AGENT, toNumber: l.number,
-    initialGreeting: `Hi, this is Vantis from Sound, calling about a ${what} you just got. It has the signs of a scam that’s happening right now, so I wanted to reach you straight away. Do you have a moment?`,
+    initialGreeting: heard !== undefined
+      ? 'Hi, this is Vantis from Sound. I just answered a call for you that has the signs of a scam, and I didn’t put them through. Do you have a moment?'
+      : `Hi, this is Vantis from Sound, calling about a ${what} you just got. It has the signs of a scam that’s happening right now, so I wanted to reach you straight away. Do you have a moment?`,
     systemPrompt: `${CALL_RULES}
 
 Why you are calling: Vantis rated a ${what} the member received as Level 4, critical: someone is asking for money, a code or access right now while posing as someone trusted or using fear or secrecy. You are calling to protect them before they act. This call was placed automatically by Vantis, not requested by the member.
@@ -118,14 +123,33 @@ Warning signs, with the words used:
 ${evidence || '- (see summary)'}
 ${d.other?.length ? `Other checks: ${d.other.join('; ')}` : ''}
 
-Talk them through it, in this order, briefly and calmly:
+${heard !== undefined ? screenedSteps(heard) : MESSAGE_STEPS}`,
+  });
+  console.log(`phone: called a member about a critical ${what}`);
+}
+
+const MESSAGE_STEPS = `Talk them through it, in this order, briefly and calmly:
 1. Ask whether they have replied, clicked a link, called a number from it, sent money or shared a code. If they have, tell them to call Sound now on the number on the back of their card, and offer to tell Sound's fraud team right away.
 2. Say what the message claims and what it asks for, quoting one or two of its phrases. Never call the sender a scammer; say "this has the signs of a scam."
 3. Tell them how to respond: don't reply, don't click, don't call any number in it. If it says it's from Sound: Sound never asks for codes or to move money. To check, call Sound on the number on their card. They can block the sender.
-4. Offer once: "Would you like me to tell Sound's fraud team now? I'll pass on what I saw, and someone will call you." Their yes is enough.
-Keep it under two minutes unless they want to talk.`,
-  });
-  console.log(`phone: called a member about a critical ${what}`);
+4. Offer once: "Would you like me to tell Sound's fraud team now? I'll pass on what I saw, and someone will call you." Their yes is enough. If they agree, you already know what the message said and who sent it: never ask about that. Ask only what's missing, one question per turn. You called them, so say "this number", never "the number you're calling from".
+Keep it under two minutes unless they want to talk.`;
+
+// Words a screened caller said, kept just long enough for the Level 4 call to the member.
+const screenedWords = new Map<string, string>();
+function screenedSteps(heard: string) {
+  return `You (Vantis) answered this call yourself while screening it. The member's phone never rang and they never spoke to the caller. Everything the caller said to you:
+"""
+${heard.slice(0, 1500)}
+"""
+
+This replaces the reporting checklist above: you already know who called, how (a phone call to the member's number, forwarded to you), who they claimed to be and what they asked for. Never ask the member about any of that, or whether they replied, paid or shared anything.
+In this order, one or two sentences per turn:
+1. Tell them they're safe: you didn't put the caller through.
+2. Say who the caller claimed to be and what they wanted, quoting one phrase. Sound never asks anyone to move money, wire it or read out a code. If they or anyone like them calls back, hang up and call Sound on the number on the member's card.
+3. Offer once: "Would you like me to tell Sound's fraud team? I'll pass on what the caller said, and someone from Sound will call you." Their yes is enough.
+4. If yes, ask only what you don't know, one question per turn: their name, then whether this number is the best one for a callback. You called them, so say "this number". Then: "Thanks. I'll send this to Sound's fraud team when we hang up, and someone will call you back on this number."
+Keep it under a minute unless they want to talk.`;
 }
 if (phoneEnabled) onCritical(callAboutThreat);
 
@@ -363,6 +387,7 @@ async function screened(sid: string, caller: string, turns: { role: string; cont
     const d = await assess('call screening', caller || 'a hidden number', 'Call Vantis screened for you', said, extra);
     if (!d) { console.log(`phone: screened call looked ordinary (${said.split('\n').length} caller lines checked); nothing kept`); return; }
     console.log(`phone: screened call is Level ${({ low: 1, medium: 2, high: 3, critical: 4 } as const)[d.risk]} (${d.risk})`);
+    screenedWords.set(sid, said);
     await record(sid, d, emailFor(sid), sendEmail);
   } catch (e) { console.error('phone: screening check failed:', (e as Error).message); }
 }
