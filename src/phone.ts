@@ -231,6 +231,7 @@ export async function syncTransfer() {
 }
 
 const screening = new Map<string, { sid: string; from: string; started: number }>(); // live screened calls
+const toolSaid = new Map<string, string>(); // call id -> what the caller told the decision tool (checked again after the call)
 const lastTransfer = new Map<string, number>(); // `${sid}|${caller}` -> when we last put them through
 /** The agent's custom tool. Checks the secret, then decides; never throws (the agent treats errors as "hold"). */
 export async function handleScreeningTool(secret: string | undefined, body: any) {
@@ -246,6 +247,8 @@ export async function handleScreeningTool(secret: string | undefined, body: any)
   const key = `${sid}|${caller}`;
   const r = await decide(i, { target: ct && ct.sid === sid ? ct.number : null, lastTransfer: caller ? lastTransfer.get(key) : undefined });
   logScreened(sid, callId, caller, i, r);
+  const live2 = live?.[0] ?? callId; // our id for the call, the one follow() looks up
+  if (live2) toolSaid.set(live2, [i.organization && `Calling from: ${i.organization}`, i.reason, i.said].filter(Boolean).join('\n'));
   if (r.decision === 'connect') {
     if (caller) lastTransfer.set(key, Date.now());
     void notifyMember(sid, `Putting a call through: ${[i.name, i.organization].filter(Boolean).join(', ')} about ${i.reason}`.slice(0, 160));
@@ -304,10 +307,10 @@ export async function follow(call: any, keyFor: KeyFor) {
     screening.delete(call.id); finishScreened(call.id);
     // The live stream can end before the last turns arrive; the stored transcript is complete, so check that.
     const full = await finalTranscript(call.id);
-    if (full.length > turns.length) turns.splice(0, turns.length, ...full);
+    if (full.length) turns.splice(0, turns.length, ...full); // stored lines are whole; streamed ones can be fragments
     if (who && callState(key)?.live) await stopCall(key);
     if (screenFor === 'ambiguous') console.log('phone: screened call, but more than one member has screening on; not routed');
-    else if (screenFor) await screened(screenFor, member, turns);
+    else if (screenFor) { await screened(screenFor, member, turns, toolSaid.get(call.id)); toolSaid.delete(call.id); }
     else await reportIfAgreed(who?.sid ?? null, member, turns);
   };
   try {
@@ -344,8 +347,9 @@ async function finalTranscript(id: string): Promise<{ role: string; content: str
 
 // After a call: did the caller agree to a report? Claude reads the transcript and answers in a fixed shape.
 // A screened call: check what the caller said and alert the member if it's worth a look.
-async function screened(sid: string, caller: string, turns: { role: string; content: string }[]) {
-  const said = turns.filter(t => t.role === 'user').map(t => t.content).join('\n');
+async function screened(sid: string, caller: string, turns: { role: string; content: string }[], toTool?: string) {
+  // The caller's lines, plus what the voice agent passed to the decision tool: the same words, already joined up.
+  const said = [...turns.filter(t => t.role === 'user').map(t => t.content), toTool ?? ''].filter(s => s.trim()).join('\n');
   if (!said.trim()) return;
   try {
     // Only the caller's words are checked: Vantis's own lines ("an AI assistant for a Sound member") aren't evidence.

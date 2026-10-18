@@ -89,7 +89,7 @@ export function inspect(text: string) {
   const numbers = [...new Set([...text.matchAll(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g)].map(m => m[0].trim()))].slice(0, 5);
   return { links, numbers, tactics: tacticsIn(text) };
 }
-const MONEYISH = /\b(wire|gift ?card|crypto|bitcoin|zelle|venmo|cash ?app|payment|invoice|refund|verify|suspend|locked|unusual (sign|activity)|password|code|ssn|social security|tax|irs|warrant|arrest|prize|winner|inheritance|package|customs|fee)\b|\binvest|\bopportunit|\$\s?\d/i;
+const MONEYISH = /\b(wire|gift ?card|crypto|bitcoin|zelle|venmo|cash ?app|payment|invoice|refund|verify|suspend|locked|unusual (sign|activity)|safe account|move (?:your|his|her|the) money|password|code|ssn|social security|tax|irs|warrant|arrest|prize|winner|inheritance|package|customs|fee)\b|\binvest|\bopportunit|\$\s?\d/i;
 
 /** The rules-only check: pressure tactics, look-alike domains, and any extra warning (e.g. failed sender authentication). */
 export function ruleCheck(subject: string, body: string, extra: string[] = []) {
@@ -123,7 +123,7 @@ export async function assess(channel: Detection['channel'], from: string, subjec
   const lookalikes = f.links.filter(l => l.note && !l.note.startsWith('This is')).map(l => `${l.domain}: ${l.note}`);
   const rules = ruleSignals(text);
   const hard = lookalikes.length + extra.length; // deterministic checks the model can't argue away
-  if (mode === 'gate' && !f.flag && !MONEYISH.test(`${subject} ${body}`)) return null; // clearly ordinary: discard unread by the model
+  if (mode === 'gate' && !f.flag && !hard && !MONEYISH.test(`${subject} ${body}`)) return null; // clearly ordinary: discard unread by the model
   let v: Classification | null = null;
   if (mode !== 'rules' && c) {
     try { v = await classify({ channel, from, subject, body, hints: [...rules.map(t => t.label), ...lookalikes, ...extra] }, c); }

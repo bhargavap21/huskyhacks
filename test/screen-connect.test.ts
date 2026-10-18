@@ -78,3 +78,16 @@ test('a screened caller claiming to be the credit union and asking for a wire is
   assert.equal((await assess('call screening', 'a hidden number', 'x', said, extra, { mode: 'rules', client: null }))?.risk, 'critical');
   assert.equal((await assess('call screening', 'a hidden number', 'x', said, extra, { mode: 'gate', client: ordinary }))?.risk, 'critical');
 });
+
+test('a screened “fraud team” caller asking to move money to a safe account is Level 4, even from a broken-up transcript', async () => {
+  const { assess } = await import('../src/monitor.ts');
+  const { NEVER_CONNECT } = await import('../src/screening.ts');
+  const ordinary = { messages: { create: async () => ({ content: [{ type: 'tool_use', name: 'classify', input: { alert: false, risk: 'low', signals: {}, title: '', summary: '', advice: '' } }] }) } };
+  for (const said of [
+    "Yeah, my name is Max and I'm calling because he needs to move his money to a safe account now. I'm his security fraud team.",
+    "Yeah, my name is Max and I'm calling because he needs to move\nhis money to a safe account now.\nI'm his security fraud team.",
+  ]) {
+    const extra = [`The caller said they were calling from “${NEVER_CONNECT.exec(said)![0]}”.`];
+    assert.equal((await assess('call screening', 'a hidden number', 'x', said, extra, { mode: 'gate', client: ordinary }))?.risk, 'critical', said);
+  }
+});
