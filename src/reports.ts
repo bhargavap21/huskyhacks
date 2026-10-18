@@ -13,6 +13,7 @@ import { client, MODEL } from './chat.ts';
 const FRAUD_TEAM = process.env.FRAUD_TEAM_EMAIL ?? '';
 const INBOX = process.env.AGENTMAIL_INBOX_ID;
 const KEY = process.env.AGENTMAIL_API_KEY;
+const INBOX_PATH = encodeURIComponent(INBOX ?? '').replace('%40', '@'); // newer inboxes need a literal @
 
 db.exec(`CREATE TABLE IF NOT EXISTS fraud_cases (id INTEGER PRIMARY KEY, ts INTEGER NOT NULL, sid TEXT, channel TEXT NOT NULL, json TEXT NOT NULL)`);
 
@@ -203,7 +204,7 @@ async function emailTeam(c: FraudCase) {
   const who = c.member.name || (c.member.phone ? `caller …${c.member.phone.replace(/\D/g, '').slice(-4)}` : 'member');
   const subject = `[${PRI[c.priority]}] Fraud case ${c.case_id}: ${c.threat.type || 'possible scam'}, ${who} (via ${c.channel})`;
   try {
-    const res = await fetch(`https://api.agentmail.to/v0/inboxes/${encodeURIComponent(INBOX)}/messages/send`, {
+    const res = await fetch(`https://api.agentmail.to/v0/inboxes/${INBOX_PATH}/messages/send`, {
       method: 'POST', headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15_000),
       body: JSON.stringify({ to: [FRAUD_TEAM], subject, text: emailText(c), html: emailHtml(c) }),
     });

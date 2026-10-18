@@ -17,6 +17,8 @@ const KEY = process.env.AGENTMAIL_API_KEY;
 export const INBOX = process.env.AGENTMAIL_INBOX_ID ?? null;
 const API = 'https://api.agentmail.to/v0';
 export const emailEnabled = !!(KEY && INBOX);
+// AgentMail finds newer inboxes only with a literal @ in the path, not %40.
+const INBOX_PATH = encodeURIComponent(INBOX ?? '').replace('%40', '@');
 const OFFICIAL_DOMAIN = 'soundcu.com';
 
 db.exec(`
@@ -141,7 +143,7 @@ function followUps(note: string) {
 
 // Gmail asks the new forwarding address to confirm. We never click it; we show the member the code and link.
 async function forwardingConfirmation(m: any) {
-  const full = await api('GET', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}`);
+  const full = await api('GET', `/inboxes/${INBOX_PATH}/messages/${encodeURIComponent(m.message_id)}`);
   const text = String(full.text ?? '');
   const code = /confirmation code:\s*(\d{6,12})/i.exec(text)?.[1] ?? /\(#(\d{6,12})\)/.exec(full.subject ?? '')?.[1] ?? '';
   const who = addr(/([^\s<>()]+@[^\s<>()]+) has requested to automatically forward/i.exec(text)?.[1] ?? /from ([^\s<>()]+@[^\s<>()]+)/i.exec(full.subject ?? '')?.[1] ?? '');
@@ -154,14 +156,14 @@ async function forwardingConfirmation(m: any) {
 
 // Mail a member's Gmail forwarded on its own. Checked quietly; kept and alerted only if it's worth a look.
 async function watchedMail(m: any, sid: string, memberAddress: string) {
-  const full = await api('GET', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}`);
+  const full = await api('GET', `/inboxes/${INBOX_PATH}/messages/${encodeURIComponent(m.message_id)}`);
   const extra = (full.labels ?? []).includes('unauthenticated') ? ['The sender failed email authentication checks'] : [];
   const d = await assess('email', String(full.from ?? m.from ?? ''), String(full.subject ?? ''), String(full.text ?? full.extracted_text ?? full.preview ?? ''), extra);
   if (!d) return; // ordinary mail: nothing kept
   await record(sid, d, memberAddress, sendEmail);
 }
 export async function sendEmail(to: string, subject: string, text: string) {
-  await api('POST', `/inboxes/${encodeURIComponent(INBOX!)}/messages/send`, { to: [to], subject, text: text + FOOTER });
+  await api('POST', `/inboxes/${INBOX_PATH}/messages/send`, { to: [to], subject, text: text + FOOTER });
 }
 
 const FOOTER = `\n\n—\nVantis never asks for codes or passwords and never moves money. This is a concept demo for HuskyHack 2026.`;
@@ -218,9 +220,9 @@ async function handle(m: any, keyFor: (sid: string) => string) {
   if ((m.labels ?? []).includes('unauthenticated')) { console.log(`email: skipped unauthenticated mail claiming ${mask(from)}`); return; }
   if (!underReplyLimit(from)) { console.log('email: hourly limit reached for', mask(from)); return; }
 
-  const full = await api('GET', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}`);
+  const full = await api('GET', `/inboxes/${INBOX_PATH}/messages/${encodeURIComponent(m.message_id)}`);
   const own = String(full.extracted_text ?? '').trim(); // the member's own new words, without quoted or forwarded text
-  const send = (text: string) => api('POST', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}/reply`, { to: [from], text: text + FOOTER });
+  const send = (text: string) => api('POST', `/inboxes/${INBOX_PATH}/messages/${encodeURIComponent(m.message_id)}/reply`, { to: [from], text: text + FOOTER });
 
   // "Yes" to our offer: report the email we already looked at in this thread.
   if (/^\s*re:/i.test(full.subject ?? '') && /^\s*(yes|yep|yeah|ok(ay)?|sure|please( do)?|go ahead|report( it)?)\b/i.test(own)) {
@@ -273,7 +275,7 @@ export function watchInbox(keyFor: (sid: string) => string) {
   let first = true;
   const tick = async () => {
     try {
-      const { messages } = await api('GET', `/inboxes/${encodeURIComponent(INBOX!)}/messages?limit=20`);
+      const { messages } = await api('GET', `/inboxes/${INBOX_PATH}/messages?limit=20`);
       for (const m of (messages ?? []).slice().reverse()) {
         if (db.prepare('SELECT 1 FROM email_seen WHERE message_id = ?').get(m.message_id)) continue;
         db.prepare('INSERT OR IGNORE INTO email_seen (message_id, ts) VALUES (?, ?)').run(m.message_id, Date.now());
