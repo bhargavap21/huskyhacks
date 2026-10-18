@@ -76,7 +76,14 @@ The demo must be clickable at the end of every step. No finish times are promise
 | 5 | Demo scenes: Linda as-is vs with Second Look; M1037 restraint; M1057 fast release; missed-scam beat; `npm run lookalikes`; `/about` one-pager; role switch "View as: Member / Employee" | A2, A8 | Done (13:17): six scenes in the demo bar, `/about` written |
 | 6 | Alert policy T0/T1/T2: dedupe one case per situation, budget (1 T2/day, 3 T1/week), cooldown + material-change re-alert, quiet hours that never suppress checkpoints/queue/expiry; "why did I get this?"; banner copy snapshot test | A11 | Done (core): `src/alerts.ts` + 8 tests; wired into the sim (content-safe notification, why-did-I-get-this, settings for alert level and quiet hours) |
 | 7 | Polish: accessibility pass (VoiceOver, scaling, AA, 44 px), README, DECISIONS, demo script | A9 | Partial: README, DEMO.md, focus/live-region fixes done; VoiceOver on a real iPhone still to do |
-| 8 | Stretch: optional email module (HANDOFF section 10) behind a flag | A10 | Todo |
+| 8 | Stretch: optional email module (HANDOFF section 10) | A10 | Done, as Second Look's own AgentMail inbox (`src/email.ts`) instead of watching a fixed inbox |
+| 9 | Chat attachments (screenshots, PDFs, voice notes) | | Done |
+| 10 | Call guardian and Second Look's phone line (AgentPhone) | | Done |
+| 11 | Fraud cases filed for the member from any channel | | Done |
+| 12 | Connected channels (Gmail forwarding or sign-in, call screening, texts) with push alerts | | Done; Gmail sign-in needs Google OAuth credentials |
+| 13 | Verified phone and email links | | Done |
+
+The current feature list lives in the README ("What's built"); this table is the build history.
 
 **Minimum for 3:00 PM (HANDOFF): steps 1-5.** Step 6's full policy can be a thin version by then (banners exist and copy is safe; budget and cooldown come Sunday). If behind, cut in this order: email module, then the R2/M1003 beat, then the trusted-contact screen (keep the setting).
 
@@ -84,11 +91,6 @@ The demo must be clickable at the end of every step. No finish times are promise
 
 ---
 
-## 5. Email module notes (only if built)
+## 5. Email module notes (superseded)
 
-These carry over from the email-first plan (DECISIONS #1-3):
-- Watched inbox `bhargava.perumalla1@gmail.com`.
-- Sender `bhargavap740@gmail.com`.
-- **Sender allowlist on ingest**: non-allowlisted mail is never fetched, stored, or sent to the LLM.
-- SendGrid can send fixture subjects and bodies from the verified sender only, with no spoofed names; phishing-style fixtures carry a "[Second Look demo]" prefix.
-- Push is T2 transport only, per HANDOFF section 8.
+The original plan watched a fixed inbox with a sender allowlist. What shipped instead: Second Look has its own address (secondlook@agentmail.to); it reads only mail from verified member addresses (or mail their Gmail forwards once they turn on watching), replies only to the member, and treats forwarded content as data. See README, "What's built".

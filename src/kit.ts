@@ -1,9 +1,11 @@
 // Loads the kit's synthetic EVENTS file only. The Member Key is the answer key
 // and must never be read by the app (HANDOFF section 6; test/leakage.test.ts).
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const EVENTS_PATH = join(import.meta.dirname, '..', 'data', 'HuskyHack_Synthetic_Events_v2.csv');
+// The official kit files aren't in the repo (hackathon materials, not for public release). See README, "Getting the kit data".
+export const EVENTS_PATH = process.env.KIT_EVENTS_PATH ?? join(import.meta.dirname, '..', 'data', 'HuskyHack_Synthetic_Events_v2.csv');
+export const kitAvailable = () => existsSync(EVENTS_PATH);
 
 // Canonical, case-sensitive labels from the data dictionary (HANDOFF section 9).
 export const CANON = {
@@ -113,6 +115,7 @@ let cache: Map<string, KitEvent[]> | null = null;
 /** All events grouped by member, in kit order (event_sequence). */
 export function loadEvents(path = EVENTS_PATH): Map<string, KitEvent[]> {
   if (cache && path === EVENTS_PATH) return cache;
+  if (!existsSync(path)) throw new Error(`Kit data not found at ${path}. The hackathon files aren't in the repo; see README, "Getting the kit data" (or set KIT_EVENTS_PATH).`);
   const [h, ...rows] = parseCsv(readFileSync(path, 'utf8'));
   const by = new Map<string, KitEvent[]>();
   for (const r of rows) {

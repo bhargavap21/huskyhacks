@@ -1,35 +1,69 @@
 # Second Look (HuskyHack 2026)
 
-Concept demo for "Stop the Scam Before the Money Moves" (Sound Credit Union challenge). Second Look is protection members turn on inside a **simulated** Sound app; Sound employees can hold, talk, escalate, or (for verified takeover only) stop a payment before money moves. Everything runs on the kit's synthetic data.
+Concept demo for "Stop the Scam Before the Money Moves" (Sound Credit Union challenge). Second Look is protection members turn on inside a **simulated** Sound app. It flags risky payments from the kit's transaction signals, helps members check calls, texts and emails that feel off, and, when the member agrees, files a structured fraud case with Sound. Sound employees can hold, talk, escalate, or (for verified takeover only) stop a payment before money moves. Payments and members are the kit's synthetic data.
 
-- Design and requirements: [HANDOFF.md](HANDOFF.md)
-- Build plan and status: [PLAN.md](PLAN.md)
-- Decisions and rule catch counts: [DECISIONS.md](DECISIONS.md)
-- Demo script: [DEMO.md](DEMO.md)
-- One-pager: `/about` in the running app
+- Live demo: https://second-look-demo.vercel.app (forwards to the presenter's laptop; see `deploy/vercel-proxy/README.md`)
+- Design and requirements: [HANDOFF.md](HANDOFF.md) · Build history: [PLAN.md](PLAN.md) · Decisions: [DECISIONS.md](DECISIONS.md) · Demo script: [DEMO.md](DEMO.md) · One-pager: `/about`
+
+## What's built
+
+This list is the single source of truth for what exists.
+
+| Area | What it does | Code |
+|---|---|---|
+| Payment protection | Rules R1-R4 plus a new-recipient banner on the kit's events, each with field evidence; 4-hour holds on Wire/ACH/External Transfer, P2P stopped before submit, cash goes to a branch conversation; alert budgets, cooldowns, quiet hours | `src/rules.ts`, `src/payments.ts`, `src/sim.ts`, `src/alerts.ts` |
+| Employee console | One work queue (member requests and Second Look fraud cases first, then holds by time left), case evidence, conversation guide, audited actions | `public/app.js` |
+| Chat ("Ask Second Look") | Case-grounded Claude chat with no-action limits; screenshots, PDFs and voice notes (transcribed on the server with local Whisper, audio not kept) | `src/chat.ts`, `src/media.ts` |
+| Call guardian | Listens to a call on speaker (or a sample scam call) and warns as it happens; summary at the end | `src/guardian.ts` |
+| Phone line, (229) 471-5015 | AgentPhone number: members add it to a call, call it, or have it call back; live transcripts feed the call guardian; screens calls a member forwards | `src/phone.ts` |
+| Email, secondlook@agentmail.to | AgentMail inbox: members forward a message (or ask a question) and get a reply; look-alike domains flagged | `src/email.ts` |
+| Connected channels | Opt-in watching: mail the member's Gmail auto-forwards (or read-only Gmail sign-in), screened calls, forwarded texts. Ordinary messages are discarded after the check; alerts by web push, in app, or email | `src/monitor.ts`, `src/gmail.ts`, `public/sw.js` |
+| Fraud cases | Filed from any channel once the member says yes: member, threat, exposure, priority, suggested next steps, open questions; to the work queue and emailed to `FRAUD_TEAM_EMAIL` | `src/reports.ts` |
+| Live in the room | A judge's phone joins the presenter's simulation by QR code | `src/server.ts` |
+
+Phone numbers and email addresses only count once verified (a code by email; a call from the phone). Second Look never moves money and never collects full card or account numbers, SSNs, PINs, passwords or codes.
 
 ## Run
 
 ```bash
 npm i
 npm start                         # http://localhost:8787
-npm test                          # state machine, rules, no-answer-key leakage, sessions, copy checks
+npm test                          # state machine, rules, leakage, sessions, copy, tactics
 npm run replay -- --member M1001  # print a member's kit timeline with rule findings
 npm run lookalikes                # catch counts per rule (reads the Member Key for measurement only)
 ```
 
-Optional: put `ANTHROPIC_API_KEY=...` in `.env` to use Claude for the "Talk to Second Look" chat. Without it, the chat uses scripted replies labeled "offline reply".
+The payment simulator needs the kit data (next section). Without it, the server explains what's missing and `npm test` skips the 16 kit-replay tests with a reason.
+
+### Configuration (`.env`, never committed)
+
+| Variable | Turns on |
+|---|---|
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude for chat, summaries and case filing (otherwise scripted replies labeled "offline") |
+| `AGENTPHONE_API_KEY`, `AGENTPHONE_AGENT_ID`, `AGENTPHONE_NUMBER_ID`, `AGENTPHONE_NUMBER` | Second Look's phone line |
+| `AGENTPHONE_ALLOWED_TO` | Team phones Second Look may call from "Have Second Look call me" (trusted without a verification call) |
+| `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` | Second Look's inbox |
+| `FRAUD_TEAM_EMAIL` | Where fraud cases are emailed (stand-in for Sound's fraud team) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY_PEM`, `VAPID_MAILTO` | Web push alerts |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_BASE_URL` | "Connect Gmail" (read-only) |
+| `ALLOWED_ORIGIN_HOSTS` | Extra hosts allowed through the CSRF origin check (the Vercel front door) |
+| `KIT_EVENTS_PATH` | Read the kit events CSV from somewhere other than `data/` |
+
+## Getting the kit data
+
+The official HuskyHack files are hackathon materials, not for public release, and this repo is public, so `data/` is gitignored. **Never commit them.**
+
+1. Get the kit from the HuskyHack 2026 challenge materials (or from a teammate).
+2. Put the files in `data/` with their original names: `HuskyHack_Synthetic_Events_v2.csv` (the app reads only this), `HuskyHack_Member_Key_v2.csv`, plus the docs.
+3. Run `npm test`: the kit-replay tests run instead of being skipped.
+
+`HuskyHack_Member_Key_v2.csv` is the answer key. Only `scripts/lookalikes.ts` reads it, and a test fails if anything in `src/` or `public/` references it.
 
 ## Layout
 
 - `src/kit.ts` loads the events CSV (never the Member Key) with canonical label checks.
-- `src/rules.ts` has rules R1-R4 plus the standard new-recipient banner; each returns field evidence.
-- `src/payments.ts` is the payment state machine (4-hour holds, P2P pre-submit only, stop only after verified takeover, expiry never auto-sends).
-- `src/sim.ts` is the replay engine: one simulation per browser session, one case per situation.
-- `src/chat.ts` is the case-grounded chat with hard no-action limits.
-- `public/` holds the member app, employee console and `/about` (plain HTML/JS).
-- `src/email/` is reserved for the optional email module (not built).
-
-## Data
-
-`data/` holds the official kit files. The app reads only `HuskyHack_Synthetic_Events_v2.csv`. `HuskyHack_Member_Key_v2.csv` is the answer key: it is read only by `scripts/lookalikes.ts`, and a test fails if anything in `src/` or `public/` references it.
+- `src/rules.ts`, `src/payments.ts`, `src/sim.ts`, `src/alerts.ts`: payment rules, state machine, replay engine, alert policy.
+- `src/chat.ts`, `src/media.ts`: chat and attachments. `src/tactics.ts`: pressure-tactic patterns shared by every channel.
+- `src/guardian.ts`, `src/phone.ts`, `src/email.ts`, `src/monitor.ts`, `src/gmail.ts`: call guardian, phone line, inbox, connected channels.
+- `src/reports.ts`: fraud cases. `src/server.ts`: routes, sessions, CSRF.
+- `public/`: member app, employee console, `/about`, push service worker (plain HTML/JS, Instinct design system in `design-system/`).
