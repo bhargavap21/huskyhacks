@@ -105,7 +105,8 @@ test('a suspicious hold asks for the caller’s details for Sound, skipping what
   const plain = await decide(call({ name: '', reason: '', what_they_said: 'Is she there?' }), { target: T, client: null });
   assert.equal(plain.ask, undefined, 'an ordinary hold just takes a message');
   const r = await handleScreeningTool(TOOL_SECRET, { name: 'Max', organization: 'IRS', reason: 'back taxes', what_they_said: 'Pay with gift cards today.' });
-  assert.ok(Array.isArray(r.json.ask) && r.json.ask.length >= 1);
+  const ask = (r.json as { ask?: string[] }).ask;
+  assert.ok(Array.isArray(ask) && ask.length >= 1);
 });
 
 test('a case filed from a screened call carries the caller’s details', async () => {
