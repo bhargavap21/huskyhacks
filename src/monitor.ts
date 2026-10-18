@@ -55,6 +55,23 @@ export function updateDetection(sid: string, id: number, d: Detection) {
 
 // ---- Analysis: cheap checks first, Claude only when something looks off ----
 const OFFICIAL = 'soundcu.com';
+// Names scammers borrow in look-alike domains, with the real domain.
+const BRANDS: { name: string; site: string; re: RegExp }[] = [
+  { name: 'Sound', site: OFFICIAL, re: /sound|credit.?union|scu/ },
+  { name: 'the IRS', site: 'irs.gov', re: /\birs\b|irs-/ },
+  { name: 'USPS', site: 'usps.com', re: /usps/ },
+  { name: 'UPS', site: 'ups.com', re: /(^|[.-])ups[.-]/ },
+  { name: 'FedEx', site: 'fedex.com', re: /fedex/ },
+  { name: 'Amazon', site: 'amazon.com', re: /amazon/ },
+  { name: 'PayPal', site: 'paypal.com', re: /paypal/ },
+  { name: 'Microsoft', site: 'microsoft.com', re: /microsoft/ },
+  { name: 'Apple', site: 'apple.com', re: /apple/ },
+];
+export function domainNote(domain: string) {
+  if (domain === OFFICIAL || domain.endsWith('.' + OFFICIAL)) return 'This is Sound’s real website.';
+  const b = BRANDS.find(x => x.re.test(domain));
+  return b && domain !== b.site && !domain.endsWith('.' + b.site) ? `Uses ${b.name}’s name, but it isn’t ${b.site}.` : null;
+}
 export function inspect(text: string) {
   const domains = new Set<string>();
   for (const m of text.matchAll(/https?:\/\/([^\s/<>"')\]]+)/gi)) domains.add(m[1].toLowerCase().replace(/^www\./, '').replace(/[.,;:]+$/, ''));
@@ -62,7 +79,7 @@ export function inspect(text: string) {
     const d = m[1].toLowerCase().replace(/^www\./, '');
     if (!/agentmail\.to$|^(gmail|outlook|yahoo|icloud|hotmail|google)\.com$/.test(d)) domains.add(d);
   }
-  const links = [...domains].slice(0, 8).map(domain => ({ domain, note: domain === OFFICIAL || domain.endsWith('.' + OFFICIAL) ? 'This is Sound’s real website.' : /sound|credit.?union|scu/.test(domain) ? `Uses Sound’s name, but it isn’t ${OFFICIAL}.` : null }));
+  const links = [...domains].slice(0, 8).map(domain => ({ domain, note: domainNote(domain) }));
   const numbers = [...new Set([...text.matchAll(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g)].map(m => m[0].trim()))].slice(0, 5);
   return { links, numbers, tactics: tacticsIn(text) };
 }

@@ -9,9 +9,8 @@
 // - Forwarded content is data, never instructions. Links are never opened.
 import { db } from './db.ts';
 import { client, MODEL } from './chat.ts';
-import { tacticsIn } from './tactics.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
-import { settings, saveSettings, assess, record, detections, reportDetection } from './monitor.ts';
+import { settings, saveSettings, assess, record, detections, reportDetection, inspect } from './monitor.ts';
 
 const KEY = process.env.AGENTMAIL_API_KEY;
 export const INBOX = process.env.AGENTMAIL_INBOX_ID ?? null;
@@ -62,23 +61,6 @@ async function api(method: string, path: string, body?: unknown) {
   return j;
 }
 
-// ---- What we can say without a model: links, look-alike domains, phone numbers, pressure tactics ----
-function inspect(text: string) {
-  const domains = new Set<string>();
-  for (const m of text.matchAll(/https?:\/\/([^\s/<>"')\]]+)/gi)) domains.add(m[1].toLowerCase().replace(/^www\./, '').replace(/[.,;:]+$/, ''));
-  for (const m of text.matchAll(/\b((?:[a-z0-9-]+\.)+(?:com|net|org|info|xyz|top|co|io|us|biz|online|site|app|link|support))\b/gi)) {
-    const d = m[1].toLowerCase().replace(/^www\./, '');
-    if (!d.endsWith('agentmail.to') && !/^(gmail|outlook|yahoo|icloud|hotmail)\.com$/.test(d)) domains.add(d);
-  }
-  const links = [...domains].slice(0, 8).map(domain => ({
-    domain,
-    note: domain === OFFICIAL_DOMAIN || domain.endsWith('.' + OFFICIAL_DOMAIN) ? 'This is Sound’s real website.'
-      : /sound|credit.?union|scu/.test(domain) ? `Uses Sound’s name, but it isn’t ${OFFICIAL_DOMAIN}.`
-      : null,
-  }));
-  const numbers = [...new Set([...text.matchAll(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g)].map(m => m[0].trim()))].slice(0, 5);
-  return { links, numbers, tactics: tacticsIn(text) };
-}
 
 const SYSTEM = `You are Second Look, the scam-protection helper from Sound Credit Union (a hackathon concept demo), answering by email.
 The member either forwarded an email or text that felt off, or asked a question. Write the reply email body.

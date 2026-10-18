@@ -719,7 +719,7 @@ function caseHead(c) {
 }
 
 // Chat the member chose to share: their words, with the pressure tactics they mention (prompts for the call, not proof).
-const PROMOTE = { secrecy: /quiet|what to say|not to tell/i, coached: /phone with you|what to say/i, family: /own words|number you already/i, authority: /number you already|unsafe|investigation|not to tell/i, urgency: /own words/i, payment: /cash for|withdraw/i, code: /one-time code/i, online: /met|video|withdraw/i };
+const PROMOTE = { secrecy: /quiet|what to say|not to tell/i, coaching: /phone with you|what to say/i, impersonation: /own words|number you already|unsafe|investigation|not to tell/i, threats: /investigation|own words/i, urgency: /own words/i, payment_pressure: /cash for|withdraw/i, credential_request: /one-time code/i, remote_access: /one-time code|phone with you/i, online_relationship: /met|video|withdraw/i };
 const sharedTactics = id => new Set((S.shared?.[id]?.messages || []).flatMap(m => m.tactics.map(t => t.key)));
 function sharedCard(id) {
   const sh = S.shared?.[id]; if (!sh) return '';
@@ -738,7 +738,7 @@ function caseDetail(c) {
   const state = !open ? `Closed: ${p.status}` : p.status === 'Held' ? 'On hold' : p.gate === 'presubmit_review' ? 'Waiting before submit' : p.gate === 'branch_conversation' ? 'Branch conversation' : p.gate === 'banner_confirm' ? 'Member is confirming' : p.status;
   const memberView = c.member_label === 'looks_fine' ? `Member marked it fine${c.label_seconds != null ? ` in ${c.label_seconds}s` : ''}` : c.member_label === 'reported' ? 'Member reported a scam' : c.callback_requested ? 'Member asked to talk' : '';
   // Questions matching what the member shared move up; secrecy and coaching first (they block checking with others).
-  const W = { secrecy: 3, coached: 3, authority: 2, code: 2 };
+  const W = { secrecy: 3, coaching: 3, impersonation: 2, credential_request: 2 };
   const tk = sharedTactics(String(c.id)), score = x => [...tk].reduce((n, k) => n + (PROMOTE[k]?.test(x) ? (W[k] || 1) : 0), 0), hit = x => score(x) > 0;
   const q = [...(GUIDE[c.rule] || GUIDE.STD)].sort((a, b) => score(b) - score(a));
   const qli = x => `<li>${hit(x) ? '<span class="in-badge in-badge--neutral">From the chat</span> ' : ''}${esc(x)}</li>`;

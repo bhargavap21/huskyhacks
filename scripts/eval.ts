@@ -8,13 +8,13 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ruleCheck, assess } from '../src/monitor.ts';
 import { client } from '../src/chat.ts';
+import { SIGNALS, type Signal } from '../src/tactics.ts';
 
 export const DATASET = join(import.meta.dirname, '..', 'eval', 'conversations.jsonl');
 // Written before any tuning and never used to choose patterns: the honest number for changes made on the tuning set.
 export const HOLDOUT = join(import.meta.dirname, '..', 'eval', 'holdout.jsonl');
 const SETS = [{ name: 'Tuning set', file: 'eval/conversations.jsonl', path: DATASET }, { name: 'Held-out set', file: 'eval/holdout.jsonl', path: HOLDOUT }];
-export const SIGNALS = ['urgency', 'secrecy', 'impersonation', 'threats', 'coaching', 'payment_pressure', 'credential_request', 'remote_access', 'online_relationship'] as const;
-export type Signal = typeof SIGNALS[number];
+export { SIGNALS, type Signal };
 
 export type Conversation = {
   id: string; label: 'scam' | 'legit'; channel: string; adapted_from?: string; note?: string;
@@ -32,15 +32,13 @@ export function load(path = DATASET): Conversation[] {
 const strip = ({ label: _l, expected: _e, note: _n, adapted_from: _a, ...input }: Conversation): Input => input;
 const text = (c: Input) => c.turns.map(t => t.text).join('\n');
 
-// Today's tactic keys, mapped onto the signal taxonomy.
-const SIGNAL_OF: Record<string, Signal> = { secrecy: 'secrecy', urgency: 'urgency', family: 'impersonation', authority: 'impersonation', payment: 'payment_pressure', code: 'credential_request', coached: 'coaching', online: 'online_relationship' };
 
 export const DETECTORS: Detector[] = [
   {
     name: 'rules', about: 'Regex tactics and look-alike domains (`ruleCheck` in src/monitor.ts), no model', available: true, signals: true,
     run: async c => {
       const r = ruleCheck(c.subject ?? '', text(c));
-      const signals = [...new Set([...r.tactics.map(t => SIGNAL_OF[t.key]).filter(Boolean), ...(r.lookalike ? ['impersonation' as Signal] : [])])];
+      const signals = [...new Set([...r.tactics.map(t => t.key), ...(r.lookalike ? ['impersonation' as Signal] : [])])];
       return { flag: r.flag, signals, why: [...r.tactics.map(t => t.label), ...r.links.filter(l => l.note && !l.note.startsWith('This is')).map(l => `${l.domain}: ${l.note}`)] };
     },
   },

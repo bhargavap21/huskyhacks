@@ -2,33 +2,28 @@
 // transcribed on this server (local Whisper, audio not kept) and checked for pressure tactics as the
 // call goes on. Alerts are deterministic (fast, explainable); Claude writes only the end-of-call summary.
 // Sound staff see the call only if the member ticks "Let Sound see warnings during this call".
-import { tacticsIn, type Tactic } from './tactics.ts';
+import { tacticsIn, ORGS, type Tactic, type Signal } from './tactics.ts';
 import { transcribe } from './media.ts';
 import { client, MODEL } from './chat.ts';
 import { db } from './db.ts';
 
-// Call-specific patterns on top of the shared tactic list.
-const CALL_RULES: { key: string; label: string; re: RegExp }[] = [
-  { key: 'move', label: 'Asked to move money to keep it safe', re: /\b(safe account|safe(ty)? (place|wallet)|move (your|the) money|protect (your|the) money|secure account)\b/i },
-  // Whisper can garble "fraud department"; on a call, naming a bank or agency is itself the claim.
-  { key: 'authority', label: 'Someone claiming authority', re: /\b(credit union|bank|irs|police|sheriff|social security|government)\b/i },
-  { key: 'remote', label: 'Asked for remote access', re: /\b(any ?desk|team ?viewer|remote access|screen ?shar\w*|download (this|an|the) app|control (of )?your (computer|screen))\b/i },
-];
+// One call-only pattern on top of the shared tactic list: Whisper often garbles "this is" or "fraud department",
+// and on a call, naming a bank or agency is itself the claim.
+const CALLER_CLAIM = new RegExp(String.raw`\b(?:${ORGS})\b`, 'i');
 
 // What Second Look says to the member, mid-call, when it hears each tactic.
-const ADVICE: Record<string, string> = {
-  code: 'They asked for a code or password. Sound will never ask you to read back a code we sent. Don’t share it.',
-  move: 'No real bank or agency asks you to move money to a “safe account”. This is a common way money is stolen.',
-  payment: 'Gift cards, crypto or cash handed to a courier are not how real banks or agencies get paid.',
+const ADVICE: Record<Signal, string> = {
+  credential_request: 'They asked for a code or password. Sound will never ask you to read back a code we sent. Don’t share it.',
+  payment_pressure: 'Gift cards, crypto, cash for a courier or a “safe account” are not how real banks or agencies get paid. This is a common way money is stolen.',
   secrecy: 'Being told to keep it secret, even from your branch, is a pressure move. You can talk to anyone you trust.',
   urgency: 'They’re rushing you. A real problem can wait while you hang up and check.',
-  authority: 'They say they’re from a bank or agency. You can hang up and call the number on your card yourself.',
-  coached: 'Being asked to stay on the line keeps you from checking with anyone. It’s okay to hang up.',
-  family: 'A family emergency. Hang up and call your family member on the number you already have.',
-  remote: 'Don’t install anything or share your screen. Real support teams don’t ask for that on a call they started.',
-  online: 'Someone you’ve only met online is part of this. Talk it over with someone you trust before sending anything.',
+  impersonation: 'They say they’re someone you trust. You can hang up and call back on a number you already have, like the one on your card.',
+  threats: 'Threats of arrest or a closed account are meant to scare you into acting fast. Hang up and check for yourself.',
+  coaching: 'Being told what to say, or to stay on the line, keeps you from checking with anyone. It’s okay to hang up.',
+  remote_access: 'Don’t install anything or share your screen. Real support teams don’t ask for that on a call they started.',
+  online_relationship: 'Someone you’ve only met online is part of this. Talk it over with someone you trust before sending anything.',
 };
-const SERIOUS = new Set(['code', 'move', 'payment', 'remote']);
+const SERIOUS = new Set<Signal>(['credential_request', 'payment_pressure', 'remote_access']);
 // Whisper says these on silence or noise; never treat them as speech.
 const NOISE = /^(you|thank you\.?|thanks for watching!?|bye\.?|\.+|\[.*\]|\(.*\))$/i;
 
@@ -61,8 +56,9 @@ closeInterrupted();
 const levelOf = (alerts: Alert[]): Level => (alerts.some(a => SERIOUS.has(a.key)) || alerts.length >= 3 ? 'high' : alerts.length ? 'careful' : 'listening');
 
 function detect(text: string): Tactic[] {
-  const all = [...tacticsIn(text), ...CALL_RULES.filter(r => r.re.test(text)).map(({ key, label }) => ({ key, label }))];
-  return all.filter((t, i) => all.findIndex(u => u.key === t.key) === i);
+  const found = tacticsIn(text);
+  if (!found.some(t => t.key === 'impersonation') && CALLER_CLAIM.test(text)) found.push({ key: 'impersonation', label: 'Claims to be a bank, agency or company' });
+  return found;
 }
 
 export function startCall(key: string, share: boolean, source: Source = 'speaker') {
@@ -91,7 +87,7 @@ export function addText(key: string, text: string, who?: Line['who']) {
   const prevLine = call.lines.filter(l => l.who !== 'second-look').at(-2);
   const prev = prevLine?.text.split(' ').slice(-6).join(' ') ?? '';
   const raised = new Set(call.alerts.map(a => a.key));
-  const fresh = detect(`${prev} ${text}`).filter(t => !raised.has(t.key)).map(t => ({ ...t, advice: ADVICE[t.key] ?? '', quote: text, at }));
+  const fresh = detect(`${prev} ${text}`).filter(t => !raised.has(t.key)).map(t => ({ ...t, advice: ADVICE[t.key], quote: text, at }));
   call.alerts.push(...fresh);
   save(key, call);
   return { line, alerts: fresh, level: levelOf(call.alerts) };
