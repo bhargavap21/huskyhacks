@@ -1,4 +1,4 @@
-// Second Look files a fraud case with Sound on the member's behalf, from any channel (chat, phone, email, app).
+// Vantis files a fraud case with Sound on the member's behalf, from any channel (chat, phone, email, app).
 // It only files when the member asked or agreed in that conversation; it offers on its own when it sees
 // warning signs or money already gone. Every channel fills the same case shape (INTAKE_SCHEMA), so the
 // fraud team gets: who is affected and how to reach them, what the threat is, what was lost or shared,
@@ -120,7 +120,7 @@ export function normalize(raw: any, channel: Channel, known: Partial<FraudCase['
     member: { name: t(raw.member_name, 80) || t(known.name, 80), phone: phone(raw.member_phone) || phone(known.phone), email: t(raw.member_email, 120) || t(known.email, 120), member_id: t(known.member_id, 40), linked: !!known.linked, safe_to_call: t(raw.safe_to_call, 120) },
     threat: { type: t(raw.threat_type, 60), claimed_identity: t(raw.claimed_identity, 100), contact_method: t(raw.contact_method, 60), first_contact: t(raw.first_contact, 60), scammer_phone: phone(raw.scammer_phone), scammer_email: t(raw.scammer_email, 120), scammer_website: t(raw.scammer_website, 160), scammer_name: t(raw.scammer_name, 80), asked_for: t(raw.asked_for, 200), amount_requested: t(raw.amount_requested, 40), payment_method: t(raw.payment_method, 60), deadline: t(raw.deadline, 80), tactics: list(raw.tactics, 8, 60) },
     exposure: { money_sent: bool(raw.money_sent), amount_sent: t(raw.amount_sent, 40), sent_method: t(raw.sent_method, 60), sent_when: t(raw.sent_when, 60), sent_to: t(raw.sent_to, 120), info_shared: list(raw.info_shared, 6, 40).filter(x => !/\d{4,}/.test(x) && !/gift/i.test(x)), shared_nothing: raw.shared_nothing === true, remote_access: bool(raw.remote_access), still_in_contact: bool(raw.still_in_contact) },
-    summary: t(raw.summary, 700) || 'The member asked Second Look to report a possible scam.',
+    summary: t(raw.summary, 700) || 'The member asked Vantis to report a possible scam.',
     quotes: list(raw.quotes, 3, 220).filter(q => q.split(' ').length >= 3), // "Yeah." is not evidence
     next_steps: [], missing: [], asked_for: '', money_sent: false, tactics: [], contact: '',
     files: (Array.isArray(raw.files) ? raw.files : []).slice(0, 6).map((f: any) => ({ kind: t(f?.kind, 20), name: t(f?.name, 80), note: t(f?.note, 300) })).filter((f: any) => f.kind),
@@ -137,7 +137,7 @@ export function normalize(raw: any, channel: Channel, known: Partial<FraudCase['
 /** Read a conversation and fill the case. With `askAgreed`, also decide whether the member agreed to a report. */
 export async function extractIntake(system: string, content: string, askAgreed = false): Promise<any | null> {
   if (!client) return null;
-  const schema = askAgreed ? { ...INTAKE_SCHEMA, properties: { agreed: { type: 'boolean', description: 'True only if the member clearly said yes to Second Look telling Sound’s fraud team, or asked for it.' }, ...INTAKE_SCHEMA.properties }, required: ['agreed', 'summary'] } : INTAKE_SCHEMA;
+  const schema = askAgreed ? { ...INTAKE_SCHEMA, properties: { agreed: { type: 'boolean', description: 'True only if the member clearly said yes to Vantis telling Sound’s fraud team, or asked for it.' }, ...INTAKE_SCHEMA.properties }, required: ['agreed', 'summary'] } : INTAKE_SCHEMA;
   const r = await client.messages.create({
     model: MODEL, max_tokens: 1500, tools: [{ name: 'file_case', description: 'Record the fraud case fields. Leave a field out when the conversation doesn’t say.', input_schema: schema }],
     tool_choice: { type: 'tool', name: 'file_case' },
@@ -170,14 +170,14 @@ function sections(c: FraudCase): [string, [string, string][]][] {
 const esc = (s: string) => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
 
 function emailText(c: FraudCase) {
-  const out = [`SECOND LOOK FRAUD CASE ${c.case_id}`, `Priority: ${PRI[c.priority]}: ${c.priority_reason}`, `Filed ${when(c.filed_at)} via ${c.channel}, at the member’s request.`, '', 'WHAT HAPPENED', c.summary, ''];
+  const out = [`VANTIS FRAUD CASE ${c.case_id}`, `Priority: ${PRI[c.priority]}: ${c.priority_reason}`, `Filed ${when(c.filed_at)} via ${c.channel}, at the member’s request.`, '', 'WHAT HAPPENED', c.summary, ''];
   for (const [h, rows] of sections(c)) { out.push(h.toUpperCase()); for (const [k, v] of rows) out.push(`  ${k}: ${v}`); out.push(''); }
   if (c.signals.length) out.push('WARNING SIGNS, WITH THE WORDS THAT SHOW THEM', ...c.signals.map(x => `  ${x.label} (${strength(x.score)}, ${x.score.toFixed(2)}): “${x.span}”`), '');
   if (c.files.length) out.push('FILES THE MEMBER SENT (kept in the member’s chat, not attached here)', ...c.files.map(f => `  ${f.kind}: ${f.name}${f.note ? `: ${f.note}` : ''}`), '');
   if (c.quotes.length) out.push('IN THE MEMBER’S WORDS', ...c.quotes.map(q => `  “${q}”`), '');
   out.push('SUGGESTED NEXT STEPS', ...c.next_steps.map((s, i) => `  ${i + 1}. ${s}`), '');
   if (c.missing.length) out.push('STILL UNKNOWN: ASK ON THE CALLBACK', ...c.missing.map(s => `  - ${s}`), '');
-  out.push('These are the member’s account and automatic checks, not proof. Second Look never collects full card or account numbers, SSNs, PINs, passwords or codes.', '— Second Look (HuskyHack 2026 concept demo)');
+  out.push('These are the member’s account and automatic checks, not proof. Vantis never collects full card or account numbers, SSNs, PINs, passwords or codes.', '— Vantis (HuskyHack 2026 concept demo)');
   return out.join('\n');
 }
 function emailHtml(c: FraudCase) {
@@ -185,7 +185,7 @@ function emailHtml(c: FraudCase) {
   const table = (rows: [string, string][]) => `<table style="border-collapse:collapse;width:100%;font-size:14px">${rows.map(([k, v]) => `<tr><td style="padding:6px 12px 6px 0;color:#555;width:190px;vertical-align:top;border-top:1px solid #e5e5e5">${esc(k)}</td><td style="padding:6px 0;border-top:1px solid #e5e5e5;${/^(Not |None|Unknown)/.test(v) ? 'color:#888' : 'color:#111'}">${esc(v)}</td></tr>`).join('')}</table>`;
   const h = (s: string) => `<h3 style="margin:22px 0 6px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#333">${esc(s)}</h3>`;
   return `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:680px;color:#111;line-height:1.45">
-  <p style="margin:0 0 4px;font-size:13px;color:#555">Second Look fraud case · ${esc(c.case_id)}</p>
+  <p style="margin:0 0 4px;font-size:13px;color:#555">Vantis fraud case · ${esc(c.case_id)}</p>
   <p style="margin:0 0 12px"><span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${color};color:#fff;font-size:12px;font-weight:600">${PRI[c.priority]}</span> <span style="font-size:14px">${esc(c.priority_reason)}</span></p>
   <p style="margin:0;font-size:13px;color:#555">Filed ${esc(when(c.filed_at))} via ${esc(c.channel)}, at the member’s request.</p>
   ${h('What happened')}<p style="margin:0;font-size:15px">${esc(c.summary)}</p>
@@ -195,7 +195,7 @@ function emailHtml(c: FraudCase) {
   ${c.quotes.length ? h('In the member’s words') + c.quotes.map(q => `<p style="margin:4px 0;padding-left:10px;border-left:3px solid #ccc;font-style:italic">“${esc(q)}”</p>`).join('') : ''}
   ${h('Suggested next steps')}<ol style="margin:0;padding-left:20px;font-size:14px">${c.next_steps.map(s => `<li style="margin:3px 0">${esc(s)}</li>`).join('')}</ol>
   ${c.missing.length ? h('Still unknown: ask on the callback') + `<ul style="margin:0;padding-left:20px;font-size:14px;color:#555">${c.missing.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}
-  <p style="margin:24px 0 0;font-size:12px;color:#777">These are the member’s account and automatic checks, not proof. Call back on the number on file, never a number from the scam. Second Look never collects full card or account numbers, SSNs, PINs, passwords or codes.<br>— Second Look (HuskyHack 2026 concept demo)</p></div>`;
+  <p style="margin:24px 0 0;font-size:12px;color:#777">These are the member’s account and automatic checks, not proof. Call back on the number on file, never a number from the scam. Vantis never collects full card or account numbers, SSNs, PINs, passwords or codes.<br>— Vantis (HuskyHack 2026 concept demo)</p></div>`;
 }
 
 async function emailTeam(c: FraudCase) {

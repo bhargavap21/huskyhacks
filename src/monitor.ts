@@ -1,6 +1,6 @@
-// Connected channels: Second Look watches channels the member connected and alerts them on its own,
+// Connected channels: Vantis watches channels the member connected and alerts them on its own,
 // before they act. Sources: Gmail auto-forwarding (or Gmail read-only sign-in), and call screening on
-// Second Look's number. A detection is kept only when something is worth a look; harmless mail is
+// Vantis's number. A detection is kept only when something is worth a look; harmless mail is
 // discarded after the check. Alerts go out as a push notification (if the member turned it on), an
 // in-app alert, and, failing push, a short email to their linked address.
 // Per-member settings live in `channels`; nothing is watched unless the member turned that channel on.
@@ -178,19 +178,19 @@ async function alertMember(sid: string, id: number, d: Detection, emailTo: strin
   const subs = db.prepare('SELECT endpoint, json FROM push_subs WHERE sid = ?').all(sid) as { endpoint: string; json: string }[];
   for (const s of subs) {
     try {
-      await webpush.sendNotification(JSON.parse(s.json), JSON.stringify({ title: 'Second Look', body: d.title, tag: `det-${id}`, url: '/?page=channels' }), { TTL: 3600 });
+      await webpush.sendNotification(JSON.parse(s.json), JSON.stringify({ title: 'Vantis', body: d.title, tag: `det-${id}`, url: '/?page=channels' }), { TTL: 3600 });
       if (!via.includes('push')) via.push('push');
     } catch (e: any) { if (e?.statusCode === 404 || e?.statusCode === 410) db.prepare('DELETE FROM push_subs WHERE endpoint = ?').run(s.endpoint); }
   }
   if (!via.includes('push') && emailTo) {
-    try { await sendEmail(emailTo, `Second Look: ${d.title}`, `${d.summary}\n\n${d.why.map(w => `- ${w}`).join('\n')}\n\n${d.advice}\n\nOpen the Sound app to see it, or reply REPORT and Second Look will pass it to Sound’s fraud team.\n\nSecond Look`); via.push('email'); }
+    try { await sendEmail(emailTo, `Vantis: ${d.title}`, `${d.summary}\n\n${d.why.map(w => `- ${w}`).join('\n')}\n\n${d.advice}\n\nOpen the Sound app to see it, or reply REPORT and Vantis will pass it to Sound’s fraud team.\n\nVantis`); via.push('email'); }
     catch (e) { console.error('monitor: alert email failed:', (e as Error).message); }
   }
   return via;
 }
 
 /** Keep a detection and alert the member. */
-// `notify: false` when the member is already reading Second Look's reply (WhatsApp): kept in the app, no push.
+// `notify: false` when the member is already reading Vantis's reply (WhatsApp): kept in the app, no push.
 export async function record(sid: string, d: Detection, emailTo: string | null, sendEmail: (to: string, subject: string, text: string) => Promise<void>, notify = true) {
   const id = Number(db.prepare('INSERT INTO detections (sid, ts, json) VALUES (?, ?, ?)').run(sid, Date.now(), JSON.stringify(d)).lastInsertRowid);
   d.alerted_by = notify ? await alertMember(sid, id, d, emailTo, sendEmail) : ['app', ...(d.channel === 'whatsapp' ? ['WhatsApp reply'] : [])];
@@ -199,12 +199,12 @@ export async function record(sid: string, d: Detection, emailTo: string | null, 
   return id;
 }
 
-/** "Report to Sound" on a detection: build the fraud case from what Second Look saw. */
+/** "Report to Sound" on a detection: build the fraud case from what Vantis saw. */
 export async function reportDetection(sid: string, id: number) {
   const d = detection(sid, id);
   if (!d) throw new Error('That alert is gone');
-  const base = { summary: `${d.title}. ${d.summary}`, contact_method: d.channel === 'call screening' ? 'phone call (screened by Second Look)' : d.channel === 'text' ? 'text message' : d.channel === 'whatsapp' ? 'WhatsApp message' : 'email', scammer_phone: d.channel === 'call screening' ? d.from : d.numbers?.[0] ?? '', scammer_email: /@/.test(d.from) ? d.from.replace(/^.*<([^>]+)>.*$/, '$1') : '', scammer_website: d.links?.find(l => l.note && !l.note.startsWith('This is'))?.domain ?? d.links?.[0]?.domain ?? '', tactics: d.signals ? d.signals.map(s => s.label) : d.why };
-  const x = await extractIntake('You read something Second Look flagged on a credit union member’s connected channel (an email, text, or a call it screened). The member has not acted on it. Fill the fraud case: the threat details come from the message; the member did not send money or share anything unless the content says so.', `From: ${d.from}\nSubject: ${d.subject ?? ''}\n\n${d.excerpt ?? d.summary}`).catch(() => null);
+  const base = { summary: `${d.title}. ${d.summary}`, contact_method: d.channel === 'call screening' ? 'phone call (screened by Vantis)' : d.channel === 'text' ? 'text message' : d.channel === 'whatsapp' ? 'WhatsApp message' : 'email', scammer_phone: d.channel === 'call screening' ? d.from : d.numbers?.[0] ?? '', scammer_email: /@/.test(d.from) ? d.from.replace(/^.*<([^>]+)>.*$/, '$1') : '', scammer_website: d.links?.find(l => l.note && !l.note.startsWith('This is'))?.domain ?? d.links?.[0]?.domain ?? '', tactics: d.signals ? d.signals.map(s => s.label) : d.why };
+  const x = await extractIntake('You read something Vantis flagged on a credit union member’s connected channel (an email, text, or a call it screened). The member has not acted on it. Fill the fraud case: the threat details come from the message; the member did not send money or share anything unless the content says so.', `From: ${d.from}\nSubject: ${d.subject ?? ''}\n\n${d.excerpt ?? d.summary}`).catch(() => null);
   const tactics = d.signals ? d.signals.map(s => s.label) : d.why;
   const out = await fileReport(sid, normalize({ ...base, ...(x ?? {}), tactics: [...new Set([...tactics, ...(x?.tactics ?? [])])].slice(0, 8), signals: d.signals ?? [] }, d.channel === 'whatsapp' ? 'whatsapp' : 'app', { linked: true }));
   d.reported = true; updateDetection(sid, id, d);

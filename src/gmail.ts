@@ -1,7 +1,7 @@
 // "Connect Gmail" (read-only). Turns on when GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set.
-// Once a minute Second Look checks new inbox mail for each connected member, with the same checks as
+// Once a minute Vantis checks new inbox mail for each connected member, with the same checks as
 // forwarded mail: ordinary mail is discarded after the check, flagged mail becomes an alert.
-// Scope is gmail.readonly: Second Look can't send, delete, or change anything in the member's mailbox.
+// Scope is gmail.readonly: Vantis can't send, delete, or change anything in the member's mailbox.
 import { randomBytes } from 'node:crypto';
 import { db } from './db.ts';
 import { sidsWhere, saveSettings, settings, assess, record } from './monitor.ts';

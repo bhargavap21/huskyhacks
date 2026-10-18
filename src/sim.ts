@@ -1,5 +1,5 @@
 // Simulated Sound environment: replays one member's kit timeline on a compressed clock and,
-// in "with Second Look" mode, runs the rules and the enforced payment state machine.
+// in "with Vantis" mode, runs the rules and the enforced payment state machine.
 // Nothing here touches real money, accounts, or Sound systems.
 import type { FraudCase } from './reports.ts';
 import { memberEvents, historyUpTo, type KitEvent } from './kit.ts';
@@ -24,7 +24,7 @@ export const HOLD_SPEED = 60; // while a payment waits on people: 4 h hold = 4 r
 
 export const SCENES: Scene[] = [
   { id: 'linda-asis', member: 'M1001', mode: 'as_is', start: '10/20/2026 13:58', title: 'Linda (M1001): what happened in the kit', blurb: 'Kit rows only. The wire was held at 14:21, outreach at 15:42, Linda confirmed, it released at 17:04.' },
-  { id: 'linda-sl', member: 'M1001', mode: 'second_look', start: '10/20/2026 13:58', title: 'Linda (M1001): with Second Look (proposed alternative)', blurb: 'Same kit signals. R1 fires at initiation and the hold lands with evidence and a conversation guide. A design hypothesis, not a historical claim.' },
+  { id: 'linda-sl', member: 'M1001', mode: 'second_look', start: '10/20/2026 13:58', title: 'Linda (M1001): with Vantis (proposed alternative)', blurb: 'Same kit signals. R1 fires at initiation and the hold lands with evidence and a conversation guide. A design hypothesis, not a historical claim.' },
   { id: 'm1037', member: 'M1037', mode: 'second_look', start: '10/6/2026 9:33', title: 'M1037: restraint (legitimate look-alike)', blurb: 'Urgent $1,188.37 P2P to a grandchild’s new account. Typical amount. R1 does not fire: one standard banner, one tap, done.' },
   { id: 'm1057', member: 'M1057', mode: 'second_look', start: '10/19/2026 9:38', title: 'M1057: same trigger, legitimate (false positive)', blurb: 'Closing wire of $51,586.52. R1 fires exactly as for Linda. The answer is a fast confirm-and-release, in minutes.' },
   { id: 'm1003', member: 'M1003', mode: 'second_look', start: '10/15/2026 22:18', title: 'Sarah (M1003): takeover pattern (scripted premise)', blurb: 'Password reset + contact change + new recipient. P2P waits before submit for verification to pre-change contact details.' },
@@ -120,7 +120,7 @@ function act(c: CaseRec, actor: string, action: string, detail = '') {
   audit(actor, action, `case ${c.id} ${c.pid}${detail ? ': ' + detail : ''}`);
 }
 
-/** Apply one kit row. In second_look mode, rows for a payment Second Look took over are suppressed. */
+/** Apply one kit row. In second_look mode, rows for a payment Vantis took over are suppressed. */
 function applyRow(W: World, e: KitEvent, silent = false) {
   if (['Email Change', 'Phone Change'].includes(e.event_type)) { W.member.contact_changed_sim = e.ts; W.member.current_contact = `${identity(W.member.id).changed_to} (changed ${e.ts_text})`; }
   if (e.event_type === 'Trusted Contact Enrolled') W.member.trusted_contact = { name: 'Enrolled contact', relation: 'from kit', when: 'any hold' };
@@ -144,7 +144,7 @@ function applyRow(W: World, e: KitEvent, silent = false) {
     }
   } else if (e.payment_id && W.payments.has(e.payment_id)) {
     const p = W.payments.get(e.payment_id)!;
-    if (p.case_id == null) p.kit_status = e.payment_status; // kit-driven status for payments Second Look did not take over
+    if (p.case_id == null) p.kit_status = e.payment_status; // kit-driven status for payments Vantis did not take over
   }
   if (!silent && !SKIP.has(e.event_type)) W.timeline.push({ ts: e.ts, text: line(e), kind: 'kit' });
 }
@@ -184,7 +184,7 @@ function openCase(W: World, p: PayRec, e: KitEvent) {
   w = prev;
   W.awaiting = p.pid;
   W.speed = HOLD_SPEED;
-  W.timeline.push({ ts: W.sim, text: `Second Look: ${f.rule} — ${f.title} → ${f.output.replace('_', ' ').toLowerCase()}`, kind: 'system' });
+  W.timeline.push({ ts: W.sim, text: `Vantis: ${f.rule} — ${f.title} → ${f.output.replace('_', ' ').toLowerCase()}`, kind: 'system' });
 }
 
 function settle(p: PayRec) {
@@ -297,13 +297,13 @@ export function requestCallback(kind: string, caseId: number) {
   if (caseId) { const c = w.cases.find(x => x.id === caseId); if (c) { c.callback_requested = true; act(c, 'member', 'asked_to_talk', r.text); } }
   return id;
 }
-/** What Second Look tells Sound's fraud team when the member agrees (from chat, a phone call, email or the app). */
+/** What Vantis tells Sound's fraud team when the member agrees (from chat, a phone call, email or the app). */
 export type FraudReport = FraudCase;
 export function fraudReport(r: FraudReport) {
   const open = w.callbacks.find(x => x.status === 'waiting' && x.report && x.report.channel === r.channel);
   if (open) { open.report = r; open.urgent = open.urgent || r.money_sent; return open.id; } // one open report per channel, kept up to date
   const id = w.callbacks.length + 1;
-  w.callbacks.unshift({ id, ts: w.sim, reason: r.money_sent ? 'Second Look report: money may already be gone, start recovery' : 'Second Look report: member facing a possible scam', source: `Filed by Second Look from ${r.channel}, at the member’s request`, urgent: true, status: 'waiting', note: '', report: r });
+  w.callbacks.unshift({ id, ts: w.sim, reason: r.money_sent ? 'Vantis report: money may already be gone, start recovery' : 'Vantis report: member facing a possible scam', source: `Filed by Vantis from ${r.channel}, at the member’s request`, urgent: true, status: 'waiting', note: '', report: r });
   audit('second-look', 'fraud_report', `${r.channel}: ${r.summary.slice(0, 200)}`);
   return id;
 }

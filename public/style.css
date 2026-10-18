@@ -1,4 +1,4 @@
-/* Second Look demo styles, built on the Instinct design system (design-system/).
+/* Vantis demo styles, built on the Instinct design system (design-system/).
    Load /ds/tokens.css and /ds/components.css first. Colours, type and spacing come from tokens only.
    Rules: square corners except buttons/inputs (radius-sm) and badges (radius-pill), hairlines not shadows,
    sentence case, gold (highlight) at most once per screen, risk colour always beside a word. */
@@ -191,7 +191,7 @@ th { white-space: nowrap; }
 .callback { padding: var(--space-3, 12px) 0; border-bottom: 1px solid var(--line, #d6dee4); }
 .callback.done { opacity: .65; }
 
-/* App shell: top bar, collapsible page list (left), page (centre), collapsible Second Look chat (right). */
+/* App shell: top bar, collapsible page list (left), page (centre), collapsible Vantis chat (right). */
 .topbar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-5); background: var(--surface-band); border-bottom: 1px solid var(--line); }
 .topbar-title { font-family: var(--font-serif); font-size: 26px; line-height: 32px; color: var(--ink); white-space: nowrap; }
 .topbar-meta { font: 500 14px/20px var(--font-sans); color: var(--ink-muted); }
@@ -347,7 +347,7 @@ td:nth-child(2), td:nth-child(4), td:nth-child(5) { white-space: nowrap; }
 .guardian .check { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-3) 0; }
 .guardian-console .shared-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
 
-/* Call guardian intro: the ways to bring Second Look onto a call. */
+/* Call guardian intro: the ways to bring Vantis onto a call. */
 .g-way h3 { margin: 0 0 var(--space-2); }
 .g-steps { margin: var(--space-2) 0; }
 .g-steps > li { padding: var(--space-2) 0; font-size: 15px; line-height: 22px; }
@@ -439,7 +439,7 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 .feels-ways { margin: var(--space-3) 0 0; color: var(--ink-muted); }
 .feels-ways button.quiet { min-height: 36px; padding: 0 var(--space-1); }
 
-/* Fraud reports Second Look filed for the member, in the console queue. */
+/* Fraud reports Vantis filed for the member, in the console queue. */
 .sig-list { list-style: none; margin: var(--space-2) 0; padding: 0; }
 .sig-list li { padding: var(--space-2) 0; border-top: 1px solid var(--line); }
 .sig-list .sig-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }

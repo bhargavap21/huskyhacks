@@ -117,19 +117,19 @@ app.post('/api/guardian/chunk', bodyLimit({ maxSize: 4 * 1024 * 1024, onError: c
 });
 app.post('/api/guardian/reset', c => { clearCall(chatKey(c)); return c.json({ ok: true }); });
 app.post('/api/guardian/stop', async c => c.json(await stopCall(chatKey(c)) ?? { error: 'No call' }));
-// Second Look's phone line: link the member's phone, and "Have Second Look call me" (with what the app knows).
+// Vantis's phone line: link the member's phone, and "Have Vantis call me" (with what the app knows).
 app.post('/api/phone/link', async c => { const b = await c.req.json().catch(() => ({})); link(c.get('sid'), b.number, !!b.share); return c.json({ ok: true }); });
 app.post('/api/email/link', async c => { const b = await c.req.json().catch(() => ({})); linkEmail(c.get('sid'), b.address, !!b.share); await sendLinkCode(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/email/code', async c => { await sendLinkCode(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/email/verify', async c => { const b = await c.req.json().catch(() => ({})); verifyLinkCode(c.get('sid'), b.code); return c.json({ ok: true }); });
-// "Report to Sound" from the app: Second Look files the report for what it already saw (a call or a forwarded email).
+// "Report to Sound" from the app: Vantis files the report for what it already saw (a call or a forwarded email).
 app.post('/api/report', async c => {
   const b = await c.req.json().catch(() => ({})), sid = c.get('sid');
   if (b.channel === 'email') { await reportEmailById(sid, Number(b.id)); return c.json({ ok: true }); }
   const g = callState(chatKey(c));
   if (!g || !g.lines.length) return c.json({ error: 'Nothing to report yet' }, 400);
   const base = { summary: g.summary ?? 'The member used Call guardian on a call with warning signs.', contact_method: 'phone call (Call guardian listened)', tactics: g.alerts.map(a => a.label), quotes: g.alerts.map(a => a.quote).slice(0, 3) };
-  const d = await extractIntake('You read the automatic transcript of a phone call a credit union member let Second Look listen to. The other voice is the caller who contacted the member. Fill the fraud case: the threat details come from what the caller said.', g.lines.map(l => (l.who === 'second-look' ? 'Second Look: ' : '') + l.text).join('\n')).catch(() => null);
+  const d = await extractIntake('You read the automatic transcript of a phone call a credit union member let Vantis listen to. The other voice is the caller who contacted the member. Fill the fraud case: the threat details come from what the caller said.', g.lines.map(l => (l.who === 'second-look' ? 'Vantis: ' : '') + l.text).join('\n')).catch(() => null);
   await fileReport(sid, normalize({ ...base, ...(d ?? {}), tactics: [...new Set([...(d?.tactics ?? []), ...base.tactics])] }, 'call guardian', { linked: true }));
   return c.json({ ok: true });
 });
@@ -142,7 +142,7 @@ app.post('/api/channels', async c => {
   const b = await c.req.json().catch(() => ({})), sid = c.get('sid'), patch: any = {};
   for (const k of ['email_watch', 'screening', 'texts', 'whatsapp'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
   if (patch.email_watch && !emailState(sid)?.verified) return c.json({ error: 'Confirm your email first on Email check' }, 400);
-  if (patch.screening && !phoneVerified(sid)) return c.json({ error: 'Confirm your phone first: link it on Call guardian and call Second Look once from it' }, 400);
+  if (patch.screening && !phoneVerified(sid)) return c.json({ error: 'Confirm your phone first: link it on Call guardian and call Vantis once from it' }, 400);
   if (patch.whatsapp && !(whatsappEnabled && phoneState(sid)?.linked)) return c.json({ error: whatsappEnabled ? 'Link your phone first on Call guardian' : 'WhatsApp isn’t set up on this server' }, 400);
   if (b.dismiss_confirm) patch.forward_confirm = null;
   saveSettings(sid, patch);
@@ -154,7 +154,7 @@ app.post('/api/push/unsubscribe', c => { removePushSubs(c.get('sid')); return c.
 // A sample alert, so the member (and judges) can see what one looks like before anything real arrives.
 app.post('/api/push/test', async c => {
   const sid = c.get('sid'), em = (emailState(sid)?.linked ? (db.prepare('SELECT address FROM email_links WHERE sid = ? AND verified = 1').get(sid) as any)?.address : null) ?? null;
-  await record(sid, { channel: 'email', risk: 'high', title: 'Sample alert: an email from “Sound Security” asks you to confirm a code', summary: 'This is a sample of what a Second Look alert looks like. Nothing real happened.', signals_version: SIGNALS_VERSION,
+  await record(sid, { channel: 'email', risk: 'high', title: 'Sample alert: an email from “Sound Security” asks you to confirm a code', summary: 'This is a sample of what a Vantis alert looks like. Nothing real happened.', signals_version: SIGNALS_VERSION,
     signals: [{ key: 'credential_request', label: SIGNAL_LABELS.credential_request, score: 0.9, span: 'reply with the 6-digit code we just texted you', source: 'model' }, { key: 'urgency', label: SIGNAL_LABELS.urgency, score: 0.8, span: 'or your account will be locked within 1 hour', source: 'model' }, { key: 'impersonation', label: SIGNAL_LABELS.impersonation, score: 0.6, span: 'Sound Security Team', source: 'model' }],
     other: ['sound-secure-login.com: Uses Sound’s name, but it isn’t soundcu.com.'], why: ['Asks for a code or password: “reply with the 6-digit code we just texted you”', 'Pressure to hurry: “or your account will be locked within 1 hour”'], advice: 'Don’t click links or share codes. Check by typing soundcu.com yourself.', from: 'Sample', subject: 'Sample alert' }, em, sendEmail);
   return c.json({ ok: true });
@@ -217,10 +217,10 @@ let last = Date.now();
 setInterval(() => { const now = Date.now(); tickAll(now - last); last = now; }, 250);
 
 const port = Number(process.env.PORT ?? 8787);
-serve({ fetch: app.fetch, port }, () => console.log(`Second Look demo on http://localhost:${port}${USING_STANDIN ? ' (kit data: synthetic stand-in, see README)' : ''}`));
+serve({ fetch: app.fetch, port }, () => console.log(`Vantis demo on http://localhost:${port}${USING_STANDIN ? ' (kit data: synthetic stand-in, see README)' : ''}`));
 if (process.env.NODE_ENV !== 'test') {
   loadAsr(); // warm up on-device voice-note transcription
-  watchCalls(sid => { useWorld(sid); return `${sid}:${snapshot().scene.id}`; }); // Second Look's phone line
-  watchInbox(sid => sid); // Second Look's inbox
+  watchCalls(sid => { useWorld(sid); return `${sid}:${snapshot().scene.id}`; }); // Vantis's phone line
+  watchInbox(sid => sid); // Vantis's inbox
   watchGmail(); // Connected Gmail accounts (if Google sign-in is configured)
 }

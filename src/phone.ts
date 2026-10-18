@@ -1,10 +1,10 @@
-// Second Look's own phone number (AgentPhone). Three ways a member uses it:
-//   1. Add Second Look to a call (three-way merge): it says hello, then listens and warns.
-//   2. Call Second Look: talk through a call or text that felt off.
-//   3. "Have Second Look call me": it rings the member's linked phone, with context.
+// Vantis's own phone number (AgentPhone). Three ways a member uses it:
+//   1. Add Vantis to a call (three-way merge): it says hello, then listens and warns.
+//   2. Call Vantis: talk through a call or text that felt off.
+//   3. "Have Vantis call me": it rings the member's linked phone, with context.
 // Calls are spotted by polling AgentPhone; each live call's transcript streams (SSE) into the same
 // call guardian the speaker mode uses, so warnings appear in the member's app and, if shared, on the console.
-// Second Look's own lines are shown but never checked for tactics (its advice mentions gift cards etc.).
+// Vantis's own lines are shown but never checked for tactics (its advice mentions gift cards etc.).
 import { db } from './db.ts';
 import { startCall, addText, stopCall, callState } from './guardian.ts';
 import { client, MODEL } from './chat.ts';
@@ -22,7 +22,7 @@ const API = 'https://api.agentphone.ai';
 export const phoneEnabled = !!(KEY && AGENT && NUMBER);
 
 db.exec(`CREATE TABLE IF NOT EXISTS phone_links (number TEXT PRIMARY KEY, sid TEXT NOT NULL, share INTEGER NOT NULL DEFAULT 0, ts INTEGER NOT NULL)`);
-// A link only counts once verified: the member calls Second Look once from that phone (caller ID proves it).
+// A link only counts once verified: the member calls Vantis once from that phone (caller ID proves it).
 // The team's own numbers (AGENTPHONE_ALLOWED_TO) are trusted from config.
 try { db.exec('ALTER TABLE phone_links ADD COLUMN verified INTEGER NOT NULL DEFAULT 0'); } catch { /* already there */ }
 
@@ -56,7 +56,7 @@ const verifyByCall = (number: string) => verifyPhone(number);
 /** The member who linked this number (verified or not), for channels whose sender ID is itself authenticated. */
 export const linkedMember = (number: string) => db.prepare('SELECT sid, verified FROM phone_links WHERE number = ?').get(number) as { sid: string; verified: number } | undefined;
 
-// What the member's app shows: Second Look's number and their own (masked).
+// What the member's app shows: Vantis's number and their own (masked).
 export function phoneState(sid: string) {
   if (!phoneEnabled) return null;
   const l = linkFor(sid);
@@ -70,25 +70,25 @@ async function api(method: string, path: string, body?: unknown) {
   return j;
 }
 
-// ---- "Have Second Look call me" ----
+// ---- "Have Vantis call me" ----
 let lastOutbound = 0;
 export async function callMe(sid: string, context: string) {
-  if (!phoneEnabled) throw new PhoneError('Second Look’s phone line isn’t set up');
+  if (!phoneEnabled) throw new PhoneError('Vantis’s phone line isn’t set up');
   const l = linkFor(sid);
   if (!l) throw new PhoneError('Link your phone first');
-  if (!l.verified) throw new PhoneError('Confirm your phone first: call Second Look once from it');
-  if (!ALLOWED_TO.has(l.number)) throw new PhoneError('In this demo, Second Look only calls phones on the team’s list');
-  if (Date.now() - lastOutbound < 60_000) throw new PhoneError('Second Look just placed a call. Try again in a minute.');
+  if (!l.verified) throw new PhoneError('Confirm your phone first: call Vantis once from it');
+  if (!ALLOWED_TO.has(l.number)) throw new PhoneError('In this demo, Vantis only calls phones on the team’s list');
+  if (Date.now() - lastOutbound < 60_000) throw new PhoneError('Vantis just placed a call. Try again in a minute.');
   lastOutbound = Date.now();
   await api('POST', '/v1/calls', {
     agentId: AGENT, toNumber: l.number,
-    initialGreeting: 'Hi, this is Second Look from Sound. You asked me to call. I’m an AI helper, and I can’t move money or ask for codes. Do you have a minute to talk it through?',
-    systemPrompt: `${CALL_RULES}\n\nWhy you are calling: the member tapped "Have Second Look call me" in the Sound app.\n${context}\nStart by asking how they are and what happened. Use the context above; don't read it out word for word.`,
+    initialGreeting: 'Hi, this is Vantis from Sound. You asked me to call. I’m an AI helper, and I can’t move money or ask for codes. Do you have a minute to talk it through?',
+    systemPrompt: `${CALL_RULES}\n\nWhy you are calling: the member tapped "Have Vantis call me" in the Sound app.\n${context}\nStart by asking how they are and what happened. Use the context above; don't read it out word for word.`,
   });
 }
 
 // ---- Persona for every call (also set on the agent for inbound calls) ----
-export const CALL_RULES = `You are Second Look, the scam-protection helper from Sound Credit Union, on the phone. This is a hackathon concept demo; say so if asked.
+export const CALL_RULES = `You are Vantis, the scam-protection helper from Sound Credit Union, on the phone. This is a hackathon concept demo; say so if asked.
 Rules you never break:
 - You never move, send or release money, and never ask for passwords, one-time codes, PINs or full account or card numbers. If someone starts to read one out, stop them kindly.
 - Never say something is definitely a scam or definitely safe, and never call any person a scammer. Talk about the request and the warning signs.
@@ -113,23 +113,23 @@ Rules you never break:
 - Calm, warm, plain words. One or two sentences per turn, then one question. The member decides.`;
 
 export const SCREEN_RULES = `Sometimes the caller is not a Sound member but someone trying to reach one: the member turned on call screening and forwarded a call they didn't answer to you.
-- Then say: "Hi, this is Second Look, an AI assistant screening calls for a Sound member. Who's calling, and what is this about?"
+- Then say: "Hi, this is Vantis, an AI assistant screening calls for a Sound member. Who's calling, and what is this about?"
 - Ask for their name, the organization they represent, what it's about, and a callback number. One question at a time.
 - Never confirm the member's name, accounts or any details. Never agree to anything, take payment details, or promise a callback time. If they press, say you'll pass the message on.
 - End with: "Thanks, I'll pass this on." Then stop.`;
 
 export const LISTEN_RULES = `Sometimes the member adds you to a call that is already happening (a merged three-way call) so you can listen. If you hear the member talking with someone else, or they say they added you:
 - Stay quiet and let them talk. Do not reply to ordinary conversation. If you must produce a reply, make it a single short "Mm-hm." at most.
-- Speak up only if someone asks for a code, password or PIN, asks for gift cards, crypto, a wire or cash, says to move money to a safe account, or tells the member to keep it secret. Then say one sentence, for example: "This is Second Look from Sound, listening at the member's request: Sound will never ask for a code or to move money to a safe account."
+- Speak up only if someone asks for a code, password or PIN, asks for gift cards, crypto, a wire or cash, says to move money to a safe account, or tells the member to keep it secret. Then say one sentence, for example: "This is Vantis from Sound, listening at the member's request: Sound will never ask for a code or to move money to a safe account."
 - If the member speaks to you by name, answer briefly.`;
 
 export async function configureAgent() {
   if (!phoneEnabled) return;
   await api('PATCH', `/v1/agents/${AGENT}`, {
-    name: 'Second Look', voiceMode: 'hosted', enableBackchannel: false,
+    name: 'Vantis', voiceMode: 'hosted', enableBackchannel: false,
     systemPrompt: `${CALL_RULES}\n\n${LISTEN_RULES}\n\n${SCREEN_RULES}\n\nIf the member called you directly, ask what happened and help them check it.`,
-    beginMessage: 'Hi, this is Second Look from Sound, an AI assistant. If you’re a member, tell me what’s going on. If you’re calling for a Sound member, tell me who you are and what it’s about, and I’ll pass it on.',
-    voicemailMessage: 'Hi, this is Second Look from Sound, the scam-protection helper. If something feels off, call me back on this number, and please don’t share any codes or passwords in the meantime.',
+    beginMessage: 'Hi, this is Vantis from Sound, an AI assistant. If you’re a member, tell me what’s going on. If you’re calling for a Sound member, tell me who you are and what it’s about, and I’ll pass it on.',
+    voicemailMessage: 'Hi, this is Vantis from Sound, the scam-protection helper. If something feels off, call me back on this number, and please don’t share any codes or passwords in the meantime.',
   });
 }
 
@@ -141,7 +141,7 @@ export async function configureAgent() {
 // agent), each member who turns screening on gets their own number, and a call to it is theirs. A number
 // stays with its member even if they turn screening off: their phone may still forward to it, so handing it
 // to someone else would show them the first member's callers. Without a pool (or once it runs out), members
-// share Second Look's main number, and a call there is routed only when exactly one of them has screening on.
+// share Vantis's main number, and a call there is routed only when exactly one of them has screening on.
 const POOL = (process.env.AGENTPHONE_SCREENING_POOL ?? '').split(',').map(e164).filter((n): n is string => !!n);
 db.exec(`CREATE TABLE IF NOT EXISTS screening_numbers (number TEXT PRIMARY KEY, sid TEXT UNIQUE NOT NULL, ts INTEGER NOT NULL)`);
 
@@ -209,15 +209,15 @@ async function screened(sid: string, caller: string, turns: { role: string; cont
   const said = turns.filter(t => t.role === 'user').map(t => t.content).join('\n');
   if (!said.trim()) return;
   try {
-    const transcript = turns.map(t => `${t.role === 'agent' ? 'Second Look' : 'Caller'}: ${t.content}`).join('\n');
-    const d = await assess('call screening', caller, 'Call Second Look screened for you', transcript);
+    const transcript = turns.map(t => `${t.role === 'agent' ? 'Vantis' : 'Caller'}: ${t.content}`).join('\n');
+    const d = await assess('call screening', caller, 'Call Vantis screened for you', transcript);
     if (!d) { console.log('phone: screened call looked ordinary; nothing kept'); return; }
     await record(sid, d, emailFor(sid), sendEmail);
   } catch (e) { console.error('phone: screening check failed:', (e as Error).message); }
 }
 const emailFor = (sid: string) => (db.prepare('SELECT address FROM email_links WHERE sid = ? AND verified = 1').get(sid) as { address: string } | undefined)?.address ?? null;
 
-// Texts a member forwards to Second Look's number (inbound works without carrier registration; we reply in the app).
+// Texts a member forwards to Vantis's number (inbound works without carrier registration; we reply in the app).
 const seenTexts = new Set<string>();
 let textsPrimed = false;
 async function checkTexts() {
@@ -241,8 +241,8 @@ export async function reportIfAgreed(sid: string | null, member: string, turns: 
   if (!turns.some(t => t.role === 'user')) return;
   try {
     const d = await extractIntake(
-      'You read a phone call between Second Look (a credit union scam-protection helper) and a member. Decide whether the member clearly agreed to a fraud report to Sound, or asked for one. If so, fill the fraud case from what the member said.',
-      turns.map(t => `${t.role === 'agent' ? 'Second Look' : 'Member'}: ${t.content}`).join('\n'), true);
+      'You read a phone call between Vantis (a credit union scam-protection helper) and a member. Decide whether the member clearly agreed to a fraud report to Sound, or asked for one. If so, fill the fraud case from what the member said.',
+      turns.map(t => `${t.role === 'agent' ? 'Vantis' : 'Member'}: ${t.content}`).join('\n'), true);
     if (!d?.agreed) return;
     const out = await fileReport(sid, normalize(d, 'phone', { phone: member, linked: !!sid }));
     console.log(`phone: case ${out.case_id} filed (queue: ${out.queued}, emailed: ${out.emailed})`);

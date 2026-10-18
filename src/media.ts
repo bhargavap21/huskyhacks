@@ -1,4 +1,4 @@
-// Attachments for the Second Look chat: photos/screenshots, PDFs and voice notes.
+// Attachments for the Vantis chat: photos/screenshots, PDFs and voice notes.
 // Images and PDFs go to Claude as content blocks. Claude does not take audio, so voice notes are
 // transcribed on this machine with Whisper (transformers.js; audio never leaves the server and isn't stored).
 import { execFile } from 'node:child_process';

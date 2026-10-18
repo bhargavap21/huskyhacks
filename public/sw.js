@@ -1,8 +1,8 @@
-// Second Look push alerts. Shows the alert and opens Connected channels when tapped.
+// Vantis push alerts. Shows the alert and opens Connected channels when tapped.
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
-  e.waitUntil(self.registration.showNotification(d.title || 'Second Look', { body: d.body || 'Something is worth a second look.', tag: d.tag, data: { url: d.url || '/' } }));
+  e.waitUntil(self.registration.showNotification(d.title || 'Vantis', { body: d.body || 'Something is worth a second look.', tag: d.tag, data: { url: d.url || '/' } }));
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();

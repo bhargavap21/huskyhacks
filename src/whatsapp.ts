@@ -1,8 +1,8 @@
 // WhatsApp forwarding (WhatsApp Business Cloud API). Members forward a message that feels off (or send a
-// screenshot, a voice note, or a question) to Second Look's WhatsApp number. Second Look checks it with the
-// same checks as other connected channels, replies in the same thread with the Second Look chat, and can
+// screenshot, a voice note, or a question) to Vantis's WhatsApp number. Vantis checks it with the
+// same checks as other connected channels, replies in the same thread with the Vantis chat, and can
 // report it to Sound with the evidence when the member says yes.
-// Inbound only: Second Look never starts a WhatsApp conversation; it only replies to a message just received.
+// Inbound only: Vantis never starts a WhatsApp conversation; it only replies to a message just received.
 // Consent: content is read only from a number the member linked in the app, with WhatsApp turned on under
 // Connected channels. Anything else gets one short how-to reply and is neither stored nor sent to a model.
 // Turns on when WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_SECRET and WHATSAPP_VERIFY_TOKEN are set.
@@ -97,11 +97,11 @@ async function download(m: WaMedia): Promise<any | null> {
 }
 
 // ---- Handling ----
-const HOW_TO = 'Hi, this is Second Look from Sound Credit Union (a concept demo). To check messages here, first link this phone number in the Sound app and turn on WhatsApp under Connected channels. Until then I don’t read what you send.';
+const HOW_TO = 'Hi, this is Vantis from Sound Credit Union (a concept demo). To check messages here, first link this phone number in the Sound app and turn on WhatsApp under Connected channels. Until then I don’t read what you send.';
 const toldHowTo = new Map<string, number>(); // number -> last how-to reply (once a day)
 const evidence = new Map<string, { at: number; detection: Detection | null; detectionId: number | null; files: { kind: string; name: string; note: string }[] }>();
 
-const NOTE = `You're replying on WhatsApp, in the member's chat with Second Look's WhatsApp number. The member linked this number in the Sound app and turned WhatsApp on. They may forward a message that felt off (it arrives as their message), or send a screenshot, a voice note, or a question. Plain text for WhatsApp: no markdown except *bold* with single stars; short lines; 100 words max. Never ask them to forward anything to anyone other than Second Look.`;
+const NOTE = `You're replying on WhatsApp, in the member's chat with Vantis's WhatsApp number. The member linked this number in the Sound app and turned WhatsApp on. They may forward a message that felt off (it arrives as their message), or send a screenshot, a voice note, or a question. Plain text for WhatsApp: no markdown except *bold* with single stars; short lines; 100 words max. Never ask them to forward anything to anyone other than Vantis.`;
 
 export async function handle(m: WaMessage) {
   if (db.prepare('SELECT 1 FROM whatsapp_seen WHERE id = ?').get(m.id)) return; // Meta retries; handle once
@@ -142,14 +142,14 @@ export async function handle(m: WaMessage) {
   const fresh = prev && Date.now() - prev.at < 3_600_000 ? prev : null;
   evidence.set(sid, { at: Date.now(), detection: d ?? fresh?.detection ?? null, detectionId: detectionId ?? fresh?.detectionId ?? null, files: [...(fresh?.files ?? []), ...files].slice(-6) });
 
-  const checks = d?.signals?.length ? `\n[Second Look's automatic checks found: ${d.signals.map(s => `${s.label} (“${s.span}”)`).join('; ')}${d.other?.length ? `; ${d.other.join('; ')}` : ''}]` : '';
-  const text = `${m.forwarded ? '[Forwarded message]\n' : ''}${m.text}${skipped.length ? `\n[Also sent ${skipped.join(', ')}, which Second Look can't open]` : ''}${checks}`.trim();
+  const checks = d?.signals?.length ? `\n[Vantis's automatic checks found: ${d.signals.map(s => `${s.label} (“${s.span}”)`).join('; ')}${d.other?.length ? `; ${d.other.join('; ')}` : ''}]` : '';
+  const text = `${m.forwarded ? '[Forwarded message]\n' : ''}${m.text}${skipped.length ? `\n[Also sent ${skipped.join(', ')}, which Vantis can't open]` : ''}${checks}`.trim();
   const out = await chat(`${sid}:whatsapp`, GENERAL, text, att, {
     channel: 'whatsapp', maxLen: 4000, note: NOTE,
     evidence: () => {
       const ev = evidence.get(sid);
       const det = ev?.detection;
-      return { contact_method: 'WhatsApp (member forwarded to Second Look)', signals: det?.signals ?? [], tactics: det?.signals?.map(s => s.label) ?? [], files: ev?.files ?? [] };
+      return { contact_method: 'WhatsApp (member forwarded to Vantis)', signals: det?.signals ?? [], tactics: det?.signals?.map(s => s.label) ?? [], files: ev?.files ?? [] };
     },
   });
   if (out.reported) {

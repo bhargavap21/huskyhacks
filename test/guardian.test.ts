@@ -7,7 +7,7 @@ test('call guardian keeps the call in storage and names each tactic once', async
   startCall('s:1', false);
   assert.deepEqual(addText('s:1', 'This is the fraud department, read me the code').alerts.map(a => a.key).sort(), ['credential_request', 'impersonation']);
   assert.deepEqual(addText('s:1', 'We need that code right now').alerts.map(a => a.key), ['urgency']);
-  addText('s:1', 'Never share a code', 'second-look'); // Second Look's own words are never checked
+  addText('s:1', 'Never share a code', 'second-look'); // Vantis's own words are never checked
   const v = callState('s:1')!;
   assert.equal(v.lines.length, 3); assert.equal(v.level, 'high'); assert.equal(v.live, true);
   const done = await stopCall('s:1');

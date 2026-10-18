@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:http';
 import { createHmac } from 'node:crypto';
 import { kitTest } from './kit.ts';
 
-// A stand-in for Meta's Graph API: records what Second Look sends, serves one image.
+// A stand-in for Meta's Graph API: records what Vantis sends, serves one image.
 const sent: any[] = [];
 let srv: Server;
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');

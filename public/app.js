@@ -1,7 +1,7 @@
-// Second Look demo UI. Plain JS; polls /api/state and renders the member app + employee console.
+// Vantis demo UI. Plain JS; polls /api/state and renders the member app + employee console.
 const openDet = new Map();
 let S = null, csrf = '', page = 'home', selCase = null, chatCase = 'general', chatLog = [], showMore = {}, busy = false;
-// Shell state: left page list and right Second Look copilot, both collapsible and remembered per browser.
+// Shell state: left page list and right Vantis copilot, both collapsible and remembered per browser.
 const stored = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const store = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const narrow = () => matchMedia('(max-width: 900px)').matches;
@@ -46,7 +46,7 @@ async function post(path, body = {}) {
 async function poll() {
   const r = await fetch('/api/state'); S = await r.json(); csrf = S.csrf;
   const top = S.channels?.detections?.[0]?.id ?? 0;
-  if (lastDet !== null && top > lastDet) toast('Second Look: ' + S.channels.detections[0].title);
+  if (lastDet !== null && top > lastDet) toast('Vantis: ' + S.channels.detections[0].title);
   lastDet = top;
   const held = chatAuto && chatCase === 'general' && S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   if (held && held.case_id && caseById(held.case_id)) { chatCase = held.case_id; chatLog = await (await fetch('/api/chat/' + chatCase)).json(); }
@@ -85,14 +85,14 @@ function render(force = false) {
   $('#clock').textContent = S.sim_text;
   $('#speed').textContent = S.awaiting ? '(hold clock at 60×: 4 h ≈ 4 min)' : `(${Math.round(S.speed)}×)`;
   // Scene note: open the first time a scene is shown, folded once you move on.
-  $('#blurb').innerHTML = det('blurb-' + S.scene.id, 'About this scene', `<p>${esc((S.mode === 'as_is' ? 'Kit replay, as it happened. ' : 'With Second Look (proposed design). ') + S.scene.blurb)}</p>`, !blurbSeen.has(S.scene.id));
+  $('#blurb').innerHTML = det('blurb-' + S.scene.id, 'About this scene', `<p>${esc((S.mode === 'as_is' ? 'Kit replay, as it happened. ' : 'With Vantis (proposed design). ') + S.scene.blurb)}</p>`, !blurbSeen.has(S.scene.id));
   const shell = $('#shell');
   shell.classList.toggle('side-collapsed', sideCollapsed);
   shell.classList.toggle('copilot-closed', !copilotOpen);
   $('#side-toggle').setAttribute('aria-expanded', String(!sideCollapsed));
   $('#side-toggle').setAttribute('aria-label', sideCollapsed ? 'Expand page list' : 'Collapse page list');
   $('#copilot-toggle').setAttribute('aria-expanded', String(copilotOpen));
-  $('#copilot-toggle').innerHTML = `${ICON.chat}<span class="lbl">${copilotOpen ? 'Hide chat' : 'Ask Second Look'}</span>`;
+  $('#copilot-toggle').innerHTML = `${ICON.chat}<span class="lbl">${copilotOpen ? 'Hide chat' : 'Ask Vantis'}</span>`;
   document.body.classList.toggle('joined', joined);
   if (joined && !MEMBER_PAGES.includes(page)) page = 'home';
   document.querySelectorAll('[data-page]').forEach(b => b.dataset.page === page ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
@@ -108,7 +108,7 @@ function render(force = false) {
   $('#count-console').textContent = openCases + S.callbacks.filter(x => x.status === 'waiting').length || '';
   { const el = $('#count-channels'); if (el) el.textContent = (S.channels?.detections || []).filter(d => !d.reported && Date.now() - d.ts < 86400000).length || ''; }
   $('#count-inbox').textContent = S.cases.length || '';
-  keep(() => { $('#page').innerHTML = pageView(); $('#copilot-body').innerHTML = !copilotOpen ? '' : signedIn ? chatView() : '<p class="copilot-signedout small muted">Sign in to the Sound app to ask Second Look.</p>'; });
+  keep(() => { $('#page').innerHTML = pageView(); $('#copilot-body').innerHTML = !copilotOpen ? '' : signedIn ? chatView() : '<p class="copilot-signedout small muted">Sign in to the Sound app to ask Vantis.</p>'; });
   const cs = $('#chatscroll'); if (cs) cs.scrollTop = cs.scrollHeight;
   tickText();
 }
@@ -119,7 +119,7 @@ const joinedTabs = () => joined && signedIn ? `<nav class="joined-tabs" aria-lab
 const phone = body => `<section class="phone" aria-label="Member app"><div class="app-head"><b>Sound</b></div><div class="app-body">${body}</div>${joinedTabs()}<p class="footnote">Synthetic kit data; holds and releases change only this simulation.</p></section>`;
 function timelineCard(openByDefault) {
   const tl = S.timeline.slice().reverse();
-  return `<div class="card">${det('kit-tl', `Kit timeline, ${S.mode === 'as_is' ? 'as it happened' : 'with Second Look'} <span class="muted small">(${tl.length} events${tl[0] ? ` · latest ${esc(tl[0].ts_text.split(' ')[1])}` : ''})</span>`, `<div class="timeline">${tl.map(t => `<div class="${t.kind}">${esc(t.ts_text)} · ${esc(t.text)}</div>`).join('') || '<div class="muted">Press Play to start the replay.</div>'}</div>`, openByDefault)}</div>`;
+  return `<div class="card">${det('kit-tl', `Kit timeline, ${S.mode === 'as_is' ? 'as it happened' : 'with Vantis'} <span class="muted small">(${tl.length} events${tl[0] ? ` · latest ${esc(tl[0].ts_text.split(' ')[1])}` : ''})</span>`, `<div class="timeline">${tl.map(t => `<div class="${t.kind}">${esc(t.ts_text)} · ${esc(t.text)}</div>`).join('') || '<div class="muted">Press Play to start the replay.</div>'}</div>`, openByDefault)}</div>`;
 }
 function pageView() {
   if (MEMBER_PAGES.includes(page)) return `<div class="page-member">${phone(memberView())}</div>`;
@@ -148,10 +148,10 @@ function memberView() {
 function homeView() {
   const m = S.member;
   let out = `<div class="card"><div class="muted small">Welcome back</div><h2>${esc(m.name)}</h2>
-    <div class="row small"><span class="in-badge in-badge--neutral">Second Look: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="in-badge in-badge--neutral">Kit replay: Second Look not in use</span>' : ''}</div></div>`;
+    <div class="row small"><span class="in-badge in-badge--neutral">Vantis: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="in-badge in-badge--neutral">Kit replay: Vantis not in use</span>' : ''}</div></div>`;
   if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
-  const feelsOff = `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Second Look never moves money, and only tells Sound’s fraud team when you ask it to.</p><div class="row"><button class="primary" data-act="chat_general">Ask Second Look</button>${S.cases[0] ? `<button class="quiet" data-act="report" data-pid="${S.cases[0].pid}">Report a scam</button>` : ''}</div>
+  const feelsOff = `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Vantis never moves money, and only tells Sound’s fraud team when you ask it to.</p><div class="row"><button class="primary" data-act="chat_general">Ask Vantis</button>${S.cases[0] ? `<button class="quiet" data-act="report" data-pid="${S.cases[0].pid}">Report a scam</button>` : ''}</div>
     <p class="small feels-ways">Other ways to get a second look: <button class="quiet" data-page="guardian">Bring it into a call</button> · <button class="quiet" data-page="email">Forward it an email</button></p></div>`;
   const recent = S.payments.slice(0, 4);
   const recentCard = `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
@@ -233,12 +233,12 @@ function inboxView() {
 }
 function inboxCases() {
   if (!S.cases.length) return `<div class="card"><h2>Alerts</h2><p class="muted">Nothing here. We stay quiet unless something is worth a second look.</p></div>`;
-  return `<div class="card"><h2>Alerts</h2><p class="small muted">Things Second Look noticed, with the evidence. We only interrupt you when money is about to move.</p></div>` + S.cases.map(c => {
+  return `<div class="card"><h2>Alerts</h2><p class="small muted">Things Vantis noticed, with the evidence. We only interrupt you when money is about to move.</p></div>` + S.cases.map(c => {
     const p = payOf(c);
     return `<div class="card"><div class="row small"><span class="in-badge ${c.tier === 'T2' ? 'in-badge--risk' : 'in-badge--neutral'}">${c.tier === 'T2' ? 'Needs a look now' : c.tier === 'T1' ? 'Worth a second look' : 'Quiet'}</span><span class="in-badge in-badge--neutral">${esc(p.status)}</span>${c.member_label === 'looks_fine' ? `<span class="in-badge in-badge--neutral">You marked this fine${c.label_seconds != null ? ` (${c.label_seconds}s)` : ''}</span>` : ''}</div>
       <h3>${usd0(p.amount)} ${esc(p.rail === 'P2P' ? 'payment' : p.rail.toLowerCase())} to ${p.row.recipient_status === 'New' ? 'a new recipient' : 'a saved recipient'}</h3>${reasonList(c)}
       <details><summary>Why did I get this?</summary><p class="small">${esc(c.actions.find(a => a.action === 'case_opened')?.detail || '')}</p>${c.alert ? `<p class="small">How we told you: ${c.alert.interrupt ? 'a notification, because money was about to move' : c.alert.banner_in_place ? 'a note in the payment screen only, no notification' : 'quietly, here only'}${c.alert.suppressed ? ` (${esc(c.alert.suppressed)})` : ''}.</p>` : ''}</details>
-      <div class="row">${'<button data-act="chat" data-case="' + c.id + '">Ask Second Look</button>'}<button class="quiet" data-act="report" data-pid="${p.pid}">Report a scam</button></div></div>`;
+      <div class="row">${'<button data-act="chat" data-case="' + c.id + '">Ask Vantis</button>'}<button class="quiet" data-act="report" data-pid="${p.pid}">Report a scam</button></div></div>`;
   }).join('');
 }
 
@@ -261,13 +261,13 @@ function settingsView() {
 function signInView() {
   const m = S.member;
   return `<div class="card signin"><h2>Sign in to Sound</h2>
-    <p>Welcome back. Second Look lives inside the Sound app, so there is no new account or password.</p>
+    <p>Welcome back. Vantis lives inside the Sound app, so there is no new account or password.</p>
     <div class="stack"><button class="primary" data-act="sign_in">Sign in as ${esc(m.name)} (demo)</button>
       <button data-act="sign_in_setup">First time in the app? Sign in and set up</button></div>
     <p class="small muted">Demo sign-in. The real app would use Sound’s normal member sign-in; nothing here asks for a password.</p></div>`;
 }
 
-// Setup in short steps: Second Look (with a skip), alerts, trusted contact, then a summary.
+// Setup in short steps: Vantis (with a skip), alerts, trusted contact, then a summary.
 // Each choice saves right away through the same settings the Settings page uses.
 function onboardingView() {
   const m = S.member, t = m.trusted_contact, A = S.alerts;
@@ -276,10 +276,10 @@ function onboardingView() {
   if (obStep === 0) return `<div class="card ob"><p class="eyebrow">Welcome, ${esc(m.name)}</p><h2>Let’s set up your app</h2>
     <p>Three short steps: scam protection, how often we alert you, and an optional trusted contact. You can change any of it later in Settings.</p>
     <div class="stack"><button class="primary" data-act="ob_next">Get started</button><button class="quiet" data-act="ob_done">Skip setup</button></div></div>`;
-  if (obStep === 1) return `<div class="card ob">${progress(1)}<h2>Turn on Second Look?</h2>
+  if (obStep === 1) return `<div class="card ob">${progress(1)}<h2>Turn on Vantis?</h2>
     <p>We watch for signs someone may be manipulating you, and a Sound employee can step in before money moves.</p>
-    <ul class="in-ul ob-list"><li>We use payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes.</li><li>We never read your texts, email or browsing on our own, and never freeze your account. We only see an email when you forward it to Second Look, and only listen to a call when you bring us in: Call guardian, adding Second Look’s number to the call, or calling it.</li><li>Your own payments stay your decision.</li></ul>
-    <div class="stack"><button class="primary" data-act="ob_on">Turn on Second Look</button><button data-act="ob_skip">Not now</button></div>
+    <ul class="in-ul ob-list"><li>We use payment details Sound already has: amount, recipient, how you usually pay, recent sign-in or contact changes.</li><li>We never read your texts, email or browsing on our own, and never freeze your account. We only see an email when you forward it to Vantis, and only listen to a call when you bring us in: Call guardian, adding Vantis’s number to the call, or calling it.</li><li>Your own payments stay your decision.</li></ul>
+    <div class="stack"><button class="primary" data-act="ob_on">Turn on Vantis</button><button data-act="ob_skip">Not now</button></div>
     <p class="small muted">If you choose not now, it stays off and we won’t keep asking.</p></div>`;
   if (obStep === 2) return `<div class="card ob">${progress(2)}<h2>How often should we alert you?</h2>
     <p class="small">We stay quiet unless something is worth a look. When money is about to move, we always show it in the payment screen.</p>
@@ -292,7 +292,7 @@ function onboardingView() {
     <label for="tcname">Name</label><input type="text" id="tcname" data-keep><label for="tcrel">Relationship</label><input type="text" id="tcrel" data-keep>
     <div class="row ob-nav">${back}<button class="primary" data-act="tc_add">Add and continue</button><button class="quiet" data-act="ob_next">Skip</button></div>`}</div>`;
   return `<div class="card ob"><h2>You’re all set</h2>
-    <dl class="kv ob-summary"><dt>Second Look</dt><dd>${m.enrolled ? 'On' : 'Off'}</dd>${m.enrolled ? `<dt>Alerts</dt><dd>${A.sensitivity[0].toUpperCase() + A.sensitivity.slice(1)}${A.quiet ? ', quiet hours on' : ''}</dd><dt>Trusted contact</dt><dd>${t ? esc(t.name) : 'None'}</dd>` : ''}</dl>
+    <dl class="kv ob-summary"><dt>Vantis</dt><dd>${m.enrolled ? 'On' : 'Off'}</dd>${m.enrolled ? `<dt>Alerts</dt><dd>${A.sensitivity[0].toUpperCase() + A.sensitivity.slice(1)}${A.quiet ? ', quiet hours on' : ''}</dd><dt>Trusted contact</dt><dd>${t ? esc(t.name) : 'None'}</dd>` : ''}</dl>
     <p class="small muted">Change any of this in Settings, or run setup again from your profile.</p>
     <button class="primary" data-act="ob_done">Go to home</button></div>`;
 }
@@ -302,7 +302,7 @@ function profileView() {
   const initials = m.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
   return `<div class="card profile-head"><span class="avatar" aria-hidden="true">${esc(initials)}</span><div><h2>${esc(m.name)}</h2><div class="small muted">Member ${esc(m.id)} · synthetic kit member</div></div></div>
     <div class="card"><h3>Contact and sign-in</h3><dl class="kv"><dt>Phone on file</dt><dd>${esc(m.current_contact)}</dd><dt>Sign-in</dt><dd>Sound app sign-in (demo)</dd></dl></div>
-    <div class="card"><h3>Second Look</h3><dl class="kv"><dt>Status</dt><dd>${m.enrolled ? 'On' : 'Off'}</dd><dt>Alerts</dt><dd>${A.sensitivity[0].toUpperCase() + A.sensitivity.slice(1)}${A.quiet ? ', quiet hours on' : ''}</dd><dt>Trusted contact</dt><dd>${t ? `${esc(t.name)} (${esc(t.relation)})` : 'None'}</dd></dl>
+    <div class="card"><h3>Vantis</h3><dl class="kv"><dt>Status</dt><dd>${m.enrolled ? 'On' : 'Off'}</dd><dt>Alerts</dt><dd>${A.sensitivity[0].toUpperCase() + A.sensitivity.slice(1)}${A.quiet ? ', quiet hours on' : ''}</dd><dt>Trusted contact</dt><dd>${t ? `${esc(t.name)} (${esc(t.relation)})` : 'None'}</dd></dl>
       <div class="row profile-actions"><button data-page="settings">Change settings</button><button class="quiet" data-act="onboarding">Run setup again</button></div></div>
     <div class="card"><button data-act="sign_out">Sign out</button><p class="small muted">Signing out only affects this demo tab.</p></div>`;
 }
@@ -327,7 +327,7 @@ const RECOVERY = `If money already went out, every hour matters:
 - You can also report it to the FTC (reportfraud.ftc.gov) and the FBI’s IC3 (ic3.gov).
 You did the right thing by speaking up.`;
 
-// A report Second Look filed for the member: what happened, in their words, ready for the callback.
+// A report Vantis filed for the member: what happened, in their words, ready for the callback.
 function fraudDetail(r) {
   if (!r.threat) return `<div class="fraud-report"><p>${esc(r.summary)}</p></div>`; // older reports
   const th = r.threat, e = r.exposure, m = r.member;
@@ -353,20 +353,20 @@ function emailWatchCard(title) {
   const needEmail = !em.verified ? `<p class="small muted">First link and confirm your email${page === 'email' ? ' above' : ` on <button class="quiet" data-page="email">Email check</button>`}.</p>` : '';
   const fc = ch.forward_confirm, on = ch.email_watch || !!ch.gmail;
   return `<div class="card g-way"><div class="g-head"><h3>${title}</h3><span class="in-badge in-badge--${on ? 'safe' : 'neutral'}">${on ? 'Watching' : 'Off'}</span></div>
-      <p class="small">Second Look checks new mail on its own and alerts you the moment something looks like a scam, before you click or reply. Ordinary mail is checked and thrown away.</p>
+      <p class="small">Vantis checks new mail on its own and alerts you the moment something looks like a scam, before you click or reply. Ordinary mail is checked and thrown away.</p>
       ${ch.gmail ? `<p class="small"><span class="in-badge in-badge--safe">Connected</span> ${esc(ch.gmail.address)}. New inbox mail is checked every minute. <button class="quiet" data-act="gmail_off">Disconnect</button></p>`
         : ch.gmail_available ? `<div class="row"><a class="in-btn in-btn--primary g-tel" href="/auth/google/start">Connect Gmail (read-only)</a></div><p class="small muted">Or set up auto-forwarding below.</p>` : ''}
-      ${sw('email_watch', ch.email_watch, 'Watch mail my Gmail forwards to Second Look')}${needEmail}
+      ${sw('email_watch', ch.email_watch, 'Watch mail my Gmail forwards to Vantis')}${needEmail}
       <details ${ch.email_watch && !fc ? '' : 'open'}><summary>Set up auto-forwarding in Gmail (2 minutes)</summary><ol class="in-ol g-steps">
         <li><span>In Gmail on a computer: <b>Settings</b> → <b>See all settings</b> → <b>Forwarding and POP/IMAP</b> → <b>Add a forwarding address</b>: <b>${esc(em.address || '')}</b>.</span></li>
-        <li><span>Gmail sends Second Look a confirmation code. It shows up right here; enter it in Gmail.</span></li>
+        <li><span>Gmail sends Vantis a confirmation code. It shows up right here; enter it in Gmail.</span></li>
         <li><span>Create a filter so only likely scams are forwarded: <b>Filters and blocked addresses</b> → <b>Create a new filter</b> → in <b>Has the words</b> paste <code>verify OR suspended OR "gift card" OR wire OR invoice OR urgent OR password OR refund</code> → <b>Forward it to</b> ${esc(em.address || '')}.</span></li></ol></details>
       ${fc ? `<div class="fwd-code" role="status"><p class="small">Gmail asked to confirm forwarding for <b>${esc(fc.from)}</b>.</p><p>Confirmation code: <b class="code">${esc(fc.code || 'see link')}</b></p>${fc.link ? `<p class="small"><a href="${esc(fc.link)}" target="_blank" rel="noopener noreferrer">Or confirm in Gmail</a></p>` : ''}<button class="quiet" data-act="fwd_dismiss">Done</button></div>` : ''}
       <p class="small muted">Alerts reach you ${ch.push ? 'as a notification on this device' : `by email${page === 'email' ? ` · <button class="quiet" data-page="channels">Turn on notifications</button>` : ''}`}.</p></div>`;
 }
 
 /* ---------------- Connected channels ---------------- */
-// Second Look watches the channels the member turns on and alerts them before they act.
+// Vantis watches the channels the member turns on and alerts them before they act.
 const SL_NUMBER = () => fmtPhone(S.phone?.number || '');
 // Per-signal evidence (signals/v1): every sign comes with the words that show it, never a bare score.
 const STRENGTH = x => (x >= 0.7 ? 'Clear' : x >= 0.5 ? 'Likely' : 'Faint');
@@ -377,7 +377,7 @@ function detCard(d) {
   return `<li class="em-report">
     <div class="g-head"><span class="in-badge in-badge--${(RISK_BADGE[d.risk] || RISK_BADGE.medium)[0]}">${(RISK_BADGE[d.risk] || RISK_BADGE.medium)[1]}</span><span class="small muted">${esc({ email: 'Forwarded email', gmail: 'Gmail', 'call screening': 'Screened call', text: 'Forwarded text', whatsapp: 'WhatsApp' }[d.channel] || d.channel)} · ${emAgo(d.ts)}</span></div>
     <b>${esc(d.title)}</b>${d.summary ? `<p class="small">${esc(d.summary)}</p>` : ''}
-    ${d.signals ? `${d.signals.length ? signalList(d.signals) : ''}${d.other?.length ? `<ul class="em-links">${d.other.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}${d.risk === 'low' ? '<p class="small muted">Only faint signs, so Second Look didn’t send a notification.</p>' : ''}`
+    ${d.signals ? `${d.signals.length ? signalList(d.signals) : ''}${d.other?.length ? `<ul class="em-links">${d.other.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}${d.risk === 'low' ? '<p class="small muted">Only faint signs, so Vantis didn’t send a notification.</p>' : ''}`
       : d.why?.length ? `<ul class="em-links">${d.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
     <p class="small"><b>What to do:</b> ${esc(d.advice)}</p>
     <div class="row">${d.reported ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : `<button data-act="det_report" data-id="${d.id}">Report to Sound</button>`}${d.alerted_by?.length ? `<span class="small muted">Told you by ${esc(d.alerted_by.join(', '))}</span>` : ''}</div></li>`;
@@ -390,39 +390,39 @@ function channelsView() {
   const needPhone = !ph?.verified ? `<p class="small muted">First link and confirm your phone on <button class="quiet" data-page="guardian">Call guardian</button>.</p>` : '';
   const fc = ch.forward_confirm;
   return `<div class="card guardian"><h2>Connected channels</h2>
-      <p>Turn on the channels you want Second Look to watch. When something arrives that looks like a scam, it alerts you before you act, and you can report it to Sound in one tap.</p>
-      <p class="small muted">Read-only, and only the channels you turn on. Ordinary messages are checked and then thrown away; Second Look keeps only what it warns you about. Turn any channel off at any time.</p></div>
+      <p>Turn on the channels you want Vantis to watch. When something arrives that looks like a scam, it alerts you before you act, and you can report it to Sound in one tap.</p>
+      <p class="small muted">Read-only, and only the channels you turn on. Ordinary messages are checked and then thrown away; Vantis keeps only what it warns you about. Turn any channel off at any time.</p></div>
     <div class="card g-way"><h3>Alerts on this device</h3>
-      <p class="small">Get a notification the moment Second Look spots something, even when the app is closed.</p>
+      <p class="small">Get a notification the moment Vantis spots something, even when the app is closed.</p>
       <div class="row">${ch.push ? '<span class="in-badge in-badge--safe">On</span><button class="quiet" data-act="push_off">Turn off</button>' : `<button class="primary" data-act="push_on" ${ch.push_key ? '' : 'disabled'}>Turn on alerts</button>`}<button data-act="push_test">Send a sample alert</button></div>
       <p class="small muted">On iPhone, first add this page to your Home Screen (Share, then Add to Home Screen). Without notifications, alerts come by email to your linked address.</p></div>
     ${emailWatchCard('Email')}
     <div class="card g-way"><h3>Calls</h3>
       ${sw('screening', ch.screening, 'Screen calls I don’t answer')}${needPhone}
-      <p class="small">Second Look answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${fmtPhone(SCREEN_NUMBER())}</b>:</p>
+      <p class="small">Vantis answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${fmtPhone(SCREEN_NUMBER())}</b>:</p>
       <ul class="em-links"><li>AT&amp;T or T-Mobile: dial <code>**61*1${esc(SCREEN_NUMBER().replace(/\D/g, '').slice(-10))}#</code> and press call. To stop: <code>##61#</code>.</li><li>Verizon: dial <code>*71${esc(SCREEN_NUMBER().replace(/\D/g, '').slice(-10))}</code>. To stop: <code>*73</code>.</li></ul></div>
     <div class="card g-way"><h3>Texts</h3>
       ${sw('texts', ch.texts, 'Check texts I forward')}${needPhone}
-      <p class="small">iPhones don’t let apps read your texts, so forward the ones that feel off to <b>${SL_NUMBER()}</b> from your linked phone. Second Look checks them and alerts you here.</p></div>
+      <p class="small">iPhones don’t let apps read your texts, so forward the ones that feel off to <b>${SL_NUMBER()}</b> from your linked phone. Vantis checks them and alerts you here.</p></div>
     ${waCard()}
-    <div class="card"><h3>Recent alerts</h3>${ch.detections.length ? `<ul class="em-list">${ch.detections.map(detCard).join('')}</ul>` : '<p class="small muted">Nothing yet. When Second Look spots something on a connected channel, it shows up here.</p>'}</div>`;
+    <div class="card"><h3>Recent alerts</h3>${ch.detections.length ? `<ul class="em-list">${ch.detections.map(detCard).join('')}</ul>` : '<p class="small muted">Nothing yet. When Vantis spots something on a connected channel, it shows up here.</p>'}</div>`;
 }
-// WhatsApp is end-to-end encrypted, so nothing can watch it: the member forwards what feels off to Second Look's
-// WhatsApp number, and Second Look replies in that chat. It never messages first.
+// WhatsApp is end-to-end encrypted, so nothing can watch it: the member forwards what feels off to Vantis's
+// WhatsApp number, and Vantis replies in that chat. It never messages first.
 function waCard() {
   const ch = S.channels, ph = S.phone, wa = ch.whatsapp_number;
   const sw = (key, on, label) => `<label class="switch-row"><span>${label}</span><input type="checkbox" role="switch" data-ch="${key}" ${on ? 'checked' : ''}></label>`;
-  if (!wa) return `<div class="card g-way"><h3>WhatsApp</h3><p class="small"><span class="in-badge in-badge--neutral">Not set up on this server</span> WhatsApp chats are end-to-end encrypted, so no app can watch them. With WhatsApp set up, you forward a message that feels off to Second Look’s WhatsApp number and get a reply in the chat.</p></div>`;
+  if (!wa) return `<div class="card g-way"><h3>WhatsApp</h3><p class="small"><span class="in-badge in-badge--neutral">Not set up on this server</span> WhatsApp chats are end-to-end encrypted, so no app can watch them. With WhatsApp set up, you forward a message that feels off to Vantis’s WhatsApp number and get a reply in the chat.</p></div>`;
   const digits = wa.replace(/\D/g, '');
   const needLink = !ph?.linked ? `<p class="small muted">First link your phone on <button class="quiet" data-page="guardian">Call guardian</button>. Your first WhatsApp message from it confirms the number.</p>` : '';
   return `<div class="card g-way"><h3>WhatsApp</h3>
       ${sw('whatsapp', ch.whatsapp, 'Check WhatsApp messages I forward')}${needLink}
-      <p class="small">WhatsApp chats are end-to-end encrypted, so no app can watch them. Instead, forward the ones that feel off to Second Look on WhatsApp: <b>${fmtPhone(wa)}</b>.</p>
+      <p class="small">WhatsApp chats are end-to-end encrypted, so no app can watch them. Instead, forward the ones that feel off to Vantis on WhatsApp: <b>${fmtPhone(wa)}</b>.</p>
       <ol class="in-ol g-steps">
-        <li><span>Open a chat with Second Look: <a href="https://wa.me/${esc(digits)}?text=${encodeURIComponent('Hi Second Look')}" target="_blank" rel="noopener noreferrer">wa.me/${esc(digits)}</a>, or save the number as a contact.</span></li>
-        <li><span>In the chat that feels off, press and hold the message, tap <b>Forward</b>, and pick <b>Second Look</b>. Screenshots and voice notes work too, or just ask a question.</span></li>
-        <li><span>Second Look replies in the chat with what it notices and what to do, and can report it to Sound for you when you say yes.</span></li></ol>
-      <p class="small muted">Second Look only reads messages from your linked number, only while this is on, and never messages you first.</p></div>`;
+        <li><span>Open a chat with Vantis: <a href="https://wa.me/${esc(digits)}?text=${encodeURIComponent('Hi Vantis')}" target="_blank" rel="noopener noreferrer">wa.me/${esc(digits)}</a>, or save the number as a contact.</span></li>
+        <li><span>In the chat that feels off, press and hold the message, tap <b>Forward</b>, and pick <b>Vantis</b>. Screenshots and voice notes work too, or just ask a question.</span></li>
+        <li><span>Vantis replies in the chat with what it notices and what to do, and can report it to Sound for you when you say yes.</span></li></ol>
+      <p class="small muted">Vantis only reads messages from your linked number, only while this is on, and never messages you first.</p></div>`;
 }
 async function pushOn() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return toast('This browser can’t show notifications. Alerts will come by email.');
@@ -439,7 +439,7 @@ async function pushOn() {
 }
 
 /* ---------------- Email check ---------------- */
-// Members forward an email that feels off (or ask a question) to Second Look's inbox and get a reply.
+// Members forward an email that feels off (or ask a question) to Vantis's inbox and get a reply.
 // Only mail from the address they link here is read; everything else is left unread.
 const emAgo = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
 function emailReport(r, staff = false) {
@@ -449,45 +449,45 @@ function emailReport(r, staff = false) {
     ${r.signals?.length ? signalList(r.signals) : r.tactics.length ? `<div class="row">${r.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t.label)}</span>`).join('')}</div>` : ''}
     ${flagged.length ? `<ul class="em-links">${flagged.map(l => `<li><b>${esc(l.domain)}</b>: ${esc(l.note)}</li>`).join('')}</ul>` : ''}
     ${staff ? '' : r.reported ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : `<div class="row"><button data-act="em_report" data-id="${r.id}">Report to Sound</button></div>`}
-    ${staff ? '' : det('em-' + r.id, r.sent ? 'Second Look’s reply (also in your email)' : 'Second Look’s reply', `<div class="msg assistant">${fmtReply(r.reply)}</div>`)}
+    ${staff ? '' : det('em-' + r.id, r.sent ? 'Vantis’s reply (also in your email)' : 'Vantis’s reply', `<div class="msg assistant">${fmtReply(r.reply)}</div>`)}
   </li>`;
 }
 function emailView() {
   const e = S.email;
-  if (!e) return `<div class="card"><h2>Email check</h2><p>Second Look’s inbox isn’t set up on this server.</p></div>`;
+  if (!e) return `<div class="card"><h2>Email check</h2><p>Vantis’s inbox isn’t set up on this server.</p></div>`;
   const linkCard = e.linked && !e.verified
-    ? `<div class="g-link verify"><p class="small">We emailed a 6-digit code to <b>${esc(e.linked)}</b>. Enter it to confirm this is your email. Until then, Second Look doesn’t read anything from it.</p>
+    ? `<div class="g-link verify"><p class="small">We emailed a 6-digit code to <b>${esc(e.linked)}</b>. Enter it to confirm this is your email. Until then, Vantis doesn’t read anything from it.</p>
         <div class="row"><label for="em-code" class="sr">Code</label><input type="text" id="em-code" data-keep inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" maxlength="8"><button class="primary" data-act="em_verify">Confirm</button></div>
         <p class="small"><button class="quiet" data-act="em_code">Send a new code</button> · <button class="quiet" data-act="em_unlink">Use a different email</button></p></div>`
     : e.linked
     ? `<p class="small">Your email: <b>${esc(e.linked)}</b> <span class="in-badge in-badge--safe">Confirmed</span> · ${e.share ? 'Sound can see these reports' : 'reports stay with you'} <button class="quiet" data-act="em_unlink">Change</button></p>`
     : `<div class="g-link"><label for="em-addr">Your email address</label><div class="row"><input type="email" id="em-addr" data-keep autocomplete="email" placeholder="you@example.com"><button class="primary" data-act="em_link">Link my email</button></div>
-        <label class="check"><input type="checkbox" id="em-share" data-keep checked> Let Sound see what Second Look finds</label>
-        <p class="small muted">Second Look only reads mail from this address, or mail your Gmail forwards for you once you turn on watching. Anything else sent to it is left unread.</p></div>`;
+        <label class="check"><input type="checkbox" id="em-share" data-keep checked> Let Sound see what Vantis finds</label>
+        <p class="small muted">Vantis only reads mail from this address, or mail your Gmail forwards for you once you turn on watching. Anything else sent to it is left unread.</p></div>`;
   const found = [
     ...(S.channels?.detections || []).filter(d => d.channel === 'email' || d.channel === 'gmail').map(d => ({ ts: d.ts, html: detCard(d) })),
     ...e.reports.map(r => ({ ts: r.received, html: emailReport(r) })),
   ].sort((a, b) => b.ts - a.ts);
   return `<div class="card guardian"><h2>Email check</h2>
-    <p>Second Look can watch your inbox and warn you on its own when a scam email arrives. You can also forward any single message to get a second look at it.</p>
-    <p class="em-address"><span class="small muted">Second Look’s address</span><br><b>${esc(e.address)}</b></p>
+    <p>Vantis can watch your inbox and warn you on its own when a scam email arrives. You can also forward any single message to get a second look at it.</p>
+    <p class="em-address"><span class="small muted">Vantis’s address</span><br><b>${esc(e.address)}</b></p>
     ${linkCard}</div>
     ${emailWatchCard('Watch my inbox automatically')}
     <div class="card g-way"><h3>Check one message now</h3>
-      <ol class="in-ol g-steps"><li><span>Open the email and tap <b>Forward</b>. For a text, copy it into a new email.</span></li><li><span>Send it to <b>${esc(e.address)}</b> from your linked email.</span></li><li><span>Second Look replies within a minute. The reply also shows up below.</span></li></ol>
-      <p class="small muted">Don’t click links in the message first. Second Look never opens links and never asks for codes or passwords.</p></div>
-    <div class="card em-found"><h3>What Second Look found</h3>${found.length ? `<ul class="em-list">${found.map(f => f.html).join('')}</ul>` : `<p class="small muted">${e.linked ? 'Nothing yet. Alerts from automatic watching and replies to messages you forward show up here.' : 'Link your email to see results here.'}</p>`}</div>`;
+      <ol class="in-ol g-steps"><li><span>Open the email and tap <b>Forward</b>. For a text, copy it into a new email.</span></li><li><span>Send it to <b>${esc(e.address)}</b> from your linked email.</span></li><li><span>Vantis replies within a minute. The reply also shows up below.</span></li></ol>
+      <p class="small muted">Don’t click links in the message first. Vantis never opens links and never asks for codes or passwords.</p></div>
+    <div class="card em-found"><h3>What Vantis found</h3>${found.length ? `<ul class="em-list">${found.map(f => f.html).join('')}</ul>` : `<p class="small muted">${e.linked ? 'Nothing yet. Alerts from automatic watching and replies to messages you forward show up here.' : 'Link your email to see results here.'}</p>`}</div>`;
 }
 // Staff see forwarded-email reports only if the member chose to share them.
 function emailCard() {
   const e = S.email; if (!e || !e.share || !e.reports.length) return '';
-  return `<div class="card guardian-console"><div class="console-head"><h2>Emails the member forwarded to Second Look</h2><span class="in-badge in-badge--neutral">Shared by the member</span></div>
+  return `<div class="card guardian-console"><div class="console-head"><h2>Emails the member forwarded to Vantis</h2><span class="in-badge in-badge--neutral">Shared by the member</span></div>
     <p class="small muted">What the forwarded messages asked for, from automatic checks. Prompts for your outreach, not proof.</p>
     <ul class="em-list">${e.reports.slice(0, 3).map(r => emailReport(r, true)).join('')}</ul></div>`;
 }
 
 /* ---------------- Call guardian ---------------- */
-// Second Look listens to a call on speaker: ~4 s chunks go to the server, which transcribes them (local Whisper,
+// Vantis listens to a call on speaker: ~4 s chunks go to the server, which transcribes them (local Whisper,
 // audio not kept) and returns any new warning signs. G holds the browser-side capture while a call is live.
 let G = null, reportedCall = null;
 // Call timer for any live call (speaker or phone), from the server's start time.
@@ -500,9 +500,9 @@ const LEVEL = {
 const gfetch = (p, b) => fetch('/api/guardian/' + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf': csrf }, body: JSON.stringify(b) }).then(r => r.json()).catch(() => ({}));
 
 const fmtPhone = n => n ? n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3') : '';
-const SOURCE = { speaker: 'Listening on speaker', sample: 'Sample call', 'phone-in': 'Phone call · Second Look is on the line', 'phone-out': 'Second Look called you' };
+const SOURCE = { speaker: 'Listening on speaker', sample: 'Sample call', 'phone-in': 'Phone call · Vantis is on the line', 'phone-out': 'Vantis called you' };
 
-// How to get Second Look on a call: add it to the call, call it, have it call you, or listen on speaker.
+// How to get Vantis on a call: add it to the call, call it, have it call you, or listen on speaker.
 function guardianIntro() {
   const ph = S.phone, num = ph && fmtPhone(ph.number);
   const linkCard = !ph ? '' : ph.linked && !ph.verified
@@ -512,21 +512,21 @@ function guardianIntro() {
     ? `<p class="small">Your phone: <b>${esc(ph.linked)}</b> <span class="in-badge in-badge--safe">Confirmed</span> · ${ph.share ? 'Sound can see warnings from your calls' : 'warnings stay on your device'} <button class="quiet" data-act="ph_unlink">Change</button></p>`
     : `<div class="g-link"><label for="ph-num">Your phone number</label><div class="row"><input type="tel" id="ph-num" data-keep inputmode="tel" autocomplete="tel" placeholder="(555) 555-0123"><button class="primary" data-act="ph_link">Link my phone</button></div>
         <label class="check"><input type="checkbox" id="ph-share" data-keep checked> Let Sound see warnings from these calls</label>
-        <p class="small muted">Linking tells Second Look which calls are yours, so warnings show up here. Demo: use your own phone.</p></div>`;
+        <p class="small muted">Linking tells Vantis which calls are yours, so warnings show up here. Demo: use your own phone.</p></div>`;
   return `<div class="card guardian"><h2>Call guardian</h2>
-    <p>On a call that feels off? Bring Second Look in. It listens for pressure tactics, like requests for codes, gift cards or secrecy, and warns you as the call happens.</p>
-    <p class="small muted">Second Look never moves money or asks for codes. It only listens to calls you bring it into. Transcripts are used for warnings; audio isn’t kept.</p>
+    <p>On a call that feels off? Bring Vantis in. It listens for pressure tactics, like requests for codes, gift cards or secrecy, and warns you as the call happens.</p>
+    <p class="small muted">Vantis never moves money or asks for codes. It only listens to calls you bring it into. Transcripts are used for warnings; audio isn’t kept.</p>
     ${linkCard}</div>
-    ${ph ? `<div class="card g-way"><h3>Add Second Look to a call</h3>
+    ${ph ? `<div class="card g-way"><h3>Add Vantis to a call</h3>
       <p class="small">While someone is on the line with you:</p>
       <ol class="in-ol g-steps"><li><span>Tap <b>Add call</b>.</span></li><li><span>Dial <b>${num}</b>.</span></li><li><span>Tap <b>Merge calls</b>.</span></li></ol>
-      <p class="small">Second Look says hello so everyone knows it’s there, then listens quietly. It speaks up only if someone asks for a code, gift cards or to move your money. Warnings appear on this screen.</p></div>
-    <div class="card g-way"><h3>Call Second Look</h3><p class="small">After a call, or about a text or email, call and tell it what happened.</p>
+      <p class="small">Vantis says hello so everyone knows it’s there, then listens quietly. It speaks up only if someone asks for a code, gift cards or to move your money. Warnings appear on this screen.</p></div>
+    <div class="card g-way"><h3>Call Vantis</h3><p class="small">After a call, or about a text or email, call and tell it what happened.</p>
       <div class="row"><a class="in-btn in-btn--secondary g-tel" href="tel:${esc(ph.number)}">Call ${num}</a></div></div>
-    <div class="card g-way"><h3>Have Second Look call me</h3><p class="small">It calls your linked phone and already knows what this app saw, like a held payment or warnings from a call.</p>
+    <div class="card g-way"><h3>Have Vantis call me</h3><p class="small">It calls your linked phone and already knows what this app saw, like a held payment or warnings from a call.</p>
       <div class="row"><button data-act="ph_call_me" ${ph.can_call_me ? '' : 'disabled'}>Call my phone</button></div>
-      ${ph.linked && !ph.can_call_me ? '<p class="small muted">In this demo, Second Look only calls phones on the team’s list.</p>' : !ph.linked ? '<p class="small muted">Link your phone first.</p>' : ''}</div>` : ''}
-    <div class="card g-way"><h3>Listen on speaker</h3><p class="small">Put the call on speaker near this device. Second Look listens through the microphone.</p>
+      ${ph.linked && !ph.can_call_me ? '<p class="small muted">In this demo, Vantis only calls phones on the team’s list.</p>' : !ph.linked ? '<p class="small muted">Link your phone first.</p>' : ''}</div>` : ''}
+    <div class="card g-way"><h3>Listen on speaker</h3><p class="small">Put the call on speaker near this device. Vantis listens through the microphone.</p>
       <label class="check"><input type="checkbox" id="g-share" data-keep> Let Sound see warnings during this call</label>
       <div class="row"><button class="primary" data-act="g_start" data-src="mic">Start listening</button><button data-act="g_start" data-src="sample">Play a sample scam call</button></div>
       <p class="small muted">The sample is a staged call for the demo.</p></div>`;
@@ -544,11 +544,11 @@ function guardianView() {
       ${latest ? `<p class="g-now">${esc(latest.advice)}</p>` : '<p class="small muted">Warnings appear here as the call goes on.</p>'}
       <div class="row"><button class="primary" data-act="g_stop">Stop listening</button>${g.level === 'high' ? '<button data-act="g_hangup">Hang up and call Sound</button>' : ''}</div></div>
     ${g.alerts.length ? `<div class="card"><h3>What I’ve heard</h3><ul class="g-alerts">${alertList}</ul></div>` : ''}
-    <div class="card"><h3>Live transcript</h3><div class="g-transcript" id="g-transcript">${g.lines.map(l => l.who === 'second-look' ? `<p class="g-sl"><b>Second Look:</b> ${esc(l.text)}</p>` : `<p>${esc(l.text)}</p>`).join('') || '<p class="muted">Waiting for speech…</p>'}</div><p class="small muted">Automatic transcript. It can mishear words.</p></div>`;
+    <div class="card"><h3>Live transcript</h3><div class="g-transcript" id="g-transcript">${g.lines.map(l => l.who === 'second-look' ? `<p class="g-sl"><b>Vantis:</b> ${esc(l.text)}</p>` : `<p>${esc(l.text)}</p>`).join('') || '<p class="muted">Waiting for speech…</p>'}</div><p class="small muted">Automatic transcript. It can mishear words.</p></div>`;
   return `<div class="card guardian"><div class="g-head"><span class="in-badge in-badge--${tone}">${word}</span><span class="small muted">Call ended · ${mmss((g.ended - g.started) / 1000)}</span></div>
       <h2>${g.alerts.length ? 'Before you do anything' : 'Call summary'}</h2>
       <div class="msg assistant">${fmtReply(g.summary)}</div>${g.summary_source === 'offline' ? '<p class="small muted">offline summary</p>' : ''}
-      <div class="row">${g.alerts.length ? (reportedCall === g.started ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : '<button class="primary" data-act="g_report">Report this call to Sound</button>') : ''}<button ${g.alerts.length ? '' : 'class="primary"'} data-act="g_talk">Talk to a person at Sound</button>${S.phone && S.phone.can_call_me ? '<button data-act="ph_call_me">Have Second Look call me</button>' : ''}<button data-act="chat_general">Talk it through</button><button class="quiet" data-act="g_reset">Listen to another call</button></div></div>
+      <div class="row">${g.alerts.length ? (reportedCall === g.started ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : '<button class="primary" data-act="g_report">Report this call to Sound</button>') : ''}<button ${g.alerts.length ? '' : 'class="primary"'} data-act="g_talk">Talk to a person at Sound</button>${S.phone && S.phone.can_call_me ? '<button data-act="ph_call_me">Have Vantis call me</button>' : ''}<button data-act="chat_general">Talk it through</button><button class="quiet" data-act="g_reset">Listen to another call</button></div></div>
     ${g.alerts.length ? `<div class="card"><h3>Warning signs I heard</h3><ul class="g-alerts">${alertList}</ul></div>` : ''}`;
 }
 
@@ -556,7 +556,7 @@ function guardianView() {
 function guardianCard() {
   const g = S.guardian; if (!g || !g.share) return '';
   const [tone, word] = LEVEL[g.level];
-  return `<div class="card guardian-console" aria-live="polite"><div class="console-head"><h2>${g.live ? (g.source && g.source.startsWith('phone') ? 'Live phone call: Second Look is on the line' : 'Live call: member is listening with Second Look') : 'Call the member just had'}</h2><span class="in-badge in-badge--${tone}">${word}</span></div>
+  return `<div class="card guardian-console" aria-live="polite"><div class="console-head"><h2>${g.live ? (g.source && g.source.startsWith('phone') ? 'Live phone call: Vantis is on the line' : 'Live call: member is listening with Vantis') : 'Call the member just had'}</h2><span class="in-badge in-badge--${tone}">${word}</span></div>
     <p class="small muted">Shared by the member. Patterns heard on the call, from an automatic transcript. Prompts for your outreach, not proof.</p>
     ${g.alerts.length ? `<ul class="shared-list">${g.alerts.map(a => `<li><span class="in-badge in-badge--risk">${esc(a.label)}</span><blockquote>“${esc(a.quote)}”</blockquote><span class="small muted">at ${mmss(a.at / 1000)}</span></li>`).join('')}</ul>` : '<p class="small">No warning signs yet.</p>'}
     ${g.level === 'high' ? '<p class="small"><b>Suggested:</b> call the member now on the number on file. Don’t use any number from the call.</p>' : ''}</div>`;
@@ -695,16 +695,16 @@ function chatView() {
   const plusMenu = plusOpen ? `<div class="plus-menu" role="menu" aria-label="More">
       <button role="menuitem" data-act="attach">Add a photo, screenshot or PDF</button>
       <button role="menuitem" data-page="guardian">Listen to a call with me</button>
-      <button role="menuitem" data-page="email">Forward an email to Second Look</button>
+      <button role="menuitem" data-page="email">Forward an email to Vantis</button>
       <button role="menuitem" data-act="${shareOn ? 'share_stop' : 'share_yes'}">${shareOn ? 'Stop sharing with Sound' : 'Share this chat with Sound'}</button>
       <div class="plus-sep"></div>
       ${help.map(([k, label, done]) => `<button role="menuitem" data-act="cb" data-kind="${k}" ${asked(k) ? 'disabled' : ''}>${asked(k) ? done : label}</button>`).join('')}
       <p class="plus-note">Voice notes are transcribed on Sound’s server; the audio isn’t kept.</p></div>` : '';
   return `<div class="chat-screen">
-    <div class="chat-top"><div class="chat-title"><div class="chat-name">Second Look</div><div class="chat-sub">${subject}</div></div>
+    <div class="chat-top"><div class="chat-title"><div class="chat-name">Vantis</div><div class="chat-sub">${subject}</div></div>
       ${general ? '' : '<button class="quiet" data-act="chat_general">Something else</button>'}
       <button class="icon-btn" data-act="back" aria-label="Close chat">×</button></div>
-    ${general ? '' : det('chat-ev-' + c.id, 'What Second Look can see', `<div class="chat-evidence">${reasonList(c)}</div>`)}
+    ${general ? '' : det('chat-ev-' + c.id, 'What Vantis can see', `<div class="chat-evidence">${reasonList(c)}</div>`)}
     <div class="chat-scroll" id="chatscroll"><div class="chat" aria-live="polite" aria-relevant="additions">${msgs.map(m => `<div class="msg ${m.role}${m.pending ? ' pending' : ''}">${m.att ? attBlock(m.att) : ''}${m.role === 'assistant' ? fmtReply(m.text) : esc(m.text)}${m.role === 'assistant' && m.source === 'offline' ? '<div class="small muted">offline reply</div>' : ''}</div>`).join('')}
       ${help.filter(([k]) => asked(k)).map(([, , done]) => `<div class="chat-status" role="status">${done}</div>`).join('')}
       ${shareOn ? `<div class="chat-status">Shared with the Sound employee helping you</div>` : askShare ? `<div class="consent-card" role="group" aria-label="Share this chat"><p><b>Let the Sound employee helping you see this chat?</b> They see what you write here, nothing else. You can stop any time.</p><div class="row"><button class="primary" data-act="share_yes">Share with Sound</button><button data-act="share_no">Keep private</button></div></div>` : ''}</div>
@@ -715,11 +715,11 @@ function chatView() {
       ${rec ? `<div class="rec-bar" role="status"><span class="rec-dot" aria-hidden="true"></span><span>Recording <span id="rec-time">0:00</span></span><button class="primary" data-act="rec_stop">Stop and add</button><button class="quiet" data-act="rec_cancel">Cancel</button></div>` : ''}
       <div class="composer">
         <button class="composer-icon" data-act="plus_menu" aria-haspopup="menu" aria-expanded="${plusOpen}" aria-label="More: files, calls, help" title="Files, calls and help">${ICON.plus}</button>
-        <label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="1" placeholder="Ask Second Look"></textarea>
+        <label for="chatin" class="sr">Message</label><textarea id="chatin" data-keep rows="1" placeholder="Ask Vantis"></textarea>
         <button class="composer-icon" data-act="rec_start" ${rec ? 'disabled' : ''} aria-label="Record a voice note" title="Record a voice note">${ICON.mic}</button>
         <button class="primary composer-send" data-act="send" aria-label="Send">${ICON.up}</button>
         <input type="file" id="chatfile" accept="image/*,application/pdf,audio/*,.m4a,.mp3,.wav" multiple hidden></div>
-      <p class="chat-note">Second Look can’t move money. It tells Sound’s fraud team only if you say so. You decide.</p>
+      <p class="chat-note">Vantis can’t move money. It tells Sound’s fraud team only if you say so. You decide.</p>
     </div></div>`;
 }
 
@@ -770,7 +770,7 @@ const PROMOTE = { secrecy: /quiet|what to say|not to tell/i, coaching: /phone wi
 const sharedTactics = id => new Set((S.shared?.[id]?.messages || []).flatMap(m => m.tactics.map(t => t.key)));
 function sharedCard(id) {
   const sh = S.shared?.[id]; if (!sh) return '';
-  return `<div class="card shared-card" aria-live="polite"><div class="console-head"><h2>What the member told Second Look</h2><span class="in-badge in-badge--neutral">Shared by the member</span></div>
+  return `<div class="card shared-card" aria-live="polite"><div class="console-head"><h2>What the member told Vantis</h2><span class="in-badge in-badge--neutral">Shared by the member</span></div>
     <p class="small muted">The member chose to share this ${id === 'general' ? '“Something feels off”' : 'payment'} chat. Their own words, not verified. The patterns are prompts for your call, not proof.</p>
     ${sh.messages.length ? `<ul class="shared-list">${sh.messages.slice(-4).map(m => `<li><blockquote>“${esc(m.text)}”</blockquote>${m.tactics.length ? `<div class="row">${m.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t.label)}</span>`).join('')}</div>` : ''}</li>`).join('')}</ul>` : '<p class="small">Nothing typed yet.</p>'}</div>`;
 }
@@ -854,28 +854,28 @@ document.addEventListener('click', async e => {
       if ((!t && !att.length) || rec) return; $('#chatin').value = ''; pendingAtt = [];
       const mine = { role: 'user', text: t, att: att.length ? att.map(a => ({ kind: a.kind, name: a.name, src: a.preview, seconds: a.seconds })) : undefined };
       chatLog.push(mine);
-      const pend = { role: 'assistant', text: att.some(a => a.kind === 'audio') ? 'Listening to your voice note…' : att.length ? 'Looking at what you shared…' : 'Second Look is thinking…', pending: true }; chatLog.push(pend); render(true);
+      const pend = { role: 'assistant', text: att.some(a => a.kind === 'audio') ? 'Listening to your voice note…' : att.length ? 'Looking at what you shared…' : 'Vantis is thinking…', pending: true }; chatLog.push(pend); render(true);
       const j = await post('chat/' + chatCase, { text: t, attachments: att.map(({ preview, ...a }) => a) });
       chatLog.splice(chatLog.indexOf(pend), 1);
-      if (j && j.reply) { if (j.att && j.att.length) mine.att = j.att; chatLog.push({ role: 'assistant', text: j.reply, source: j.source }); if (j.reported) toast('Second Look reported this to Sound’s fraud team. Someone will call you.'); }
+      if (j && j.reply) { if (j.att && j.att.length) mine.att = j.att; chatLog.push({ role: 'assistant', text: j.reply, source: j.source }); if (j.reported) toast('Vantis reported this to Sound’s fraud team. Someone will call you.'); }
       else if (att.length) { chatLog.splice(chatLog.indexOf(mine), 1); pendingAtt = att; } // keep the files so the member can try again
       return render(true); }
     case 'g_start': return gStart(b.dataset.src);
-    case 'ph_link': { const j = await post('phone/link', { number: $('#ph-num').value, share: $('#ph-share').checked }); if (j && j.ok) toast('Now call Second Look once from that phone to confirm it’s yours.'); return; }
+    case 'ph_link': { const j = await post('phone/link', { number: $('#ph-num').value, share: $('#ph-share').checked }); if (j && j.ok) toast('Now call Vantis once from that phone to confirm it’s yours.'); return; }
     case 'ph_unlink': return post('phone/unlink');
     case 'em_link': { const j = await post('email/link', { address: $('#em-addr').value, share: $('#em-share').checked }); if (j && j.ok) toast('Check your email for a 6-digit code.'); return; }
     case 'em_unlink': return post('email/unlink');
     case 'em_code': { const j = await post('email/code'); if (j && j.ok) toast('New code sent. Check your email.'); return; }
-    case 'em_verify': { const j = await post('email/verify', { code: $('#em-code').value }); if (j && j.ok) toast('Email confirmed. Second Look can now check what you send it.'); return; }
+    case 'em_verify': { const j = await post('email/verify', { code: $('#em-code').value }); if (j && j.ok) toast('Email confirmed. Vantis can now check what you send it.'); return; }
     case 'push_on': return pushOn();
     case 'push_off': { try { const reg = await navigator.serviceWorker.getRegistration('/'); const s = await reg?.pushManager.getSubscription(); await s?.unsubscribe(); } catch {} return post('push/unsubscribe'); }
     case 'push_test': { const j = await post('push/test'); if (j && j.ok) toast('Sample alert sent.'); return; }
     case 'det_report': { const j = await post('detections/' + b.dataset.id + '/report'); if (j && j.ok) toast(`Reported to Sound as case ${j.case_id}. Someone will call you.`); return; }
     case 'gmail_off': return post('gmail/disconnect');
     case 'fwd_dismiss': return post('channels', { dismiss_confirm: true });
-    case 'em_report': { const j = await post('report', { channel: 'email', id: Number(b.dataset.id) }); if (j && j.ok) toast('Reported. Sound’s fraud team has what Second Look found, and someone will call you.'); return; }
+    case 'em_report': { const j = await post('report', { channel: 'email', id: Number(b.dataset.id) }); if (j && j.ok) toast('Reported. Sound’s fraud team has what Vantis found, and someone will call you.'); return; }
     case 'g_report': { const j = await post('report', { channel: 'call guardian' }); if (j && j.ok) { reportedCall = S.guardian.started; toast('Reported. Sound’s fraud team has the warnings from this call, and someone will call you.'); render(true); } return; }
-    case 'ph_call_me': { const j = await post('phone/call_me', { caseId: S.cases.find(c => c.status === 'open')?.id }); if (j && j.ok) toast('Second Look is calling your phone now.'); return; }
+    case 'ph_call_me': { const j = await post('phone/call_me', { caseId: S.cases.find(c => c.status === 'open')?.id }); if (j && j.ok) toast('Vantis is calling your phone now.'); return; }
     case 'g_stop': return gStop();
     case 'g_hangup': gStop(); await post('callback', { kind: 'talk', caseId: 0 }); return toast('Hang up now. A Sound team member will call you at the number on file.');
     case 'g_talk': { const j = await post('callback', { kind: 'talk', caseId: 0 }); if (j && j.ok) toast('A Sound team member will call you at the number on file.'); return; }
@@ -902,7 +902,7 @@ document.addEventListener('click', async e => {
     case 'ob_skip': await post('member/enroll', { on: false }); obStep = 4; return render();
     case 'ob_done': markSetupDone(); page = 'home'; obStep = 0; return render();
     case 'setup_dismiss': markSetupDone(); return render();
-    case 'enroll_on': page = 'home'; await post('member/enroll', { on: true }); return toast('Second Look is on. Turn it off any time in Settings.');
+    case 'enroll_on': page = 'home'; await post('member/enroll', { on: true }); return toast('Vantis is on. Turn it off any time in Settings.');
     case 'enroll_skip': page = 'home'; await post('member/enroll', { on: false }); return;
     case 'sens': return post('member/alert_settings', { sensitivity: b.dataset.v });
     case 'tc_add': { const j = await post('member/trusted_contact', { name: $('#tcname').value, relation: $('#tcrel').value }); if (j && j.ok && page === 'onboarding') { obStep = 4; render(); } return; }
@@ -1009,7 +1009,7 @@ $('#invite-close').addEventListener('click', () => $('#invite-dlg').close());
   const v = q.get('view'), pg = q.get('page');
   if (v === 'member') page = 'home'; else if (v === 'employee') page = 'console'; else if (v === 'both') page = 'split';
   if (['home', 'inbox', 'settings', 'profile', 'onboarding', 'console', 'split', 'timeline', 'guardian', 'email', 'channels'].includes(pg)) page = pg;
-  if (q.get('gmail')) { const g = q.get('gmail'); setTimeout(() => toast(g === 'connected' ? 'Gmail connected. Second Look checks new mail every minute.' : 'Gmail: ' + g), 800); history.replaceState(null, '', '/?page=channels'); }
+  if (q.get('gmail')) { const g = q.get('gmail'); setTimeout(() => toast(g === 'connected' ? 'Gmail connected. Vantis checks new mail every minute.' : 'Gmail: ' + g), 800); history.replaceState(null, '', '/?page=channels'); }
   if (q.get('joined') === '1') { joined = true; sessSet('sl-joined', '1'); page = 'home'; copilotOpen = false; setTimeout(() => toast(`You’re on ${S?.member?.name ?? 'the demo member'}’s phone in the presenter’s demo.`), 600); history.replaceState(null, '', '/'); }
   if (q.get('chat') === 'general') { chatAuto = false; chatCase = 'general'; copilotOpen = true; }
   await poll();
