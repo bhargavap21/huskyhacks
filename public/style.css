@@ -440,6 +440,11 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 .feels-ways button.quiet { min-height: 36px; padding: 0 var(--space-1); }
 
 /* Fraud reports Vantis filed for the member, in the console queue. */
+.scr h4 { margin: var(--space-4) 0 var(--space-1); }
+.scr-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); }
+.scr-cols .in-ul { margin: 0; }
+.scr-example { margin: var(--space-4) 0; padding: var(--space-3) var(--space-4); border-left: 1px solid var(--line); background: var(--surface-band); }
+.scr-example p { margin: 0 0 var(--space-1); }
 .sig-list { list-style: none; margin: var(--space-2) 0; padding: 0; }
 .sig-list li { padding: var(--space-2) 0; border-top: 1px solid var(--line); }
 .sig-list .sig-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
@@ -482,5 +487,5 @@ body.joined .shell.copilot-closed .copilot { display: none; }
   .in-section__lead { font-size: 17px; line-height: 28px; }
   .in-ol > li, .in-ul > li { font-size: 15px; line-height: 26px; }
 }
-.page-member .app-body > .em-found { grid-column: 1 / -1; }
+.page-member .app-body > :is(.em-found, .scr) { grid-column: 1 / -1; }
 .g-link.verify .row input { max-width: 180px; font-variant-numeric: tabular-nums; letter-spacing: .1em; }

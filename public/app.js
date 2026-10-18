@@ -152,13 +152,14 @@ function homeView() {
   if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   const feelsOff = `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Vantis never moves money, and only tells Sound’s fraud team when you ask it to.</p><div class="row"><button class="primary" data-act="chat_general">Ask Vantis</button>${S.cases[0] ? `<button class="quiet" data-act="report" data-pid="${S.cases[0].pid}">Report a scam</button>` : ''}</div>
-    <p class="small feels-ways">Other ways to get a second look: <button class="quiet" data-page="guardian">Bring it into a call</button> · <button class="quiet" data-page="email">Forward it an email</button></p></div>`;
+    <p class="small feels-ways">Other ways to get a second look: <button class="quiet" data-page="guardian">Bring it into a call</button> · <button class="quiet" data-page="guardian" data-anchor="screening">Screen unknown callers</button> · <button class="quiet" data-page="email">Forward it an email</button></p></div>`;
   const recent = S.payments.slice(0, 4);
   const recentCard = `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
   // While money is waiting on the member, the home screen is only about that.
   if (active) return out + activePayment(active, caseById(active.case_id)) + det('home-more', 'Everything else', feelsOff + recentCard);
   if (!setupDone) out += `<div class="card setup-card"><p class="eyebrow">3 short steps</p><h3>Finish setting up your app</h3><p class="small">Choose scam protection, how often we alert you, and an optional trusted contact.</p><div class="row"><button data-act="onboarding">Start setup</button><button class="quiet" data-act="setup_dismiss">Not now</button></div></div>`;
   out += feelsOff;
+  if (S.phone && S.channels && !S.channels.screening) out += `<div class="card"><h3>Let Vantis answer unknown callers</h3><p class="small">Scam calls almost always come from numbers you don’t know. Vantis can pick those up for you, ask who’s calling and why, put ordinary callers through, and hold back the ones that look like a scam. Your contacts still ring as usual.</p><div class="row"><button data-page="guardian" data-anchor="screening">See how it works</button></div></div>`;
   out += `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
   return out;
 }
@@ -397,7 +398,7 @@ function channelsView() {
       <div class="row">${ch.push ? '<span class="in-badge in-badge--safe">On</span><button class="quiet" data-act="push_off">Turn off</button>' : `<button class="primary" data-act="push_on" ${ch.push_key ? '' : 'disabled'}>Turn on alerts</button>`}<button data-act="push_test">Send a sample alert</button></div>
       <p class="small muted">On iPhone, first add this page to your Home Screen (Share, then Add to Home Screen). Without notifications, alerts come by email to your linked address.</p></div>
     ${emailWatchCard('Email')}
-    ${callsCard(sw, needPhone)}
+    ${screeningCard()}
     <div class="card g-way"><h3>Texts</h3>
       ${sw('texts', ch.texts, 'Check texts I forward')}${needPhone}
       <p class="small">iPhones don’t let apps read your texts, so forward the ones that feel off to <b>${SL_NUMBER()}</b> from your linked phone. Vantis checks them and alerts you here.</p></div>
@@ -412,18 +413,40 @@ function screenedRow(c) {
     <b>${esc([c.name || 'Caller gave no name', c.organization].filter(Boolean).join(', '))}</b>${c.reason ? `<p class="small">${esc(c.reason)}</p>` : ''}
     ${held ? `<p class="small"><b>Why:</b> ${esc(c.why)}.</p>${c.evidence?.length ? `<ul class="sig-list">${c.evidence.map(e => `<li><div class="sig-head"><b>${esc(e.label)}</b></div><blockquote class="small">“${esc(e.quote)}”</blockquote></li>`).join('')}</ul>` : ''}${c.callback ? `<p class="small muted">They left a callback number. If it might be real, call the organization on a number you already have, not this one.</p>` : ''}` : ''}</li>`;
 }
-function callsCard(sw, needPhone) {
-  const ch = S.channels, n = SCREEN_NUMBER(), digits = n.replace(/\D/g, '').slice(-10);
-  return `<div class="card g-way"><h3>Calls</h3>
+// One card explains the whole feature; it's on Call guardian (the calls hub), Connected channels (the settings)
+// and, while it's off, as a short prompt on Home.
+function screeningCard() {
+  const ch = S.channels, ph = S.phone;
+  if (!ch || !ph) return '';
+  const n = SCREEN_NUMBER(), digits = n.replace(/\D/g, '').slice(-10);
+  const sw = (key, on, label) => `<label class="switch-row"><span>${label}</span><input type="checkbox" role="switch" data-ch="${key}" ${on ? 'checked' : ''}></label>`;
+  const status = !ch.screening ? ['neutral', 'Off'] : ch.screen_connect ? ['safe', 'On · putting callers through'] : ['safe', 'On · taking messages'];
+  const needPhone = !ph.verified ? `<p class="small muted">First link and confirm your phone at the top of <button class="quiet" data-page="guardian">Call guardian</button>.</p>` : '';
+  return `<div class="card g-way scr" id="screening"><div class="g-head"><h3>Screen unknown callers</h3><span class="in-badge in-badge--${status[0]}">${status[1]}</span></div>
+      <p>Scam calls almost always come from numbers you don’t know. Vantis can answer those calls for you, find out who’s calling and why, and only put through the ones that make sense. Your contacts still ring as usual.</p>
+      <h4 class="label">How it works</h4>
+      <ol class="in-ol g-steps">
+        <li><span><b>A number that isn’t in your contacts calls.</b> Your phone stays silent and the call goes to Vantis.</span></li>
+        <li><span><b>Vantis answers.</b> Callers hear: “This call is being screened by Vantis, an AI assistant for a Sound member. Who’s calling, and what’s it about?”</span></li>
+        <li><span><b>Vantis decides.</b> ${ch.screen_connect ? 'It puts ordinary callers through, and you see who it is before your phone rings.' : 'It takes a message and tells you who called. You can also have it put ordinary callers through (switch below).'} Anyone who looks like a scam is held back, and you get an alert with their exact words.</span></li></ol>
+      <div class="scr-cols">
+        <div><h4 class="label">Put through</h4><ul class="in-ul small"><li>Your pharmacy or a doctor’s office</li><li>A delivery driver who needs a signature</li><li>A contractor or school you deal with</li></ul></div>
+        <div><h4 class="label">Held back, with an alert</h4><ul class="in-ul small"><li>Claims to be Sound, another bank, the IRS, police or tech support</li><li>Asks for a code, password or account number</li><li>Brings up gift cards, crypto, a wire or a “safe account”</li><li>Says to keep it secret, or won’t say who they are</li></ul></div></div>
+      <div class="scr-example"><p class="small muted">Example</p>
+        <p class="small"><b>Caller:</b> “This is Sound’s fraud team. Read me the code we just texted you.”</p>
+        <p class="small"><b>Vantis:</b> “Thanks, I’ll pass your message on.”</p>
+        <p class="small"><b>You get:</b> “Held back: said they were calling from Sound and asked for a code.” If it might be real, you call Sound on the number on your card.</p></div>
       ${sw('screening', ch.screening, 'Screen calls from unknown numbers')}${needPhone}
       ${sw('screen_connect', ch.screen_connect, 'Put callers who sound legitimate through to me')}
-      <p class="small">Unknown callers reach Vantis first. It asks who’s calling and why. ${ch.screen_connect ? 'Callers like your pharmacy, a doctor’s office or a delivery driver are put through, and you see who it is before your phone rings.' : 'It takes a message and tells you who called.'} Anyone who claims to be a bank or government agency, or brings up codes, payments or secrecy, is held back, and you get an alert with their words.</p>
-      <details ${ch.screening ? '' : 'open'}><summary>Set it up on your phone (2 minutes)</summary><ol class="in-ol g-steps">
-        <li><span>Save <b>${fmtPhone(n)}</b> as a contact named <b>Vantis</b>, so calls it puts through always ring.</span></li>
-        <li><span>Turn on <b>Silence Unknown Callers</b>: on iPhone, Settings → Apps → Phone. On Android, Phone → Settings → Caller ID &amp; spam → filter calls.</span></li>
-        <li><span>Forward unanswered calls to Vantis. AT&amp;T or T-Mobile: dial <code>**61*1${esc(digits)}#</code> and press call (to stop: <code>##61#</code>). Verizon: dial <code>*71${esc(digits)}</code> (to stop: <code>*73</code>).</span></li></ol>
-        <p class="small muted">Contacts still ring as usual. Callers hear that an AI assistant is screening the call; no audio is kept, only the transcript.</p></details>
-      ${ch.screened_calls?.length ? `<h4 class="small">Recent screened calls</h4><ul class="em-list">${ch.screened_calls.map(screenedRow).join('')}</ul>` : ''}</div>`;
+      <details ${ch.screening ? '' : 'open'}><summary>Set it up on your phone, once (2 minutes)</summary>
+        <p class="small">Vantis can’t change your phone’s settings, so these three steps are yours. They send unknown callers to Vantis instead of voicemail.</p>
+        <ol class="in-ol g-steps">
+          <li><span><b>Save ${fmtPhone(n)} as a contact named Vantis.</b> Calls Vantis puts through then always ring, even with step 2 on.</span></li>
+          <li><span><b>Turn on Silence Unknown Callers.</b> iPhone: Settings → Apps → Phone → Silence Unknown Callers. Android: Phone app → Settings → Caller ID &amp; spam → Filter calls.</span></li>
+          <li><span><b>Forward unanswered calls to Vantis.</b> Silenced calls count as unanswered, so this sends them to Vantis. AT&amp;T or T-Mobile: dial <code>**61*1${esc(digits)}#</code> and press call. Verizon: dial <code>*71${esc(digits)}</code>.</span></li></ol>
+        <p class="small"><b>Try it:</b> ask a friend to call you from a number you haven’t saved, then check the list below.</p>
+        <p class="small muted">To stop at any time: turn the switch off here and dial <code>##61#</code> (AT&amp;T, T-Mobile) or <code>*73</code> (Verizon). Callers are told an AI assistant is screening the call. No audio is kept, only the transcript of what the caller said.</p></details>
+      <h4 class="label">Recent screened calls</h4>${ch.screened_calls?.length ? `<ul class="em-list">${ch.screened_calls.map(screenedRow).join('')}</ul>` : '<p class="small muted">None yet. Calls Vantis screens show up here, with what the caller said and what Vantis did.</p>'}</div>`;
 }
 // WhatsApp is end-to-end encrypted, so nothing can watch it: the member forwards what feels off to Vantis's
 // WhatsApp number, and Vantis replies in that chat. It never messages first.
@@ -533,8 +556,9 @@ function guardianIntro() {
         <p class="small muted">Linking tells Vantis which calls are yours, so warnings show up here. Demo: use your own phone.</p></div>`;
   return `<div class="card guardian"><h2>Call guardian</h2>
     <p>On a call that feels off? Bring Vantis in. It listens for pressure tactics, like requests for codes, gift cards or secrecy, and warns you as the call happens.</p>
-    <p class="small muted">Vantis never moves money or asks for codes. It only listens to calls you bring it into. Transcripts are used for warnings; audio isn’t kept.</p>
+    <p class="small muted">Vantis never moves money or asks for codes. It only hears calls you bring it into, and unknown callers you’ve asked it to screen. Transcripts are used for warnings; audio isn’t kept.</p>
     ${linkCard}</div>
+    ${screeningCard()}
     ${ph ? `<div class="card g-way"><h3>Add Vantis to a call</h3>
       <p class="small">While someone is on the line with you:</p>
       <ol class="in-ol g-steps"><li><span>Tap <b>Add call</b>.</span></li><li><span>Dial <b>${num}</b>.</span></li><li><span>Tap <b>Merge calls</b>.</span></li></ol>
@@ -849,7 +873,7 @@ function caseDetail(c) {
 /* ---------------- Events ---------------- */
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act],[data-page]'); if (!b) return;
-  if (b.dataset.page) { if (S) blurbSeen.add(S.scene.id); plusOpen = false; if (narrow() || joined) copilotOpen = false; page = b.dataset.page; if (narrow()) sideCollapsed = true; $('#main').scrollTo?.(0, 0); return render(); }
+  if (b.dataset.page) { if (S) blurbSeen.add(S.scene.id); plusOpen = false; if (narrow() || joined) copilotOpen = false; page = b.dataset.page; if (narrow()) sideCollapsed = true; $('#main').scrollTo?.(0, 0); render(); if (b.dataset.anchor) document.getElementById(b.dataset.anchor)?.scrollIntoView({ block: 'start' }); return; }
   const a = b.dataset.act, pid = b.dataset.pid, cid = Number(b.dataset.case || selCase);
   const reason = () => ($('#reason')?.value || '').trim();
   const E = (act, extra = {}) => post('employee/' + act, { caseId: selCase, reason: reason(), ...extra }).then(j => { if (j && j.ok && $('#reason')) $('#reason').value = ''; });
