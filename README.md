@@ -16,6 +16,7 @@ npm start                         # http://localhost:8787
 npm test                          # state machine, rules, no-answer-key leakage, sessions, copy checks
 npm run replay -- --member M1001  # print a member's kit timeline with rule findings
 npm run lookalikes                # catch counts per rule (reads the Member Key for measurement only)
+npm run eval                      # message-detection precision/recall on eval/conversations.jsonl -> eval/report.md
 ```
 
 The payment demo needs no keys. Each optional channel turns on when its keys are in `.env`, and stays off (hidden in the app) without them:

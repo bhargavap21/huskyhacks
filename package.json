@@ -9,7 +9,8 @@
     "vapid": "web-push generate-vapid-keys",
     "replay": "tsx scripts/replay.ts",
     "lookalikes": "tsx scripts/lookalikes.ts",
-    "kit:synthetic": "tsx scripts/synthetic-kit.ts"
+    "kit:synthetic": "tsx scripts/synthetic-kit.ts",
+    "eval": "tsx scripts/eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

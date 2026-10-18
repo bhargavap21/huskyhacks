@@ -12,6 +12,9 @@ test('the app never references the Member Key (grep + import ban over src/ and p
     assert.ok(!/Member_Key|member_key|journey_outcome|is_legitimate_lookalike|net_member_loss/.test(s), `answer-key reference in ${p}`);
   }
 });
+test('the app never reads the eval dataset, which is the answer key for message detection', () => {
+  for (const p of [...files('src'), ...files('public')]) assert.ok(!/conversations\.jsonl|eval\/|scripts\/eval/.test(readFileSync(p, 'utf8')), `eval dataset reference in ${p}`);
+});
 test('history for any scored payment contains only that member and nothing later', () => {
   for (const m of ['M1001', 'M1003', 'M1037', 'M1057']) {
     const evs = memberEvents(m);

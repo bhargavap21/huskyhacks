@@ -69,9 +69,15 @@ export function inspect(text: string) {
 const MONEYISH = /\b(wire|gift ?card|crypto|bitcoin|zelle|venmo|cash ?app|payment|invoice|refund|verify|suspend|locked|unusual (sign|activity)|password|code|ssn|social security|tax|irs|warrant|arrest|prize|winner|inheritance|package|customs|fee)\b/i;
 
 /** Should this be flagged? Returns null for harmless messages (then nothing is kept). */
-export async function assess(channel: Detection['channel'], from: string, subject: string, body: string, extra: string[] = []): Promise<Detection | null> {
+/** The rules-only check: pressure tactics, look-alike domains, and any extra warning (e.g. failed sender authentication). */
+export function ruleCheck(subject: string, body: string, extra: string[] = []) {
   const f = inspect(`${subject}\n${body}`);
   const lookalike = f.links.some(l => l.note && !l.note.startsWith('This is'));
+  return { ...f, lookalike, flag: f.tactics.length > 0 || lookalike || extra.length > 0 };
+}
+
+export async function assess(channel: Detection['channel'], from: string, subject: string, body: string, extra: string[] = []): Promise<Detection | null> {
+  const f = ruleCheck(subject, body, extra), lookalike = f.lookalike;
   if (!f.tactics.length && !lookalike && !MONEYISH.test(`${subject} ${body}`) && !extra.length) return null; // clearly ordinary: discard unread by the model
   let verdict: any = null;
   if (client) {
@@ -93,7 +99,7 @@ export async function assess(channel: Detection['channel'], from: string, subjec
     } catch (e) { console.error('monitor: Claude unavailable, using automatic checks:', (e as Error).message); }
   }
   if (verdict && !verdict.alert) return null;
-  if (!verdict && !f.tactics.length && !lookalike && !extra.length) return null;
+  if (!verdict && !f.flag) return null;
   return {
     channel, from, subject, risk: verdict?.risk === 'medium' ? 'medium' : 'high',
     title: String(verdict?.title ?? `${channel === 'call screening' ? 'A screened call' : 'A message'} has warning signs: ${[...f.tactics.map(t => t.label.toLowerCase()), ...(lookalike ? ['look-alike link'] : [])].join(', ')}`).slice(0, 140),
