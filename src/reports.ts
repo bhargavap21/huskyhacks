@@ -232,7 +232,8 @@ export async function fileReport(key: string | null, c: FraudCase) {
     c.member.linked = true;
     fraudReport(c); queued = true;
   } else audit('second-look', 'fraud_report_unlinked', `${c.channel}: ${c.summary.slice(0, 200)}`);
-  db.prepare('UPDATE fraud_cases SET json = ? WHERE id = ?').run(JSON.stringify(c), id);
+  // `world` keeps demo cases out of the live queue when it's rebuilt from this table (sim.ts, restoreReports).
+  db.prepare('UPDATE fraud_cases SET json = ? WHERE id = ?').run(JSON.stringify({ ...c, world: demo ? 'demo' : 'live' }), id);
   const emailed = await emailTeam(c, demo);
   return { queued, emailed, case_id: c.case_id };
 }

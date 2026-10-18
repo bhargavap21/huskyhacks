@@ -73,14 +73,14 @@ export const DEMO_SUFFIX = '~demo';
 export const demoKey = (sid: string) => sid + DEMO_SUFFIX;
 export const isDemoKey = (key: string) => key.endsWith(DEMO_SUFFIX);
 
-function select(key: string, make: () => World) {
+function select(key: string, make: (key: string) => World) {
   let x = worlds.get(key);
   if (!x) {
     if (worlds.size >= MAX_WORLDS) {
       const oldest = [...worlds.entries()].sort((a, b) => a[1].seen - b[1].seen)[0];
       worlds.delete(oldest[0]);
     }
-    x = make();
+    x = make(key);
     worlds.set(key, x);
   }
   x.seen = Date.now();
@@ -88,6 +88,8 @@ function select(key: string, make: () => World) {
 }
 /** Select (or create) a scene world by key. All exported functions act on the selected world. */
 export function useWorld(key: string) { select(key, () => blank(SCENES[1])); }
+/** Forget a session's world, as a restart or idle eviction would (tests). */
+export function dropWorld(key: string) { worlds.delete(key); }
 /** Select (or create) this session's live console world. */
 export function useLive(sid: string) { select(sid, liveWorld); }
 
@@ -151,7 +153,7 @@ function shiftTo(x: World, now: number) {
   if (x.member.contact_changed_sim !== null) x.member.contact_changed_sim += d;
   x.sim = now;
 }
-function liveWorld(): World {
+function liveWorld(sid: string): World {
   const now = Date.now();
   seeding = true;
   let seeds: World[];
@@ -169,7 +171,25 @@ function liveWorld(): World {
       L.cases.push({ ...c, id, member_id: x.member.id, sample: true });
     }
   }
+  restoreReports(L, sid);
   return L;
+}
+
+// Fraud cases are kept in SQLite (fraud_cases); the work queue is rebuilt from them whenever this session's live world
+// is created, so a server restart or an idle session doesn't lose them. Same one-open-report-per-channel rule as
+// fraudReport; not audited again (they were audited when filed).
+function restoreReports(L: World, sid: string) {
+  let rows: { ts: number; json: string }[] = [];
+  try { rows = db.prepare('SELECT ts, json FROM fraud_cases WHERE sid = ? ORDER BY id').all(sid) as typeof rows; } catch { return; } // no reports module loaded yet: nothing filed
+  for (const row of rows) {
+    let r: FraudReport & { world?: string; queue_status?: 'waiting' | 'done'; queue_note?: string };
+    try { r = JSON.parse(row.json); } catch { continue; }
+    if (!r?.case_id || r.world === 'demo') continue;
+    const status = r.queue_status === 'done' ? 'done' : 'waiting';
+    const open = status === 'waiting' && L.callbacks.find(x => x.status === 'waiting' && x.report && x.report.channel === r.channel);
+    if (open) { open.report = r; open.urgent = open.urgent || r.money_sent; continue; }
+    L.callbacks.unshift({ id: L.callbacks.length + 1, ts: row.ts, reason: r.money_sent ? 'Vantis report: money may already be gone, start recovery' : 'Vantis report: member facing a possible scam', source: `Filed by Vantis from ${r.channel}, at the member’s request`, urgent: true, status, note: r.queue_note ?? '', report: r });
+  }
 }
 
 const SKIP = new Set(['Login', 'Debit Purchase', 'ATM Withdrawal', 'Deposit', 'Automatic Payment', 'Bill Payment']);
@@ -375,6 +395,7 @@ export function callbackDone(id: number, note: string) {
   const cb = w.callbacks.find(x => x.id === id);
   if (!cb) throw new TransitionError('Unknown request');
   cb.status = 'done'; cb.note = note.slice(0, 300) || 'Called member';
+  if (cb.report?.case_id) db.prepare(`UPDATE fraud_cases SET json = json_set(json, '$.queue_status', 'done', '$.queue_note', ?) WHERE json_extract(json, '$.case_id') = ?`).run(cb.note, cb.report.case_id);
   audit('employee', 'callback_done', `request ${id}: ${cb.note}`, w.kind);
 }
 
