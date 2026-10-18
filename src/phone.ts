@@ -22,6 +22,9 @@ const API = 'https://api.agentphone.ai';
 export const phoneEnabled = !!(KEY && AGENT && NUMBER);
 
 db.exec(`CREATE TABLE IF NOT EXISTS phone_links (number TEXT PRIMARY KEY, sid TEXT NOT NULL, share INTEGER NOT NULL DEFAULT 0, ts INTEGER NOT NULL)`);
+// A link only counts once verified: the member calls Second Look once from that phone (caller ID proves it).
+// The team's own numbers (AGENTPHONE_ALLOWED_TO) are trusted from config.
+try { db.exec('ALTER TABLE phone_links ADD COLUMN verified INTEGER NOT NULL DEFAULT 0'); } catch { /* already there */ }
 
 export class PhoneError extends Error {}
 
@@ -37,17 +40,24 @@ export function link(sid: string, raw: unknown, share: boolean) {
   const n = e164(raw);
   if (!n) throw new PhoneError('Enter a 10-digit US phone number');
   db.prepare('DELETE FROM phone_links WHERE sid = ?').run(sid);
-  db.prepare('INSERT OR REPLACE INTO phone_links (number, sid, share, ts) VALUES (?, ?, ?, ?)').run(n, sid, share ? 1 : 0, Date.now());
+  db.prepare('DELETE FROM phone_links WHERE number = ?').run(n); // a number belongs to one member; re-linking needs a fresh verification
+  db.prepare('INSERT INTO phone_links (number, sid, share, ts, verified) VALUES (?, ?, ?, ?, ?)').run(n, sid, share ? 1 : 0, Date.now(), ALLOWED_TO.has(n) ? 1 : 0);
 }
 export function unlink(sid: string) { db.prepare('DELETE FROM phone_links WHERE sid = ?').run(sid); }
-const linkFor = (sid: string) => db.prepare('SELECT number, share FROM phone_links WHERE sid = ?').get(sid) as { number: string; share: number } | undefined;
-const sidFor = (number: string) => (db.prepare('SELECT sid, share FROM phone_links WHERE number = ?').get(number) as { sid: string; share: number } | undefined);
+const linkFor = (sid: string) => db.prepare('SELECT number, share, verified FROM phone_links WHERE sid = ?').get(sid) as { number: string; share: number; verified: number } | undefined;
+const sidFor = (number: string) => (db.prepare('SELECT sid, share FROM phone_links WHERE number = ? AND verified = 1').get(number) as { sid: string; share: number } | undefined);
+export const phoneVerified = (sid: string) => !!linkFor(sid)?.verified;
+/** An inbound call from a number that's linked but not yet verified proves the member has that phone. */
+function verifyByCall(number: string) {
+  const r = db.prepare('UPDATE phone_links SET verified = 1 WHERE number = ? AND verified = 0').run(number);
+  if (r.changes) console.log(`phone: verified a member's phone (…${number.slice(-4)}) by their call`);
+}
 
 // What the member's app shows: Second Look's number and their own (masked).
 export function phoneState(sid: string) {
   if (!phoneEnabled) return null;
   const l = linkFor(sid);
-  return { number: NUMBER, linked: l ? `•••-•••-${l.number.slice(-4)}` : null, share: !!l?.share, can_call_me: !!l && ALLOWED_TO.has(l.number) };
+  return { number: NUMBER, linked: l ? `•••-•••-${l.number.slice(-4)}` : null, verified: !!l?.verified, share: !!l?.share, can_call_me: !!l?.verified && ALLOWED_TO.has(l.number) };
 }
 
 async function api(method: string, path: string, body?: unknown) {
@@ -63,6 +73,7 @@ export async function callMe(sid: string, context: string) {
   if (!phoneEnabled) throw new PhoneError('Second Look’s phone line isn’t set up');
   const l = linkFor(sid);
   if (!l) throw new PhoneError('Link your phone first');
+  if (!l.verified) throw new PhoneError('Confirm your phone first: call Second Look once from it');
   if (!ALLOWED_TO.has(l.number)) throw new PhoneError('In this demo, Second Look only calls phones on the team’s list');
   if (Date.now() - lastOutbound < 60_000) throw new PhoneError('Second Look just placed a call. Try again in a minute.');
   lastOutbound = Date.now();
@@ -125,13 +136,22 @@ type KeyFor = (sid: string) => string;
 
 export async function follow(call: any, keyFor: KeyFor) {
   const member = call.direction === 'inbound' ? call.fromNumber : call.toNumber;
+  if (call.direction === 'inbound') verifyByCall(member);
   const who = sidFor(member);
   if (!who) console.log(`phone: ${call.direction} call with an unlinked number (…${String(member).slice(-4)}): no live view, report-only`);
   const key = who ? keyFor(who.sid) : '';
   if (who) startCall(key, !!who.share, call.direction === 'outbound' ? 'phone-out' : 'phone-in');
   const turns: { role: string; content: string }[] = [];
   // Call screening: an unknown caller on an inbound call, while a member has screening on (most recent wins in this demo).
-  const screenFor = !who && call.direction === 'inbound' ? sidsWhere(s => s.screening).sort((a, b) => (b.s.screening_since ?? 0) - (a.s.screening_since ?? 0))[0]?.sid ?? null : null;
+  // Only a verified phone can turn on screening. Forwarded calls don't tell us which member forwarded them, so we
+  // route only when exactly one member has screening on; otherwise we don't guess (issue #23). In production each
+  // member gets their own forwarding number, and the number dialed identifies them.
+  let screenFor: string | null = null;
+  if (!who && call.direction === 'inbound') {
+    const on = sidsWhere(s => s.screening).filter(x => phoneVerified(x.sid));
+    if (on.length === 1) screenFor = on[0].sid;
+    else if (on.length > 1) console.log(`phone: unknown caller, but ${on.length} members have screening on; not attributing the call`);
+  }
   const done = async () => {
     if (who && callState(key)?.live) await stopCall(key);
     if (screenFor) await screened(screenFor, member, turns);
@@ -168,7 +188,7 @@ async function screened(sid: string, caller: string, turns: { role: string; cont
     await record(sid, d, emailFor(sid), sendEmail);
   } catch (e) { console.error('phone: screening check failed:', (e as Error).message); }
 }
-const emailFor = (sid: string) => (db.prepare('SELECT address FROM email_links WHERE sid = ?').get(sid) as { address: string } | undefined)?.address ?? null;
+const emailFor = (sid: string) => (db.prepare('SELECT address FROM email_links WHERE sid = ? AND verified = 1').get(sid) as { address: string } | undefined)?.address ?? null;
 
 // Texts a member forwards to Second Look's number (inbound works without carrier registration; we reply in the app).
 const seenTexts = new Set<string>();

@@ -14,8 +14,8 @@ import { prepare, loadAsr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
-import { phoneState, link, unlink, callMe, watchCalls, PhoneError } from './phone.ts';
-import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError, reportEmailById } from './email.ts';
+import { phoneState, link, unlink, callMe, watchCalls, PhoneError, phoneVerified } from './phone.ts';
+import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError, reportEmailById, sendLinkCode, verifyLinkCode } from './email.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
 import { settings, saveSettings, detections, pushKey, addPushSub, removePushSubs, reportDetection, record } from './monitor.ts';
 import { gmailEnabled, authUrl, callback as gmailCallback, disconnect as gmailDisconnect, watchGmail } from './gmail.ts';
@@ -116,7 +116,9 @@ app.post('/api/guardian/reset', c => { clearCall(chatKey(c)); return c.json({ ok
 app.post('/api/guardian/stop', async c => c.json(await stopCall(chatKey(c)) ?? { error: 'No call' }));
 // Second Look's phone line: link the member's phone, and "Have Second Look call me" (with what the app knows).
 app.post('/api/phone/link', async c => { const b = await c.req.json().catch(() => ({})); link(c.get('sid'), b.number, !!b.share); return c.json({ ok: true }); });
-app.post('/api/email/link', async c => { const b = await c.req.json().catch(() => ({})); linkEmail(c.get('sid'), b.address, !!b.share); return c.json({ ok: true }); });
+app.post('/api/email/link', async c => { const b = await c.req.json().catch(() => ({})); linkEmail(c.get('sid'), b.address, !!b.share); await sendLinkCode(c.get('sid')); return c.json({ ok: true }); });
+app.post('/api/email/code', async c => { await sendLinkCode(c.get('sid')); return c.json({ ok: true }); });
+app.post('/api/email/verify', async c => { const b = await c.req.json().catch(() => ({})); verifyLinkCode(c.get('sid'), b.code); return c.json({ ok: true }); });
 // "Report to Sound" from the app: Second Look files the report for what it already saw (a call or a forwarded email).
 app.post('/api/report', async c => {
   const b = await c.req.json().catch(() => ({})), sid = c.get('sid');
@@ -136,6 +138,8 @@ function channelState(sid: string) {
 app.post('/api/channels', async c => {
   const b = await c.req.json().catch(() => ({})), sid = c.get('sid'), patch: any = {};
   for (const k of ['email_watch', 'screening', 'texts'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
+  if (patch.email_watch && !emailState(sid)?.verified) return c.json({ error: 'Confirm your email first on Email check' }, 400);
+  if (patch.screening && !phoneVerified(sid)) return c.json({ error: 'Confirm your phone first: link it on Call guardian and call Second Look once from it' }, 400);
   if (patch.screening) patch.screening_since = Date.now();
   if (b.dismiss_confirm) patch.forward_confirm = null;
   saveSettings(sid, patch);
@@ -145,7 +149,7 @@ app.post('/api/push/subscribe', async c => { const b = await c.req.json().catch(
 app.post('/api/push/unsubscribe', c => { removePushSubs(c.get('sid')); return c.json({ ok: true }); });
 // A sample alert, so the member (and judges) can see what one looks like before anything real arrives.
 app.post('/api/push/test', async c => {
-  const sid = c.get('sid'), em = (emailState(sid)?.linked ? (db.prepare('SELECT address FROM email_links WHERE sid = ?').get(sid) as any)?.address : null) ?? null;
+  const sid = c.get('sid'), em = (emailState(sid)?.linked ? (db.prepare('SELECT address FROM email_links WHERE sid = ? AND verified = 1').get(sid) as any)?.address : null) ?? null;
   await record(sid, { channel: 'email', risk: 'high', title: 'Sample alert: an email from “Sound Security” asks you to confirm a code', summary: 'This is a sample of what a Second Look alert looks like. Nothing real happened.', why: ['Claims to be Sound', 'Asks for a one-time code', '“within 1 hour”'], advice: 'Don’t click links or share codes. Check by typing soundcu.com yourself.', from: 'Sample', subject: 'Sample alert' }, em, sendEmail);
   return c.json({ ok: true });
 });

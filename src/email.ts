@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS email_links (address TEXT PRIMARY KEY, sid TEXT NOT N
 CREATE TABLE IF NOT EXISTS email_seen (message_id TEXT PRIMARY KEY, ts INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS email_reports (id INTEGER PRIMARY KEY, sid TEXT NOT NULL, ts INTEGER NOT NULL, subject TEXT, report TEXT NOT NULL);
 `);
+// A link only counts once the member enters the 6-digit code we email to that address.
+for (const col of ['verified INTEGER NOT NULL DEFAULT 0', 'code TEXT', 'code_ts INTEGER']) { try { db.exec(`ALTER TABLE email_links ADD COLUMN ${col}`); } catch { /* already there */ } }
+const V = 'AND verified = 1';
 
 export class EmailError extends Error {}
 const addr = (s: string) => (/<([^>]+)>/.exec(s)?.[1] ?? s).trim().toLowerCase();
@@ -34,7 +37,27 @@ export function linkEmail(sid: string, raw: unknown, share: boolean) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a) || a.length > 200) throw new EmailError('Enter an email address');
   if (a === INBOX) throw new EmailError('Use your own email address');
   db.prepare('DELETE FROM email_links WHERE sid = ?').run(sid);
-  db.prepare('INSERT OR REPLACE INTO email_links (address, sid, share, ts) VALUES (?, ?, ?, ?)').run(a, sid, share ? 1 : 0, Date.now());
+  db.prepare('DELETE FROM email_links WHERE address = ?').run(a); // an address belongs to one member; re-linking needs a fresh code
+  db.prepare('INSERT INTO email_links (address, sid, share, ts, verified) VALUES (?, ?, ?, ?, 0)').run(a, sid, share ? 1 : 0, Date.now());
+}
+const codeSends = new Map<string, number[]>();
+/** Email a fresh 6-digit code to the member's linked address (at most 3 per 10 minutes). */
+export async function sendLinkCode(sid: string) {
+  const l = db.prepare('SELECT address, verified FROM email_links WHERE sid = ?').get(sid) as { address: string; verified: number } | undefined;
+  if (!l) throw new EmailError('Link your email first');
+  if (l.verified) return;
+  const sent = (codeSends.get(sid) ?? []).filter(t => Date.now() - t < 600_000);
+  if (sent.length >= 3) throw new EmailError('Too many codes. Try again in a few minutes.');
+  codeSends.set(sid, [...sent, Date.now()]);
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  db.prepare('UPDATE email_links SET code = ?, code_ts = ? WHERE sid = ?').run(code, Date.now(), sid);
+  await sendEmail(l.address, `Your Second Look code: ${code}`, `Enter ${code} in the Sound app to confirm this is your email. It expires in 15 minutes.\n\nIf you didn't ask for this, ignore this email; nothing changes.`);
+}
+export function verifyLinkCode(sid: string, raw: unknown) {
+  const l = db.prepare('SELECT code, code_ts FROM email_links WHERE sid = ?').get(sid) as { code: string | null; code_ts: number | null } | undefined;
+  if (!l?.code || !l.code_ts || Date.now() - l.code_ts > 15 * 60_000) throw new EmailError('That code expired. Send a new one.');
+  if (String(raw ?? '').replace(/\D/g, '') !== l.code) throw new EmailError('That code doesn’t match. Check the email and try again.');
+  db.prepare('UPDATE email_links SET verified = 1, code = NULL WHERE sid = ?').run(sid);
 }
 export function unlinkEmail(sid: string) { db.prepare('DELETE FROM email_links WHERE sid = ?').run(sid); }
 
@@ -48,10 +71,10 @@ export type Report = {
 
 export function emailState(sid: string) {
   if (!emailEnabled) return null;
-  const l = db.prepare('SELECT address, share FROM email_links WHERE sid = ?').get(sid) as { address: string; share: number } | undefined;
+  const l = db.prepare('SELECT address, share, verified FROM email_links WHERE sid = ?').get(sid) as { address: string; share: number; verified: number } | undefined;
   const reports = (db.prepare('SELECT id, report FROM email_reports WHERE sid = ? ORDER BY id DESC LIMIT 10').all(sid) as { id: number; report: string }[])
     .map(r => ({ id: r.id, ...(JSON.parse(r.report) as Report) }));
-  return { address: INBOX, linked: l ? mask(l.address) : null, share: !!l?.share, reports };
+  return { address: INBOX, linked: l ? mask(l.address) : null, verified: !!l?.verified, share: !!l?.share, reports };
 }
 
 async function api(method: string, path: string, body?: unknown) {
@@ -139,7 +162,7 @@ async function forwardingConfirmation(m: any) {
   const code = /confirmation code:\s*(\d{6,12})/i.exec(text)?.[1] ?? /\(#(\d{6,12})\)/.exec(full.subject ?? '')?.[1] ?? '';
   const who = addr(/([^\s<>()]+@[^\s<>()]+) has requested to automatically forward/i.exec(text)?.[1] ?? /from ([^\s<>()]+@[^\s<>()]+)/i.exec(full.subject ?? '')?.[1] ?? '');
   const link = /(https:\/\/mail(?:-settings)?\.google\.com\/mail\/[^\s<>"]+)/.exec(text)?.[1] ?? '';
-  const l = db.prepare('SELECT sid FROM email_links WHERE address = ?').get(who) as { sid: string } | undefined;
+  const l = db.prepare(`SELECT sid FROM email_links WHERE address = ? ${V}`).get(who) as { sid: string } | undefined;
   if (!l) { console.log('email: Gmail forwarding confirmation for an unlinked address, ignored'); return; }
   saveSettings(l.sid, { forward_confirm: { code, link, from: mask(who), ts: Date.now() }, email_watch: true });
   console.log('email: Gmail forwarding confirmation received for a member');
@@ -161,7 +184,7 @@ const FOOTER = `\n\n—\nSecond Look never asks for codes or passwords and never
 
 // File a fraud report for a forwarded email (also used by the app's "Report to Sound" button).
 export async function reportEmail(sid: string, r: Report, memberNote = '') {
-  const linked = (db.prepare('SELECT address FROM email_links WHERE sid = ?').get(sid) as { address: string } | undefined)?.address ?? '';
+  const linked = (db.prepare(`SELECT address FROM email_links WHERE sid = ? ${V}`).get(sid) as { address: string } | undefined)?.address ?? '';
   const flagged = r.links.filter(l => l.note && !l.note.startsWith('This is')).map(l => l.domain);
   const base = {
     summary: `The member forwarded a message to Second Look: "${r.subject}".`,
@@ -193,11 +216,11 @@ const recent = new Map<string, number[]>(); // per-sender replies in the last ho
 async function handle(m: any, keyFor: (sid: string) => string) {
   const from = addr(m.from ?? '');
   if (from === 'forwarding-noreply@google.com') return forwardingConfirmation(m);
-  const link = db.prepare('SELECT sid, share FROM email_links WHERE address = ?').get(from) as { sid: string; share: number } | undefined;
+  const link = db.prepare(`SELECT sid, share FROM email_links WHERE address = ? ${V}`).get(from) as { sid: string; share: number } | undefined;
   if (!link) {
     // Auto-forwarded by a member who turned on email watching: the original To/Cc still names them.
     const rcpts = [...(m.to ?? []), ...(m.cc ?? [])].map((x: string) => addr(x));
-    const watched = rcpts.map(a => ({ a, l: db.prepare('SELECT sid FROM email_links WHERE address = ?').get(a) as { sid: string } | undefined })).find(x => x.l && settings(x.l.sid).email_watch);
+    const watched = rcpts.map(a => ({ a, l: db.prepare(`SELECT sid FROM email_links WHERE address = ? ${V}`).get(a) as { sid: string } | undefined })).find(x => x.l && settings(x.l.sid).email_watch);
     if (watched) return watchedMail(m, watched.l!.sid, watched.a);
     console.log(`email: ignored mail from an unlinked address (${mask(from)}), left unread`); return;
   }

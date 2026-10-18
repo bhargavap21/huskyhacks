@@ -350,7 +350,7 @@ function emailWatchCard(title) {
   const ch = S.channels, em = S.email;
   if (!ch || !em) return '';
   const sw = (key, on, label) => `<label class="switch-row"><span>${label}</span><input type="checkbox" role="switch" data-ch="${key}" ${on ? 'checked' : ''}></label>`;
-  const needEmail = !em.linked ? `<p class="small muted">First link your email${page === 'email' ? ' above' : ` on <button class="quiet" data-page="email">Email check</button>`}.</p>` : '';
+  const needEmail = !em.verified ? `<p class="small muted">First link and confirm your email${page === 'email' ? ' above' : ` on <button class="quiet" data-page="email">Email check</button>`}.</p>` : '';
   const fc = ch.forward_confirm, on = ch.email_watch || !!ch.gmail;
   return `<div class="card g-way"><div class="g-head"><h3>${title}</h3><span class="in-badge in-badge--${on ? 'safe' : 'neutral'}">${on ? 'Watching' : 'Off'}</span></div>
       <p class="small">Second Look checks new mail on its own and alerts you the moment something looks like a scam, before you click or reply. Ordinary mail is checked and thrown away.</p>
@@ -380,8 +380,8 @@ function channelsView() {
   const ch = S.channels, ph = S.phone, em = S.email;
   if (!ch) return '<div class="card"><h2>Connected channels</h2><p>Not available on this server.</p></div>';
   const sw = (key, on, label) => `<label class="switch-row"><span>${label}</span><input type="checkbox" role="switch" data-ch="${key}" ${on ? 'checked' : ''}></label>`;
-  const needEmail = !em?.linked ? `<p class="small muted">First link your email on <button class="quiet" data-page="email">Email check</button>.</p>` : '';
-  const needPhone = !ph?.linked ? `<p class="small muted">First link your phone on <button class="quiet" data-page="guardian">Call guardian</button>.</p>` : '';
+  const needEmail = !em?.verified ? `<p class="small muted">First link and confirm your email on <button class="quiet" data-page="email">Email check</button>.</p>` : '';
+  const needPhone = !ph?.verified ? `<p class="small muted">First link and confirm your phone on <button class="quiet" data-page="guardian">Call guardian</button>.</p>` : '';
   const fc = ch.forward_confirm;
   return `<div class="card guardian"><h2>Connected channels</h2>
       <p>Turn on the channels you want Second Look to watch. When something arrives that looks like a scam, it alerts you before you act, and you can report it to Sound in one tap.</p>
@@ -392,7 +392,7 @@ function channelsView() {
       <p class="small muted">On iPhone, first add this page to your Home Screen (Share, then Add to Home Screen). Without notifications, alerts come by email to your linked address.</p></div>
     ${emailWatchCard('Email')}
     <div class="card g-way"><h3>Calls</h3>
-      ${sw('screening', ch.screening, 'Screen calls I don’t answer')}
+      ${sw('screening', ch.screening, 'Screen calls I don’t answer')}${needPhone}
       <p class="small">Second Look answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${SL_NUMBER()}</b>:</p>
       <ul class="em-links"><li>AT&amp;T or T-Mobile: dial <code>**61*1${esc((S.phone?.number || '').replace(/\D/g, '').slice(-10))}#</code> and press call. To stop: <code>##61#</code>.</li><li>Verizon: dial <code>*71${esc((S.phone?.number || '').replace(/\D/g, '').slice(-10))}</code>. To stop: <code>*73</code>.</li></ul></div>
     <div class="card g-way"><h3>Texts</h3>
@@ -432,8 +432,12 @@ function emailReport(r, staff = false) {
 function emailView() {
   const e = S.email;
   if (!e) return `<div class="card"><h2>Email check</h2><p>Second Look’s inbox isn’t set up on this server.</p></div>`;
-  const linkCard = e.linked
-    ? `<p class="small">Your email: <b>${esc(e.linked)}</b> · ${e.share ? 'Sound can see these reports' : 'reports stay with you'} <button class="quiet" data-act="em_unlink">Change</button></p>`
+  const linkCard = e.linked && !e.verified
+    ? `<div class="g-link verify"><p class="small">We emailed a 6-digit code to <b>${esc(e.linked)}</b>. Enter it to confirm this is your email. Until then, Second Look doesn’t read anything from it.</p>
+        <div class="row"><label for="em-code" class="sr">Code</label><input type="text" id="em-code" data-keep inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" maxlength="8"><button class="primary" data-act="em_verify">Confirm</button></div>
+        <p class="small"><button class="quiet" data-act="em_code">Send a new code</button> · <button class="quiet" data-act="em_unlink">Use a different email</button></p></div>`
+    : e.linked
+    ? `<p class="small">Your email: <b>${esc(e.linked)}</b> <span class="in-badge in-badge--safe">Confirmed</span> · ${e.share ? 'Sound can see these reports' : 'reports stay with you'} <button class="quiet" data-act="em_unlink">Change</button></p>`
     : `<div class="g-link"><label for="em-addr">Your email address</label><div class="row"><input type="email" id="em-addr" data-keep autocomplete="email" placeholder="you@example.com"><button class="primary" data-act="em_link">Link my email</button></div>
         <label class="check"><input type="checkbox" id="em-share" data-keep checked> Let Sound see what Second Look finds</label>
         <p class="small muted">Second Look only reads mail from this address, or mail your Gmail forwards for you once you turn on watching. Anything else sent to it is left unread.</p></div>`;
@@ -478,8 +482,11 @@ const SOURCE = { speaker: 'Listening on speaker', sample: 'Sample call', 'phone-
 // How to get Second Look on a call: add it to the call, call it, have it call you, or listen on speaker.
 function guardianIntro() {
   const ph = S.phone, num = ph && fmtPhone(ph.number);
-  const linkCard = !ph ? '' : ph.linked
-    ? `<p class="small">Your phone: <b>${esc(ph.linked)}</b> · ${ph.share ? 'Sound can see warnings from your calls' : 'warnings stay on your device'} <button class="quiet" data-act="ph_unlink">Change</button></p>`
+  const linkCard = !ph ? '' : ph.linked && !ph.verified
+    ? `<div class="g-link verify"><p class="small">To confirm <b>${esc(ph.linked)}</b> is your phone, call <b>${num}</b> once from it. You can hang up as soon as it answers. This page updates when we see the call.</p>
+        <div class="row"><a class="in-btn in-btn--secondary g-tel" href="tel:${esc(ph.number)}">Call ${num}</a><button class="quiet" data-act="ph_unlink">Use a different number</button></div></div>`
+    : ph.linked
+    ? `<p class="small">Your phone: <b>${esc(ph.linked)}</b> <span class="in-badge in-badge--safe">Confirmed</span> · ${ph.share ? 'Sound can see warnings from your calls' : 'warnings stay on your device'} <button class="quiet" data-act="ph_unlink">Change</button></p>`
     : `<div class="g-link"><label for="ph-num">Your phone number</label><div class="row"><input type="tel" id="ph-num" data-keep inputmode="tel" autocomplete="tel" placeholder="(555) 555-0123"><button class="primary" data-act="ph_link">Link my phone</button></div>
         <label class="check"><input type="checkbox" id="ph-share" data-keep checked> Let Sound see warnings from these calls</label>
         <p class="small muted">Linking tells Second Look which calls are yours, so warnings show up here. Demo: use your own phone.</p></div>`;
@@ -831,10 +838,12 @@ document.addEventListener('click', async e => {
       else if (att.length) { chatLog.splice(chatLog.indexOf(mine), 1); pendingAtt = att; } // keep the files so the member can try again
       return render(true); }
     case 'g_start': return gStart(b.dataset.src);
-    case 'ph_link': { const j = await post('phone/link', { number: $('#ph-num').value, share: $('#ph-share').checked }); if (j && j.ok) toast('Phone linked. Calls with Second Look will show up here.'); return; }
+    case 'ph_link': { const j = await post('phone/link', { number: $('#ph-num').value, share: $('#ph-share').checked }); if (j && j.ok) toast('Now call Second Look once from that phone to confirm it’s yours.'); return; }
     case 'ph_unlink': return post('phone/unlink');
-    case 'em_link': { const j = await post('email/link', { address: $('#em-addr').value, share: $('#em-share').checked }); if (j && j.ok) toast('Email linked. Forward a message to Second Look to try it.'); return; }
+    case 'em_link': { const j = await post('email/link', { address: $('#em-addr').value, share: $('#em-share').checked }); if (j && j.ok) toast('Check your email for a 6-digit code.'); return; }
     case 'em_unlink': return post('email/unlink');
+    case 'em_code': { const j = await post('email/code'); if (j && j.ok) toast('New code sent. Check your email.'); return; }
+    case 'em_verify': { const j = await post('email/verify', { code: $('#em-code').value }); if (j && j.ok) toast('Email confirmed. Second Look can now check what you send it.'); return; }
     case 'push_on': return pushOn();
     case 'push_off': { try { const reg = await navigator.serviceWorker.getRegistration('/'); const s = await reg?.pushManager.getSubscription(); await s?.unsubscribe(); } catch {} return post('push/unsubscribe'); }
     case 'push_test': { const j = await post('push/test'); if (j && j.ok) toast('Sample alert sent.'); return; }
