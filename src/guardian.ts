@@ -57,7 +57,7 @@ const levelOf = (alerts: Alert[]): Level => (alerts.some(a => SERIOUS.has(a.key)
 
 function detect(text: string): Tactic[] {
   const found = tacticsIn(text);
-  if (!found.some(t => t.key === 'impersonation') && CALLER_CLAIM.test(text)) found.push({ key: 'impersonation', label: 'Claims to be a bank, agency or company' });
+  if (!found.some(t => t.key === 'impersonation') && CALLER_CLAIM.test(text)) found.push({ key: 'impersonation', label: 'Claims to be a bank, agency or company', quote: CALLER_CLAIM.exec(text)![0] });
   return found;
 }
 

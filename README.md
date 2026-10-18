@@ -24,6 +24,7 @@ The payment demo needs no keys. Each optional channel turns on when its keys are
 | Turns on | Variables |
 |---|---|
 | Claude for chat, email replies, channel checks and call summaries (otherwise scripted replies labeled "offline reply") | `ANTHROPIC_API_KEY` (or `LLM_API_KEY`), optional `ANTHROPIC_MODEL` |
+| How incoming messages are checked: `gate` (default), `rules` or `classifier` (see [docs/classifier-schema.md](docs/classifier-schema.md)) | `DETECTION_MODE` |
 | Second Look's email inbox | `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`; `FRAUD_TEAM_EMAIL` also emails filed cases to the fraud team |
 | Connect Gmail (read-only) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_BASE_URL` |
 | Second Look's phone number | `AGENTPHONE_API_KEY`, `AGENTPHONE_AGENT_ID`, `AGENTPHONE_NUMBER`, `AGENTPHONE_NUMBER_ID`; `AGENTPHONE_ALLOWED_TO` lists the phones "Call my phone" may ring |
@@ -49,7 +50,7 @@ Channels (each off without its keys, and only for members who turn it on):
 - `src/phone.ts` is Second Look's phone number (AgentPhone): call it, add it to a call, have it call you, screen missed calls, forward texts.
 - `src/guardian.ts` is the call guardian: listens on speaker or to a phone call and names pressure tactics as they happen.
 - `src/monitor.ts` holds the channel settings, the shared check for incoming messages (`assess`), and alerts (push, in-app, email).
-- `src/tactics.ts` names pressure tactics (secrecy, urgency, codes...) in text; `src/reports.ts` files a fraud case from any channel.
+- `src/tactics.ts` names pressure tactics in text, keyed by signal, with the words that matched; `src/classifier.ts` scores the same signals with Claude, keeping only quoted evidence; `src/reports.ts` files a fraud case from any channel.
 
 Data and scripts:
 - `scripts/replay.ts`, `scripts/lookalikes.ts` (see Run), and `scripts/synthetic-kit.ts` (see Data).

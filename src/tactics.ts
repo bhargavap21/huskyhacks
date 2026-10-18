@@ -6,7 +6,14 @@
 // "don't share it") doesn't count.
 export const SIGNALS = ['urgency', 'secrecy', 'impersonation', 'threats', 'coaching', 'payment_pressure', 'credential_request', 'remote_access', 'online_relationship'] as const;
 export type Signal = typeof SIGNALS[number];
-export type Tactic = { key: Signal; label: string };
+/** `quote` is the phrase that matched: the evidence a member or employee can read. */
+export type Tactic = { key: Signal; label: string; quote: string };
+// One plain label per signal, for evidence that isn't from a specific rule (e.g. the classifier).
+export const SIGNAL_LABELS: Record<Signal, string> = {
+  urgency: 'Pressure to hurry', secrecy: 'Asked to keep it secret', impersonation: 'Claims to be someone you trust', threats: 'Threats or fear',
+  coaching: 'May be coached or on the line', payment_pressure: 'Unusual way to pay', credential_request: 'Asked for a code or password',
+  remote_access: 'Asked for remote access', online_relationship: 'Someone met only online',
+};
 
 // Who scammers claim to be. Shared with the call guardian.
 export const ORGS = String.raw`bank|credit union|sound|fraud (?:department|team|unit)|security (?:team|department)|irs|fbi|federal|sheriff|police|social security|medicare|government|microsoft|apple|amazon|geek squad|tech(?:nical)? support|usps|ups|fedex|(?:\w+ )?energy|utility`;
@@ -44,7 +51,7 @@ export function tacticsIn(text: string): Tactic[] {
     if (out.some(t => t.key === r.key) || (r.needs && !r.needs.test(text))) continue;
     for (const m of text.matchAll(r.re)) {
       const before = text.slice(Math.max(0, m.index - 60), m.index).split(CLAUSE).pop() ?? '';
-      if (/^(?:don'?t|do not|never)\b/i.test(m[0]) || !NEGATED.test(before)) { out.push({ key: r.key, label: r.label }); break; }
+      if (/^(?:don'?t|do not|never)\b/i.test(m[0]) || !NEGATED.test(before)) { out.push({ key: r.key, label: r.label, quote: m[0].trim().slice(0, 80) }); break; }
     }
   }
   return out;
