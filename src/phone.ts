@@ -174,12 +174,13 @@ const SCREEN_AGENT = process.env.AGENTPHONE_SCREEN_AGENT_ID || null;
 const SCREENS = SCREEN_AGENT ?? AGENT; // the agent that answers forwarded calls
 export const GREETINGS = {
   member: 'Hi, this is Vantis from Sound. This call is transcribed. What’s going on?',
-  screen: 'Hi, you’ve reached Vantis, an AI assistant answering for a Sound member. This call is transcribed. Who’s calling, and what’s it about?',
+  screen: 'Hi, this is Vantis, an AI assistant answering for a Sound member. This call is transcribed. Who’s calling, and why?',
   shared: 'Hi, this is Vantis, an AI assistant from Sound. This call is transcribed. Who’s calling, and what’s it about?',
 };
 const VOICE = {
   voiceMode: 'hosted', enableBackchannel: false,
   sttMode: 'accurate', interruptionSensitivity: 0.5, // don't cut off mid-sentence at a stray "hi"; hear names right
+  denoisingMode: 'noise-and-background-speech-cancellation', // a speakerphone or TV nearby isn't the caller
 };
 export async function configureAgent() {
   if (!phoneEnabled) return;
@@ -193,6 +194,8 @@ export async function configureAgent() {
   });
   if (SCREEN_AGENT) await api('PATCH', `/v1/agents/${SCREEN_AGENT}`, {
     ...VOICE, name: 'Vantis call screening',
+    // Forwarded callers often say "hello?" over the greeting; only a real sentence should stop it.
+    interruptionSensitivity: 0.2,
     systemPrompt: `You answer calls forwarded from a Sound member's phone: the caller is not the member but someone trying to reach them.\n\n${SCREEN_RULES}`,
     beginMessage: GREETINGS.screen,
     customTools: [SCREEN_TOOL],
