@@ -8,7 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ruleCheck, assess } from '../src/monitor.ts';
-import { client } from '../src/chat.ts';
+import { client, MODEL } from '../src/chat.ts';
 import { SIGNALS, type Signal } from '../src/tactics.ts';
 
 export const DATASET = join(import.meta.dirname, '..', 'eval', 'conversations.jsonl');
@@ -47,7 +47,7 @@ export const DETECTORS: Detector[] = [
     name: mode, available: !!client, signals: true,
     about: { classifier: 'The model\'s evidence only, no rules (`assess`, DETECTION_MODE=classifier)', hybrid: 'The model sees every message; its evidence and the rules\' are merged and risk is computed from both (`assess`, DETECTION_MODE=hybrid)', gate: 'Production default: hybrid, but ordinary mail never reaches the model (`assess`, DETECTION_MODE=gate)' }[mode],
     run: async c => {
-      const d = await assess(c.channel === 'call' ? 'call screening' : 'email', c.from ?? 'unknown sender', c.subject ?? '', text(c), [], { mode });
+      const d = await assess(c.channel === 'call' ? 'call screening' : 'email', c.from ?? 'unknown sender', c.subject ?? '', text(c), [], { mode, strict: true });
       return { flag: !!d, signals: [...new Set((d?.signals ?? []).map(x => x.key))], why: d?.why ?? [] };
     },
   })),
@@ -58,10 +58,24 @@ const pct = (n: number, d: number) => (d ? `${Math.round((100 * n) / d)}%` : 'n/
 const prf = (c: Counts) => ({ precision: pct(c.tp, c.tp + c.fp), recall: pct(c.tp, c.tp + c.fn) });
 
 export async function evaluate(det: Detector, data: Conversation[]) {
-  // A few conversations at a time: model calls take seconds each. Order is kept.
-  const rows: { c: Conversation; out: Output }[] = new Array(data.length);
+  // A few conversations at a time (model calls take seconds each), each retried before it counts as an error.
+  // An error is excluded from the numbers and listed: never silently scored as something else.
+  const slots: ({ c: Conversation; out: Output } | { c: Conversation; error: string })[] = new Array(data.length);
   let next = 0;
-  await Promise.all(Array.from({ length: 6 }, async () => { while (next < data.length) { const i = next++; rows[i] = { c: data[i], out: await det.run(strip(data[i])) }; } }));
+  await Promise.all(Array.from({ length: 3 }, async () => {
+    while (next < data.length) {
+      const i = next++;
+      for (let attempt = 1; ; attempt++) {
+        try { slots[i] = { c: data[i], out: await det.run(strip(data[i])) }; break; }
+        catch (e) {
+          if (attempt === 3) { slots[i] = { c: data[i], error: (e as Error).message }; break; }
+          await new Promise(r => setTimeout(r, 3000 * attempt));
+        }
+      }
+    }
+  }));
+  const rows = slots.filter((x): x is { c: Conversation; out: Output } => 'out' in x);
+  const errors = slots.filter((x): x is { c: Conversation; error: string } => 'error' in x);
   const flag: Counts = { tp: 0, fp: 0, fn: 0, tn: 0 };
   for (const { c, out } of rows) flag[out.flag ? (c.expected.flag ? 'tp' : 'fp') : (c.expected.flag ? 'fn' : 'tn')]++;
   const perSignal = SIGNALS.map(s => {
@@ -69,7 +83,7 @@ export async function evaluate(det: Detector, data: Conversation[]) {
     for (const { c, out } of rows) { const want = c.expected.signals.includes(s), got = out.signals.includes(s); k[got ? (want ? 'tp' : 'fp') : (want ? 'fn' : 'tn')]++; }
     return { signal: s, ...k };
   });
-  return { det, rows, flag, perSignal };
+  return { det, rows, flag, perSignal, errors };
 }
 
 export function report(results: Awaited<ReturnType<typeof evaluate>>[], skipped: Detector[], n: number, set = SETS[0]) {
@@ -79,6 +93,7 @@ export function report(results: Awaited<ReturnType<typeof evaluate>>[], skipped:
   for (const d of skipped) out.push(`| ${d.name} | not run (needs ANTHROPIC_API_KEY) | | | | |`);
   for (const r of results) {
     out.push('', `## ${set.name}: ${r.det.name}`, '', r.det.about, '');
+    if (r.errors.length) out.push(`**${r.errors.length} conversation(s) not scored** (model call failed after 3 tries; left out of every number above and below): ${r.errors.map(e => `\`${e.c.id}\``).join(', ')}`, '');
     if (r.det.signals) {
       out.push('| Signal | Labeled | Precision | Recall | False positives |', '|---|---|---|---|---|');
       for (const s of r.perSignal) { const m = prf(s); out.push(`| ${s.signal} | ${s.tp + s.fn} | ${m.precision} | ${m.recall} | ${s.fp} |`); }
@@ -95,7 +110,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const i = process.argv.indexOf('--out'), outPath = i > 0 ? process.argv[i + 1] : join(import.meta.dirname, '..', 'eval', 'report.md');
   const only = process.argv.includes('--tuning-only') ? SETS.slice(0, 1) : SETS; // keep the held-out set unseen while tuning
   const run = DETECTORS.filter(d => d.available), skipped = DETECTORS.filter(d => !d.available);
-  let md = '# Detection eval\n\nGenerated by `npm run eval`. Conversations are authored (see eval/README.md); patterns are tuned on the tuning set only.\n\n';
+  let md = `# Detection eval\n\nGenerated by \`npm run eval\`. Conversations are authored (see eval/README.md); patterns are tuned on the tuning set only.${client ? ` Model detectors used \`${MODEL}\`.` : ''}\n\n`;
   for (const set of only) {
     const data = load(set.path), results = [];
     for (const d of run) results.push(await evaluate(d, data));

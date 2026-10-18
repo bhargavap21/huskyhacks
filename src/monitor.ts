@@ -118,7 +118,7 @@ export const DETECTION_MODE: Mode = MODES.includes(process.env.DETECTION_MODE as
  * Detection here is advisory alerting on the member's own channels; it never touches payments (DECISIONS.md, ADR 10).
  * The classifier reports per-signal evidence; risk is computed from the verified evidence, not taken from the model.
  */
-export async function assess(channel: Detection['channel'], from: string, subject: string, body: string, extra: string[] = [], opts: { mode?: Mode; client?: any } = {}): Promise<Detection | null> {
+export async function assess(channel: Detection['channel'], from: string, subject: string, body: string, extra: string[] = [], opts: { mode?: Mode; client?: any; strict?: boolean } = {}): Promise<Detection | null> {
   const mode = opts.mode ?? DETECTION_MODE, c = opts.client === undefined ? client : opts.client;
   const text = `${subject}\n${body}`;
   const f = ruleCheck(subject, body, extra);
@@ -129,7 +129,7 @@ export async function assess(channel: Detection['channel'], from: string, subjec
   let v: Classification | null = null;
   if (mode !== 'rules' && c) {
     try { v = await classify({ channel, from, subject, body, hints: [...rules.map(t => t.label), ...lookalikes, ...extra] }, c); }
-    catch (e) { console.error('monitor: Claude unavailable, using automatic checks:', (e as Error).message); }
+    catch (e) { if (opts.strict) throw e; console.error('monitor: Claude unavailable, using automatic checks:', (e as Error).message); } // strict: the eval must not score a fallback as the model
   }
   if (v?.dropped.length) console.log(`monitor: dropped ${v.dropped.length} model signal(s) without a real quote`);
   const modelOnly = mode === 'classifier' && !!v; // with no model result, fall back to the rules like every mode
