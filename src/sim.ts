@@ -5,7 +5,7 @@ import type { FraudCase } from './reports.ts';
 import { memberEvents, historyUpTo, type KitEvent } from './kit.ts';
 import { score, primary, type Finding, HOLDABLE } from './rules.ts';
 import { newPayment, transition, TERMINAL, TransitionError, type Payment, type Gate } from './payments.ts';
-import { audit, db } from './db.ts';
+import { audit, db, setAuditWorld } from './db.ts';
 import { newPolicy, decide, dismiss, type PolicyState, type Decision, type Sensitivity } from './alerts.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -37,6 +37,7 @@ export type CaseRec = {
   member_label: 'none' | 'looks_fine' | 'reported'; label_seconds: number | null; callback_requested: boolean;
   actions: { ts: number; actor: string; action: string; detail: string }[];
   alert: Decision | null;
+  sample?: true; // SAMPLE DATA: seeded into the live console (see liveWorld); its actions are audited as 'sample'
 };
 export type PayRec = {
   pid: string; rail: string; amount: number; recipient: string; channel: string; initiated_sim: number;
@@ -48,7 +49,7 @@ export type Member = {
 };
 
 type World = {
-  scene: Scene; mode: Mode; sim: number; speed: number; running: boolean; cursor: number; events: KitEvent[];
+  kind: 'live' | 'demo'; sample: boolean; scene: Scene; mode: Mode; sim: number; speed: number; running: boolean; cursor: number; events: KitEvent[];
   timeline: { ts: number; text: string; kind: 'kit' | 'suppressed' | 'system' }[];
   payments: Map<string, PayRec>; cases: CaseRec[]; awaiting: string | null; member: Member;
   confirm_code: { code: string; pid: string; sent_to: string; why: string } | null; ended: boolean;
@@ -57,12 +58,32 @@ type World = {
   callbacks: { id: number; ts: number; reason: string; source: string; urgent: boolean; status: 'waiting' | 'done'; note: string; report?: FraudReport }[];
 };
 
-// One simulation per browser session so viewers don't interfere with each other.
+// Two worlds per browser session: the live console (key `sid`) and the guided demo (key `sid:demo`).
+// Demo actions only ever touch the demo world, so they never reach the live queue or live audit rows.
 const worlds = new Map<string, World>();
+export const isDemoKey = (key: string) => key.endsWith(':demo');
+
+// SAMPLE DATA. There is no payment feed yet, so the live console starts with one sample case taken from the
+// synthetic kit (Linda's wire hitting R1 at initiation). Flagged `sample: true` on the world and in the snapshot,
+// and its seeding is audited as world 'sample', not 'live'. Remove this once a real feed is connected.
+const SAMPLE_FROM = 'linda-sl';
+function liveWorld(): World {
+  setAuditWorld('sample');
+  const x = blank(SCENES.find(s => s.id === SAMPLE_FROM)!), prev = w;
+  w = x;
+  while (x.cursor < x.events.length && !x.awaiting) applyRow(x, x.events[x.cursor++]);
+  w = prev;
+  // Freeze the kit replay where the sample case opened; from here the clock runs in real time (hold countdowns).
+  x.events = x.events.slice(0, x.cursor); x.timeline = [];
+  for (const c of x.cases) c.sample = true;
+  x.kind = 'live'; x.sample = true; x.running = true; x.speed = 1;
+  x.scene = { ...x.scene, id: 'live', title: 'Live', blurb: '' };
+  return x;
+}
 const MAX_WORLDS = 300, IDLE_MS = 3 * 3_600_000;
 let w: World;
 
-/** Select (or create) this session's world. All exported functions act on the selected world. */
+/** Select (or create) a world by key: `sid` for the live console, `sid:demo` for the demo. All exported functions act on the selected world. */
 export function useWorld(sid: string) {
   let x = worlds.get(sid);
   if (!x) {
@@ -70,11 +91,12 @@ export function useWorld(sid: string) {
       const oldest = [...worlds.entries()].sort((a, b) => a[1].seen - b[1].seen)[0];
       worlds.delete(oldest[0]);
     }
-    x = blank(SCENES[1]);
+    x = isDemoKey(sid) ? blank(SCENES[1]) : liveWorld();
     worlds.set(sid, x);
   }
   x.seen = Date.now();
   w = x;
+  setAuditWorld(x.kind);
 }
 
 /** Advance every active world's clock. */
@@ -82,7 +104,7 @@ export function tickAll(realMs: number) {
   const now = Date.now();
   for (const [sid, x] of worlds) {
     if (now - x.seen > IDLE_MS) { worlds.delete(sid); continue; }
-    w = x; tick(realMs);
+    w = x; setAuditWorld(x.kind); tick(realMs);
   }
 }
 
@@ -90,7 +112,7 @@ function blank(scene: Scene): World {
   const events = memberEvents(scene.member);
   const start = toMs(scene.start), who = identity(scene.member);
   const w0: World = {
-    scene, mode: scene.mode, sim: start, speed: NORMAL_SPEED, running: false, cursor: 0, events, timeline: [],
+    kind: 'demo', sample: false, scene, mode: scene.mode, sim: start, speed: NORMAL_SPEED, running: false, cursor: 0, events, timeline: [],
     payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null, next_case: 1, seen: Date.now(), policy: newPolicy(), notifications: [], callbacks: [],
     member: { id: scene.member, name: who.name, enrolled: scene.mode === 'second_look', trusted_contact: null, contact_changed_sim: null, pre_change_contact: who.contact + (who.on_file_since ? ` (on file since ${who.on_file_since})` : ''), current_contact: who.contact },
   };
@@ -107,6 +129,7 @@ export function loadScene(id: string, sid: string) {
   if (!s) throw new Error('Unknown scene');
   w = blank(s);
   worlds.set(sid, w);
+  setAuditWorld('demo');
   db.prepare('DELETE FROM chat_messages WHERE scene = ?').run(`${sid}:${s.id}`);
   audit('demo', 'scene_loaded', s.id);
 }
@@ -117,7 +140,7 @@ const line = (e: KitEvent) => `${e.event_type}${e.payment_id ? ` · ${e.payment_
 
 function act(c: CaseRec, actor: string, action: string, detail = '') {
   c.actions.push({ ts: w.sim, actor, action, detail });
-  audit(actor, action, `case ${c.id} ${c.pid}${detail ? ': ' + detail : ''}`);
+  audit(actor, action, `case ${c.id} ${c.pid}${detail ? ': ' + detail : ''}`, c.sample ? 'sample' : undefined);
 }
 
 /** Apply one kit row. In second_look mode, rows for a payment Vantis took over are suppressed. */
@@ -361,7 +384,8 @@ export function snapshot() {
     row: { ratio: p.row.ratio, gap: p.row.days_since_last_same_rail, recipient_status: p.row.recipient_status, recipient_age_days: p.row.recipient_age_days, band: p.row.baseline_band, profile_change_recent: p.row.profile_change_recent, password_reset_recent: p.row.password_reset_recent, trusted_contact_enrolled: p.row.trusted_contact_enrolled, balance_after: p.row.available_balance_after },
   }));
   return {
-    scene: w.scene, scenes: SCENES.map(s => ({ id: s.id, title: s.title })), mode: w.mode, sim: w.sim, sim_text: fmt(w.sim),
+    world: w.kind, sample_data: w.sample, // sample_data: the live sample case above, not real member activity
+    scene: w.scene, scenes: w.kind === 'demo' ? SCENES.map(s => ({ id: s.id, title: s.title })) : [], mode: w.mode, sim: w.sim, sim_text: fmt(w.sim),
     speed: w.speed, running: w.running, ended: w.ended, awaiting: w.awaiting, member: w.member,
     callbacks: w.callbacks.map(c => ({ ...c, ts_text: fmt(c.ts) })),
     alerts: { sensitivity: w.policy.sensitivity, quiet: !!w.policy.quiet }, notifications: w.notifications.slice(0, 5).map(n => ({ ...n, ts_text: fmt(n.ts) })),

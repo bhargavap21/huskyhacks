@@ -6,7 +6,7 @@
 // The case lands in the employee work queue and, if FRAUD_TEAM_EMAIL is set, is emailed to the fraud team.
 // Never collected: full card or account numbers, SSNs, PINs, passwords or one-time codes.
 import { strength, SIGNAL_KEYS, SIGNAL_LABELS, type Signal } from './signals.ts';
-import { useWorld, fraudReport, snapshot } from './sim.ts';
+import { useWorld, fraudReport, snapshot, isDemoKey } from './sim.ts';
 import { db, audit } from './db.ts';
 import { client, MODEL } from './chat.ts';
 
@@ -211,7 +211,7 @@ async function emailTeam(c: FraudCase) {
   } catch { return false; }
 }
 
-/** File for a member's simulation (sid), or with no sid (an unlinked caller): then only the fraud-team email goes out. */
+/** File for a member's world (`sid` live, `sid:demo` demo), or with no sid (an unlinked caller): then only the fraud-team email goes out. */
 export async function fileReport(sid: string | null, c: FraudCase) {
   const id = Number(db.prepare('INSERT INTO fraud_cases (ts, sid, channel, json) VALUES (?, ?, ?, ?)').run(Date.now(), sid, c.channel, '{}').lastInsertRowid);
   const d = new Date(); c.case_id = `SL-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(id).padStart(4, '0')}`;
@@ -220,7 +220,7 @@ export async function fileReport(sid: string | null, c: FraudCase) {
     useWorld(sid); // synchronous from here to fraudReport: no await between choosing the world and writing
     const m = snapshot().member;
     if (!c.member.member_id) c.member.member_id = m.id;
-    if (!c.member.name) { c.member.name = `${m.name} (demo member)`; c.missing = c.missing.filter(x => x !== 'member’s name'); }
+    if (!c.member.name) { c.member.name = isDemoKey(sid) ? `${m.name} (demo member)` : m.name; c.missing = c.missing.filter(x => x !== 'member’s name'); }
     c.member.linked = true;
     fraudReport(c); queued = true;
   } else audit('second-look', 'fraud_report_unlinked', `${c.channel}: ${c.summary.slice(0, 200)}`);

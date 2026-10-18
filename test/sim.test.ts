@@ -61,3 +61,24 @@ kitTest('members can ask for a person from any chat; one request per reason; emp
   assert.equal(s.callbacks.find((x: any) => x.id === a)?.status, 'done');
   assert.throws(() => requestCallback('wire it for me', 0));
 });
+
+kitTest('live and demo worlds stay apart: the live console has only its flagged sample case; demo actions never reach it', async () => {
+  const { db } = await import('../src/db.ts');
+  useWorld('lv');
+  let live = snapshot();
+  assert.equal(live.world, 'live'); assert.equal(live.sample_data, true); assert.deepEqual(live.scenes, []);
+  assert.equal(live.cases.length, 1); assert.equal(live.cases[0].sample, true); assert.equal(live.cases[0].status, 'open');
+  useWorld('lv:demo'); loadScene('m1057', 'lv:demo'); control('play', 'lv:demo'); run();
+  useWorld('lv:demo');
+  const d = snapshot();
+  assert.equal(d.world, 'demo'); assert.ok(d.scenes.length > 0);
+  employee('outreach', { caseId: d.cases[0].id, reason: 'demo-only outreach' });
+  useWorld('lv');
+  live = snapshot();
+  assert.equal(live.cases.length, 1);
+  assert.ok(!live.cases[0].actions.some((a: any) => a.detail === 'demo-only outreach'));
+  const row = db.prepare("SELECT world FROM audit_log WHERE detail LIKE '%demo-only outreach%'").get() as any;
+  assert.equal(row.world, 'demo');
+  const seeded = db.prepare("SELECT DISTINCT world FROM audit_log WHERE action = 'case_opened'").all().map((r: any) => r.world);
+  assert.ok(!seeded.includes('live'), 'the sample case is audited as sample, not live');
+});

@@ -2,6 +2,8 @@
 
 Link: **https://second-look-demo.vercel.app** (forwards to the laptop; see `deploy/vercel-proxy/README.md`).
 
+- The link opens on the **live employee console** (case queue, evidence, call guide, audited actions), with **Member view** in the page list. Its one case is **sample data** seeded from the kit: say so when you show it.
+- Click **View demo** (top right) for the guided walkthrough below. **Exit demo** (end of the demo bar) goes back to the live console. Demo actions stay in their own world and never show in the live queue or live audit rows.
 - **Demo controls** bar: pick a scene, press **Play**. When a payment needs people, the replay stops and the hold clock runs at 60x (4 hours ≈ 4 minutes).
 - **Page list** (left; collapse with ☰): **Home**, **Vantis** and **Console** show one page at a time; **Side by side** shows member and employee together (best on a laptop); **App setup** opens the member's setup steps; **Kit timeline**; **About this concept**.
 - **Account menu** (bottom left, "Linda"): **Profile**, **Settings**, **Appearance** (light or dark) and **Sign out**. Sign-in is demo-only: no account or password, and a fresh visit starts signed in.

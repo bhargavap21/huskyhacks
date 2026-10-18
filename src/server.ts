@@ -7,7 +7,7 @@ import { db } from './db.ts';
 import { getCookie, setCookie } from 'hono/cookie';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { tickAll, useWorld, loadScene, control, member, employee, snapshot, requestCallback, callbackDone } from './sim.ts';
+import { tickAll, useWorld, loadScene, control, member, employee, snapshot, requestCallback, callbackDone, isDemoKey } from './sim.ts';
 import { TransitionError } from './payments.ts';
 import { USING_STANDIN } from './kit.ts';
 import { chat, chatHistory, GENERAL } from './chat.ts';
@@ -55,8 +55,10 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
-// Every API call acts on this browser's own simulation.
-app.use('/api/*', async (c, next) => { useWorld(c.get('sid')); await next(); });
+// Every API call acts on one of this browser's two worlds: the live console, or the guided demo when the page
+// sends `x-sl-world: demo` (set by the "View demo" link). Real channels (phone, email, WhatsApp) stay keyed by sid.
+const worldKey = (c: any) => (c.req.header('x-sl-world') === 'demo' ? `${c.get('sid')}:demo` : c.get('sid') as string);
+app.use('/api/*', async (c, next) => { useWorld(worldKey(c)); await next(); });
 
 app.onError((err, c) => {
   if (err instanceof TransitionError) return c.json({ error: err.message }, 409);
@@ -102,11 +104,13 @@ app.get('/api/state', c => {
   const ids = Object.fromEntries([...shared].filter(([k, v]) => v && k.startsWith(chatKey(c) + ':')).map(([k]) => [k.slice(chatKey(c).length + 1), true]));
   return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), email: emailState(c.get('sid')), channels: channelState(c.get('sid')), csrf: csrfFor(c.get('sid')) });
 });
-app.post('/api/scene/:id', c => { loadScene(c.req.param('id'), c.get('sid')); return c.json({ ok: true }); });
-app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('sid')); return c.json({ ok: true }); });
+// Scenes and replay controls exist only in the demo; the live console never replays kit data.
+const demoOnly = (c: any) => (isDemoKey(worldKey(c)) ? null : c.json({ error: 'Only available in the demo' }, 409));
+app.post('/api/scene/:id', c => demoOnly(c) ?? (loadScene(c.req.param('id'), worldKey(c)), c.json({ ok: true })));
+app.post('/api/control/:cmd', c => demoOnly(c) ?? (control(c.req.param('cmd'), worldKey(c)), c.json({ ok: true })));
 app.post('/api/member/:action', async c => { member(c.req.param('action'), await c.req.json().catch(() => ({}))); return c.json({ ok: true }); });
 app.post('/api/employee/:action', async c => { employee(c.req.param('action'), await c.req.json().catch(() => ({}))); return c.json({ ok: true }); });
-const chatKey = (c: any) => `${c.get('sid')}:${snapshot().scene.id}`;
+const chatKey = (c: any) => `${worldKey(c)}:${snapshot().scene.id}`;
 app.post('/api/callback', async c => { const b = await c.req.json().catch(() => ({})); return c.json({ ok: true, id: requestCallback(String(b.kind), Number(b.caseId) || 0) }); });
 app.post('/api/callback/:id/done', async c => { const b = await c.req.json().catch(() => ({})); callbackDone(Number(c.req.param('id')), String(b.note ?? '')); return c.json({ ok: true }); });
 // Call guardian: ~4 s audio chunks from the member's browser, transcribed here; audio is not kept.
@@ -131,7 +135,7 @@ app.post('/api/report', async c => {
   if (!g || !g.lines.length) return c.json({ error: 'Nothing to report yet' }, 400);
   const base = { summary: g.summary ?? 'The member used Call guardian on a call with warning signs.', contact_method: 'phone call (Call guardian listened)', tactics: g.alerts.map(a => a.label), quotes: g.alerts.map(a => a.quote).slice(0, 3) };
   const d = await extractIntake('You read the automatic transcript of a phone call a credit union member let Vantis listen to. The other voice is the caller who contacted the member. Fill the fraud case: the threat details come from what the caller said.', g.lines.map(l => (l.who === 'second-look' ? 'Vantis: ' : '') + l.text).join('\n')).catch(() => null);
-  await fileReport(sid, normalize({ ...base, ...(d ?? {}), tactics: [...new Set([...(d?.tactics ?? []), ...base.tactics])] }, 'call guardian', { linked: true }));
+  await fileReport(worldKey(c), normalize({ ...base, ...(d ?? {}), tactics: [...new Set([...(d?.tactics ?? []), ...base.tactics])] }, 'call guardian', { linked: true }));
   return c.json({ ok: true });
 });
 // Connected channels: what the member turned on, recent alerts, and how alerts reach them.

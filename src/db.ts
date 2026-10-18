@@ -16,6 +16,12 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 // Chat attachments (photos, PDFs, voice-note transcripts) as JSON; added after the first demo build.
 try { db.exec('ALTER TABLE chat_messages ADD COLUMN att TEXT'); } catch { /* already there */ }
 
-export function audit(actor: string, action: string, detail = '') {
-  db.prepare('INSERT INTO audit_log (ts, actor, action, detail) VALUES (?, ?, ?, ?)').run(Date.now(), actor, action, detail);
+// Which world audit rows belong to: 'live', 'demo' (the guided walkthrough) or 'sample' (seeding the live sample case).
+// Older rows predate the split and default to 'live'.
+try { db.exec("ALTER TABLE audit_log ADD COLUMN world TEXT NOT NULL DEFAULT 'live'"); } catch { /* already there */ }
+let world = 'live';
+export function setAuditWorld(x: string) { world = x; }
+
+export function audit(actor: string, action: string, detail = '', inWorld = world) {
+  db.prepare('INSERT INTO audit_log (ts, actor, action, detail, world) VALUES (?, ?, ?, ?, ?)').run(Date.now(), actor, action, detail, inWorld);
 }

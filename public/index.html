@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vantis Demo</title>
-<meta name="description" content="Concept demo: Vantis inside a simulated Sound app, with an employee console. Synthetic kit data only.">
+<title>Vantis</title>
+<meta name="description" content="Vantis: scam protection for Sound Credit Union members, with the employee case console.">
 <script>try{var t=localStorage.getItem("sl-theme");if(t==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <link rel="stylesheet" href="/ds/tokens.css">
 <link rel="stylesheet" href="/ds/components.css">
@@ -14,12 +14,13 @@
 <header class="topbar">
   <button id="side-toggle" class="icon-btn" aria-controls="side" aria-expanded="true" aria-label="Collapse page list">☰</button>
   <span class="topbar-title">Vantis</span>
-  <span class="topbar-meta">Concept for HuskyHack 2026 · synthetic data</span>
+  <span class="topbar-meta">Sound Credit Union</span>
   <span class="topbar-spacer"></span>
-  <button id="invite" class="quiet">Invite a phone</button>
   <button id="copilot-toggle" class="primary" aria-controls="copilot" aria-expanded="true">Ask Vantis</button>
+  <a class="demo-link" id="demo-link" href="/?demo=1">View demo</a>
 </header>
-<div class="demo-bar" role="toolbar" aria-label="Demo controls">
+<!-- Guided demo: everything demo-only lives here and appears only after "View demo". -->
+<div class="demo-bar" id="demo-bar" role="toolbar" aria-label="Demo controls" hidden>
   <span class="tag">Demo</span>
   <label class="sr" for="scene">Scene</label>
   <select id="scene"></select>
@@ -28,22 +29,27 @@
   <button id="faster" title="Speed up the replay clock">Faster</button>
   <button id="reset">Restart</button>
   <span class="clock" aria-live="off">Kit time <span id="clock">–</span> <span id="speed" class="muted small"></span></span>
+  <span class="topbar-spacer"></span>
+  <button id="invite" class="quiet">Invite a phone</button>
+  <button id="exit-demo">Exit demo</button>
 </div>
 <div class="shell" id="shell">
   <nav class="side" id="side" aria-label="Pages">
-    <div class="side-label">Member app</div>
+    <div class="side-label">Sound employee</div>
+    <button data-page="console"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M3 14h18"/></svg></span><span class="lbl">Console</span><span class="side-count" id="count-console"></span></button>
+    <div class="side-label">Member view</div>
     <button data-page="home"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></span><span class="lbl">Home</span></button>
     <button data-page="inbox"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 16V11a6 6 0 0 0-12 0v5l-2 2h16z"/><path d="M10 21h4"/></svg></span><span class="lbl">Alerts</span><span class="side-count" id="count-inbox"></span></button>
     <button data-page="guardian"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-3 2a11 11 0 0 0 5 5l2-3 5 2v4a2 2 0 0 1-2 2A17 17 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></span><span class="lbl">Call guardian</span></button>
     <button data-page="email"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="m3 7 9 6 9-6"/></svg></span><span class="lbl">Email check</span></button>
     <button data-page="channels"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.5"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/></svg></span><span class="lbl">Connected channels</span><span class="side-count" id="count-channels"></span></button>
-    <div class="side-label">Sound employee</div>
-    <button data-page="console"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16"/><path d="M3 9h18M3 14h18"/></svg></span><span class="lbl">Console</span><span class="side-count" id="count-console"></span></button>
+    <div class="side-demo" id="side-demo" hidden>
     <div class="side-label">Demo</div>
     <button data-page="split"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16"/><path d="M12 4v16"/></svg></span><span class="lbl">Side by side</span></button>
     <button data-page="onboarding"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span><span class="lbl">App setup</span></button>
     <button data-page="timeline"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/></svg></span><span class="lbl">Kit timeline</span></button>
     <a class="side-link" href="/about"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></span><span class="lbl">About this concept</span></a>
+    </div>
     <div class="side-foot">
       <button class="acct-btn" id="acct-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu"><span class="avatar-sm" id="acct-initial" aria-hidden="true"></span><span class="lbl" id="acct-label"></span><span class="lbl acct-chev" aria-hidden="true">⌃</span></button>
     </div>

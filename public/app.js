@@ -1,4 +1,5 @@
-// Vantis demo UI. Plain JS; polls /api/state and renders the member app + employee console.
+// Vantis UI. Plain JS; polls /api/state and renders the employee console + member view.
+// Opens on the live console. "View demo" switches to the guided demo: its own world on the server, scene controls and demo wording.
 const openDet = new Map();
 let S = null, csrf = '', page = 'home', selCase = null, chatCase = 'general', chatLog = [], showMore = {}, busy = false;
 // Shell state: left page list and right Vantis copilot, both collapsible and remembered per browser.
@@ -11,6 +12,14 @@ const MEMBER_PAGES = ['home', 'inbox', 'guardian', 'email', 'channels', 'setting
 const sess = k => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const sessSet = (k, v) => { try { sessionStorage.setItem(k, v); } catch {} };
 let signedIn = sess('sl-signed-in') !== '0', obStep = 0;
+// Demo mode, per tab: on after "View demo" (?demo=1) or any demo-only deep link, off after "Exit demo" (?demo=0).
+const Q0 = new URLSearchParams(location.search);
+if (Q0.get('demo') === '0') sessSet('sl-demo', '0');
+else if (Q0.get('demo') === '1' || ['scene', 'play', 'jump'].some(k => Q0.has(k)) || Q0.get('view') === 'both' || ['split', 'timeline'].includes(Q0.get('page')) || Q0.get('joined') === '1') sessSet('sl-demo', '1');
+const demo = sess('sl-demo') === '1';
+if (!demo) { page = 'console'; if (stored('sl-copilot') === null) copilotOpen = false; } // the live console opens on the case queue
+// Every API call names its world, so demo actions never reach the live queue or audit log.
+const apiFetch = (u, o = {}) => fetch(u, { ...o, headers: { ...(o.headers || {}), ...(demo ? { 'x-sl-world': 'demo' } : {}) } });
 // Home shows a 'Finish setting up' card until setup is finished or dismissed in this tab.
 let setupDone = sess('sl-setup') === '1';
 const markSetupDone = () => { setupDone = true; sessSet('sl-setup', '1'); };
@@ -36,7 +45,7 @@ function toast(t) { const el = $('#toast'); el.textContent = t; el.hidden = fals
 async function post(path, body = {}) {
   if (busy) return; busy = true;
   try {
-    const r = await fetch('/api/' + path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf': csrf }, body: JSON.stringify(body) });
+    const r = await apiFetch('/api/' + path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf': csrf }, body: JSON.stringify(body) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) toast(j.error || 'That did not work');
     return j;
@@ -44,12 +53,12 @@ async function post(path, body = {}) {
 }
 
 async function poll() {
-  const r = await fetch('/api/state'); S = await r.json(); csrf = S.csrf;
+  const r = await apiFetch('/api/state'); S = await r.json(); csrf = S.csrf;
   const top = S.channels?.detections?.[0]?.id ?? 0;
   if (lastDet !== null && top > lastDet) toast('Vantis: ' + S.channels.detections[0].title);
   lastDet = top;
   const held = chatAuto && chatCase === 'general' && S.awaiting && S.payments.find(p => p.pid === S.awaiting);
-  if (held && held.case_id && caseById(held.case_id)) { chatCase = held.case_id; chatLog = await (await fetch('/api/chat/' + chatCase)).json(); }
+  if (held && held.case_id && caseById(held.case_id)) { chatCase = held.case_id; chatLog = await (await apiFetch('/api/chat/' + chatCase)).json(); }
   render();
 }
 
@@ -76,6 +85,8 @@ function render(force = false) {
   const k = structuralKey();
   if (!force && k === lastKey) return tickText();
   lastKey = k;
+  $('#demo-bar').hidden = !demo; $('#side-demo').hidden = !demo; $('#demo-link').hidden = demo;
+  if (demo) {
   const sel = $('#scene');
   if (!sel.options.length) sel.innerHTML = S.scenes.map(s => `<option value="${s.id}">${esc(s.title)}</option>`).join('');
   sel.value = S.scene.id;
@@ -84,8 +95,9 @@ function render(force = false) {
   $('#next').disabled = !!S.awaiting || S.ended;
   $('#clock').textContent = S.sim_text;
   $('#speed').textContent = S.awaiting ? '(hold clock at 60×: 4 h ≈ 4 min)' : `(${Math.round(S.speed)}×)`;
-  // Scene note: open the first time a scene is shown, folded once you move on.
-  $('#blurb').innerHTML = det('blurb-' + S.scene.id, 'About this scene', `<p>${esc((S.mode === 'as_is' ? 'Kit replay, as it happened. ' : 'With Vantis (proposed design). ') + S.scene.blurb)}</p>`, !blurbSeen.has(S.scene.id));
+  }
+  // Scene note (demo only): open the first time a scene is shown, folded once you move on.
+  $('#blurb').innerHTML = !demo ? '' : det('blurb-' + S.scene.id, 'About this scene', `<p>${esc((S.mode === 'as_is' ? 'Kit replay, as it happened. ' : 'With Vantis (proposed design). ') + S.scene.blurb)}</p>`, !blurbSeen.has(S.scene.id));
   const shell = $('#shell');
   shell.classList.toggle('side-collapsed', sideCollapsed);
   shell.classList.toggle('copilot-closed', !copilotOpen);
@@ -100,10 +112,12 @@ function render(force = false) {
   const m = S.member;
   $('#acct-initial').textContent = signedIn ? m.name.trim()[0].toUpperCase() : '?';
   $('#acct-label').textContent = signedIn ? m.name : 'Signed out';
-  $('#acct-name').textContent = signedIn ? `${m.name} · ${m.id}` : 'Signed out of the demo';
+  $('#acct-name').textContent = signedIn ? `${m.name} · ${m.id}` : demo ? 'Signed out of the demo' : 'Signed out';
   $('#acct-sign').dataset.act = signedIn ? 'sign_out' : 'sign_in';
-  $('#acct-sign-lbl').textContent = signedIn ? 'Sign out' : `Sign in as ${m.name} (demo)`;
+  $('#acct-sign-lbl').textContent = signedIn ? 'Sign out' : demo ? `Sign in as ${m.name} (demo)` : 'Sign in';
   $('#acct-btn').classList.toggle('current', ['profile', 'settings'].includes(page));
+  // The member's account menu belongs to Member view; the employee console isn't signed in as the member.
+  $('.side-foot').hidden = page === 'console' || page === 'timeline';
   const openCases = S.cases.filter(c => c.status === 'open').length;
   $('#count-console').textContent = openCases + S.callbacks.filter(x => x.status === 'waiting').length || '';
   { const el = $('#count-channels'); if (el) el.textContent = (S.channels?.detections || []).filter(d => !d.reported && Date.now() - d.ts < 86400000).length || ''; }
@@ -116,7 +130,7 @@ function render(force = false) {
 /* ---------------- Pages ---------------- */
 const TABS = [['home', 'Home'], ['inbox', 'Alerts'], ['ask', 'Ask'], ['profile', 'Profile']];
 const joinedTabs = () => joined && signedIn ? `<nav class="joined-tabs" aria-label="Sound app">${TABS.map(([k, l]) => k === 'ask' ? `<button data-act="ask">${l}</button>` : `<button data-page="${k}" ${page === k ? 'aria-current="page"' : ''}>${l}</button>`).join('')}</nav>` : '';
-const phone = body => `<section class="phone" aria-label="Member app"><div class="app-head"><b>Sound</b></div><div class="app-body">${body}</div>${joinedTabs()}<p class="footnote">Synthetic kit data; holds and releases change only this simulation.</p></section>`;
+const phone = body => `<section class="phone" aria-label="Member app"><div class="app-head"><b>Sound</b></div><div class="app-body">${body}</div>${joinedTabs()}${demo ? '<p class="footnote">Synthetic kit data; holds and releases change only this simulation.</p>' : ''}</section>`;
 function timelineCard(openByDefault) {
   const tl = S.timeline.slice().reverse();
   return `<div class="card">${det('kit-tl', `Kit timeline, ${S.mode === 'as_is' ? 'as it happened' : 'with Vantis'} <span class="muted small">(${tl.length} events${tl[0] ? ` · latest ${esc(tl[0].ts_text.split(' ')[1])}` : ''})</span>`, `<div class="timeline">${tl.map(t => `<div class="${t.kind}">${esc(t.ts_text)} · ${esc(t.text)}</div>`).join('') || '<div class="muted">Press Play to start the replay.</div>'}</div>`, openByDefault)}</div>`;
@@ -149,17 +163,17 @@ function homeView() {
   const m = S.member;
   let out = `<div class="card"><div class="muted small">Welcome back</div><h2>${esc(m.name)}</h2>
     <div class="row small"><span class="in-badge in-badge--neutral">Vantis: ${m.enrolled ? 'On' : 'Off'}</span>${S.mode === 'as_is' ? '<span class="in-badge in-badge--neutral">Kit replay: Vantis not in use</span>' : ''}</div></div>`;
-  if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="Notification on the lock screen (simulated)"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">Simulated lock screen · no amounts or names shown</div></div>` + out; }
+  if (S.notifications.length) { const n = S.notifications[0]; out = `<div class="lock" role="note" aria-label="${demo ? 'Notification on the lock screen (simulated)' : 'Notification on the lock screen'}"><div class="lock-app">Sound · ${esc(n.ts_text.split(' ')[1])}</div><div>${esc(n.text.replace(/^Sound: (.)/, (_, c) => c.toUpperCase()))}</div><div class="lock-cap">${demo ? 'Simulated lock screen · ' : 'Lock screen preview · '}no amounts or names shown</div></div>` + out; }
   const active = S.awaiting && S.payments.find(p => p.pid === S.awaiting);
   const feelsOff = `<div class="card feels-off"><h3>Something feels off?</h3><p class="small">A call, text or email asking for money or a code? Talk it through before you do anything. Vantis never moves money, and only tells Sound’s fraud team when you ask it to.</p><div class="row"><button class="primary" data-act="chat_general">Ask Vantis</button>${S.cases[0] ? `<button class="quiet" data-act="report" data-pid="${S.cases[0].pid}">Report a scam</button>` : ''}</div>
     <p class="small feels-ways">Other ways to get a second look: <button class="quiet" data-page="guardian">Bring it into a call</button> · <button class="quiet" data-page="email">Forward it an email</button></p></div>`;
   const recent = S.payments.slice(0, 4);
-  const recentCard = `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
+  const recentCard = `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : `<p class="muted">${demo ? 'No payments yet in this scene. Press Play.' : 'No recent payments.'}</p>`}</div>`;
   // While money is waiting on the member, the home screen is only about that.
   if (active) return out + activePayment(active, caseById(active.case_id)) + det('home-more', 'Everything else', feelsOff + recentCard);
   if (!setupDone) out += `<div class="card setup-card"><p class="eyebrow">3 short steps</p><h3>Finish setting up your app</h3><p class="small">Choose scam protection, how often we alert you, and an optional trusted contact.</p><div class="row"><button data-act="onboarding">Start setup</button><button class="quiet" data-act="setup_dismiss">Not now</button></div></div>`;
   out += feelsOff;
-  out += `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : '<p class="muted">No payments yet in this scene. Press Play.</p>'}</div>`;
+  out += `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : `<p class="muted">${demo ? 'No payments yet in this scene. Press Play.' : 'No recent payments.'}</p>`}</div>`;
   return out;
 }
 
@@ -191,7 +205,7 @@ function activePayment(p, c) {
   const talk = (primary = false) => `<button ${primary ? 'class="primary"' : ''} data-act="chat" data-case="${c.id}">Talk it through</button>`;
   if (p.status === 'Held') {
     const left = p.hold_expires_at - S.sim;
-    const code = S.confirm_code && S.confirm_code.pid === p.pid ? `<div class="card"><h3>Confirm it’s you</h3><p class="small">We sent a code to your ${esc(S.confirm_code.sent_to)}. ${esc(S.confirm_code.why)}</p><p class="small muted">Demo code: ${esc(S.confirm_code.demo_code)}</p><label for="code">Code</label><input type="text" id="code" data-keep inputmode="numeric" autocomplete="one-time-code"><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="release" data-pid="${p.pid}">Send my payment</button></div></div>` : '';
+    const code = S.confirm_code && S.confirm_code.pid === p.pid ? `<div class="card"><h3>Confirm it’s you</h3><p class="small">We sent a code to your ${esc(S.confirm_code.sent_to)}. ${esc(S.confirm_code.why)}</p>${demo ? `<p class="small muted">Demo code: ${esc(S.confirm_code.demo_code)}</p>` : ''}<label for="code">Code</label><input type="text" id="code" data-keep inputmode="numeric" autocomplete="one-time-code"><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="release" data-pid="${p.pid}">Send my payment</button></div></div>` : '';
     return `<div class="banner urgent" role="region" aria-label="Payment on hold">
       <p class="eyebrow in-badge in-badge--review">On hold · nothing has been sent</p>
       <h2>Your ${usd0(p.amount)} ${kind} is paused</h2>
@@ -262,9 +276,9 @@ function signInView() {
   const m = S.member;
   return `<div class="card signin"><h2>Sign in to Sound</h2>
     <p>Welcome back. Vantis lives inside the Sound app, so there is no new account or password.</p>
-    <div class="stack"><button class="primary" data-act="sign_in">Sign in as ${esc(m.name)} (demo)</button>
+    <div class="stack"><button class="primary" data-act="sign_in">${demo ? `Sign in as ${esc(m.name)} (demo)` : 'Sign in'}</button>
       <button data-act="sign_in_setup">First time in the app? Sign in and set up</button></div>
-    <p class="small muted">Demo sign-in. The real app would use Sound’s normal member sign-in; nothing here asks for a password.</p></div>`;
+    ${demo ? '<p class="small muted">Demo sign-in. The real app would use Sound’s normal member sign-in; nothing here asks for a password.</p>' : ''}</div>`;
 }
 
 // Setup in short steps: Vantis (with a skip), alerts, trusted contact, then a summary.
@@ -300,11 +314,11 @@ function onboardingView() {
 function profileView() {
   const m = S.member, t = m.trusted_contact, A = S.alerts;
   const initials = m.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  return `<div class="card profile-head"><span class="avatar" aria-hidden="true">${esc(initials)}</span><div><h2>${esc(m.name)}</h2><div class="small muted">Member ${esc(m.id)} · synthetic kit member</div></div></div>
-    <div class="card"><h3>Contact and sign-in</h3><dl class="kv"><dt>Phone on file</dt><dd>${esc(m.current_contact)}</dd><dt>Sign-in</dt><dd>Sound app sign-in (demo)</dd></dl></div>
+  return `<div class="card profile-head"><span class="avatar" aria-hidden="true">${esc(initials)}</span><div><h2>${esc(m.name)}</h2><div class="small muted">Member ${esc(m.id)}${demo ? ' · synthetic kit member' : ''}</div></div></div>
+    <div class="card"><h3>Contact and sign-in</h3><dl class="kv"><dt>Phone on file</dt><dd>${esc(m.current_contact)}</dd><dt>Sign-in</dt><dd>Sound app sign-in${demo ? ' (demo)' : ''}</dd></dl></div>
     <div class="card"><h3>Vantis</h3><dl class="kv"><dt>Status</dt><dd>${m.enrolled ? 'On' : 'Off'}</dd><dt>Alerts</dt><dd>${A.sensitivity[0].toUpperCase() + A.sensitivity.slice(1)}${A.quiet ? ', quiet hours on' : ''}</dd><dt>Trusted contact</dt><dd>${t ? `${esc(t.name)} (${esc(t.relation)})` : 'None'}</dd></dl>
       <div class="row profile-actions"><button data-page="settings">Change settings</button><button class="quiet" data-act="onboarding">Run setup again</button></div></div>
-    <div class="card"><button data-act="sign_out">Sign out</button><p class="small muted">Signing out only affects this demo tab.</p></div>`;
+    <div class="card"><button data-act="sign_out">Sign out</button>${demo ? '<p class="small muted">Signing out only affects this demo tab.</p>' : ''}</div>`;
 }
 
 // Escape first, then allow only **bold** and line breaks (no raw HTML from the model).
@@ -515,7 +529,7 @@ const LEVEL = {
   careful: ['review', 'Be careful', 'Something on this call is worth a second look'],
   high: ['risk', 'High risk', 'This call matches common scam patterns'],
 };
-const gfetch = (p, b) => fetch('/api/guardian/' + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf': csrf }, body: JSON.stringify(b) }).then(r => r.json()).catch(() => ({}));
+const gfetch = (p, b) => apiFetch('/api/guardian/' + p, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf': csrf }, body: JSON.stringify(b) }).then(r => r.json()).catch(() => ({}));
 
 const fmtPhone = n => n ? n.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3') : '';
 const SOURCE = { speaker: 'Listening on speaker', sample: 'Sample call', 'phone-in': 'Phone call · Vantis is on the line', 'phone-out': 'Vantis called you' };
@@ -530,7 +544,7 @@ function guardianIntro() {
     ? `<p class="small">Your phone: <b>${esc(ph.linked)}</b> <span class="in-badge in-badge--safe">Confirmed</span> · ${ph.share ? 'Sound can see warnings from your calls' : 'warnings stay on your device'} <button class="quiet" data-act="ph_unlink">Change</button></p>`
     : `<div class="g-link"><label for="ph-num">Your phone number</label><div class="row"><input type="tel" id="ph-num" data-keep inputmode="tel" autocomplete="tel" placeholder="(555) 555-0123"><button class="primary" data-act="ph_link">Link my phone</button></div>
         <label class="check"><input type="checkbox" id="ph-share" data-keep checked> Let Sound see warnings from these calls</label>
-        <p class="small muted">Linking tells Vantis which calls are yours, so warnings show up here. Demo: use your own phone.</p></div>`;
+        <p class="small muted">Linking tells Vantis which calls are yours, so warnings show up here.${demo ? ' Demo: use your own phone.' : ''}</p></div>`;
   return `<div class="card guardian"><h2>Call guardian</h2>
     <p>On a call that feels off? Bring Vantis in. It listens for pressure tactics, like requests for codes, gift cards or secrecy, and warns you as the call happens.</p>
     <p class="small muted">Vantis never moves money or asks for codes. It only listens to calls you bring it into. Transcripts are used for warnings; audio isn’t kept.</p>
@@ -543,11 +557,11 @@ function guardianIntro() {
       <div class="row"><a class="in-btn in-btn--secondary g-tel" href="tel:${esc(ph.number)}">Call ${num}</a></div></div>
     <div class="card g-way"><h3>Have Vantis call me</h3><p class="small">It calls your linked phone and already knows what this app saw, like a held payment or warnings from a call.</p>
       <div class="row"><button data-act="ph_call_me" ${ph.can_call_me ? '' : 'disabled'}>Call my phone</button></div>
-      ${ph.linked && !ph.can_call_me ? '<p class="small muted">In this demo, Vantis only calls phones on the team’s list.</p>' : !ph.linked ? '<p class="small muted">Link your phone first.</p>' : ''}</div>` : ''}
+      ${ph.linked && !ph.can_call_me ? `<p class="small muted">${demo ? 'In this demo, Vantis only calls phones on the team’s list.' : 'Vantis can’t call this number yet.'}</p>` : !ph.linked ? '<p class="small muted">Link your phone first.</p>' : ''}</div>` : ''}
     <div class="card g-way"><h3>Listen on speaker</h3><p class="small">Put the call on speaker near this device. Vantis listens through the microphone.</p>
       <label class="check"><input type="checkbox" id="g-share" data-keep> Let Sound see warnings during this call</label>
-      <div class="row"><button class="primary" data-act="g_start" data-src="mic">Start listening</button><button data-act="g_start" data-src="sample">Play a sample scam call</button></div>
-      <p class="small muted">The sample is a staged call for the demo.</p></div>`;
+      <div class="row"><button class="primary" data-act="g_start" data-src="mic">Start listening</button>${demo ? '<button data-act="g_start" data-src="sample">Play a sample scam call</button>' : ''}</div>
+      ${demo ? '<p class="small muted">The sample is a staged call for the demo.</p>' : ''}</div>`;
 }
 
 function guardianView() {
@@ -765,12 +779,12 @@ function employeeView() {
   const cbRow = x => `<tr class="cbrow ${x.status}"><td>${esc(S.member.id)}</td><td>${x.urgent ? '<span class="in-badge in-badge--risk">Urgent</span>' : '<span class="in-badge in-badge--neutral">Asked to talk</span>'}</td><td>${esc(x.reason)}<div class="small muted">${esc(x.source)} · ${esc(x.ts_text.split(' ')[1])}${x.status === 'done' ? ` · done: ${esc(x.note)}` : ''}</div>${x.report ? fraudDetail(x.report) : ''}</td>
     <td colspan="2">${x.status === 'waiting' ? `<div class="row"><button data-act="cb_done" data-id="${x.id}">Called the member</button>${x.reason.includes('money already') ? '<button data-act="cb_done" data-id="' + x.id + '" data-note="Recovery request started">Start recovery</button>' : ''}</div>` : 'Done'}</td></tr>`;
   const n = waiting.length + open.length;
-  let out = guardianCard() + emailCard() + sharedCard('general') + `<div class="card queue"><div class="console-head"><h2>Work queue <span class="in-badge in-badge--neutral">simulated</span></h2><span class="small muted">${n ? `${n} waiting on a person` : 'Nothing waiting'} · requests first, then by hold time left</span></div>
+  let out = guardianCard() + emailCard() + sharedCard('general') + `<div class="card queue"><div class="console-head"><h2>Work queue${demo ? ' <span class="in-badge in-badge--neutral">simulated</span>' : ''}</h2><span class="small muted">${n ? `${n} waiting on a person` : 'Nothing waiting'} · requests first, then by hold time left</span></div>
     <div class="table-wrap"><table><thead><tr><th>Member</th><th>Payment</th><th>Why</th><th>Status</th><th>Hold left</th></tr></thead><tbody>
     ${waiting.map(cbRow).join('')}${open.map(rowHtml).join('')}${n ? '' : '<tr><td colspan="5" class="muted">Nothing waiting on a person.</td></tr>'}
     ${closed.length || doneCb.length ? `<tr class="q-sep"><td colspan="5" class="muted small">Done</td></tr>` + closed.map(rowHtml).join('') + doneCb.map(cbRow).join('') : ''}</tbody></table></div></div>`;
   if (c) out += caseHead(c) + sharedCard(String(c.id)) + caseDetail(c);
-  out += timelineCard(S.mode === 'as_is'); // the as-is replay is the timeline; otherwise folded
+  if (demo) out += timelineCard(S.mode === 'as_is'); // the as-is replay is the timeline; otherwise folded
   return out;
 }
 
@@ -813,7 +827,7 @@ function caseDetail(c) {
       <fieldset class="outcomes"><legend class="sr">Outcome</legend>${opts.map((t, i) => `<label class="outcome"><input type="radio" name="outcome" value="${esc(t)}" ${outcomeSel === t ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</fieldset>
       <label for="reason" class="small muted">Note (optional)</label><input type="text" id="reason" data-keep>
       <div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_outcome" ${outcomeSel ? '' : 'disabled'}>${cancel ? 'Record: member cancelled' : 'Release the payment'}</button></div></li>`; }
-  else if (can.review) step2 = `<li><b>Verify using the pre-change contact</b><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_clear">Member is in control: allow</button>${can.verify ? `<button data-act="e_verify">Takeover confirmed (scripted)</button>` : ''}${can.stop ? `<button class="danger" data-act="e_stop">Stop payment</button>` : ''}</div></li>`;
+  else if (can.review) step2 = `<li><b>Verify using the pre-change contact</b><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_clear">Member is in control: allow</button>${can.verify ? `<button data-act="e_verify">${demo ? 'Takeover confirmed (scripted)' : 'Takeover confirmed'}</button>` : ''}${can.stop ? `<button class="danger" data-act="e_stop">Stop payment</button>` : ''}</div></li>`;
   else if (can.branch) step2 = `<li><b>Record the member’s decision</b><div class="row" style="margin-top:var(--space-2)"><button class="primary" data-act="e_branch_go">Member chose to proceed</button><button data-act="e_branch_cancel">Member chose not to</button></div></li>`;
   else if (open) step2 = `<li><b>No action needed</b> <span class="small muted">The member is confirming in the app.</span></li>`;
   return `<div class="two">
@@ -825,7 +839,7 @@ function caseDetail(c) {
       <div class="signals">${sig.map(x => `<div class="signal"><div class="signal-label">${esc(x.label)}</div><div class="signal-value">${esc(x.value)}</div></div>`).join('')}</div>
       ${memberView ? `<p class="small"><span class="in-badge in-badge--neutral">${esc(memberView)}</span></p>` : ''}
       <p class="small muted">Signals to check, not proof. For the member’s own payment, Sound can delay and advise; the member decides.</p>
-      ${det('e-fields-' + c.id, 'Kit fields and history', `<ul class="small">${c.evidence.map(e => `<li><code>${esc(e.field)}</code>: ${esc(e.value)}</li>`).join('')}</ul>
+      ${det('e-fields-' + c.id, demo ? 'Kit fields and history' : 'Account fields and history', `<ul class="small">${c.evidence.map(e => `<li><code>${esc(e.field)}</code>: ${esc(e.value)}</li>`).join('')}</ul>
         <dl class="kv small"><dt>Amount vs usual</dt><dd>${r.ratio ?? '—'}x (${esc(r.band)})</dd><dt>Days since last ${esc(p.rail.toLowerCase())}</dt><dd>${r.gap ?? 'never'}</dd><dt>Recipient age</dt><dd>${r.recipient_age_days ?? '—'} days</dd><dt>Profile change (30d)</dt><dd>${esc(r.profile_change_recent)}</dd><dt>Password reset (7d)</dt><dd>${esc(r.password_reset_recent)}</dd><dt>Trusted contact</dt><dd>${S.member.trusted_contact ? 'Enrolled' : 'Not enrolled'}</dd><dt>Rule</dt><dd>${esc(c.rule)} · ${esc(c.output.replace('_', ' ').toLowerCase())} · tier ${esc(c.tier)}</dd></dl>`)}
     </div>
     <div class="card">
@@ -856,7 +870,7 @@ document.addEventListener('click', async e => {
   switch (a) {
     case 'select': outcomeSel = ''; selCase = cid; return render();
     case 'more': showMore[cid] = !showMore[cid]; return render();
-    case 'chat_general': chatAuto = false; chatCase = 'general'; openCopilot(); chatLog = await (await fetch('/api/chat/general')).json(); return render(true);
+    case 'chat_general': chatAuto = false; chatCase = 'general'; openCopilot(); chatLog = await (await apiFetch('/api/chat/general')).json(); return render(true);
     case 'cb': { plusOpen = false;
       const kind = b.dataset.kind;
       const j = await post('callback', { kind, caseId: chatCase === 'general' ? 0 : chatCase });
@@ -866,7 +880,7 @@ document.addEventListener('click', async e => {
       }
       return render(true); }
     case 'cb_done': return post('callback/' + b.dataset.id + '/done', { note: b.dataset.note || 'Called the member' });
-    case 'chat': chatCase = cid; openCopilot(); chatLog = await (await fetch('/api/chat/' + cid)).json(); return render(true);
+    case 'chat': chatCase = cid; openCopilot(); chatLog = await (await apiFetch('/api/chat/' + cid)).json(); return render(true);
     case 'back': copilotOpen = false; store('sl-copilot', '0'); return render(true);
     case 'send': { const t = (b.dataset.text || $('#chatin').value).trim(); const att = b.dataset.text ? [] : pendingAtt;
       if ((!t && !att.length) || rec) return; $('#chatin').value = ''; pendingAtt = [];
@@ -900,7 +914,7 @@ document.addEventListener('click', async e => {
     case 'g_reset': await gfetch('reset', {}); S.guardian = null; return render(true);
     case 'attach': plusOpen = false; render(true); return $('#chatfile')?.click();
     case 'plus_menu': plusOpen = !plusOpen; return render(true);
-    case 'ask': { const held = S.awaiting && S.payments.find(p => p.pid === S.awaiting); chatCase = held && held.case_id ? held.case_id : 'general'; openCopilot(); chatLog = await (await fetch('/api/chat/' + chatCase)).json(); return render(true); }
+    case 'ask': { const held = S.awaiting && S.payments.find(p => p.pid === S.awaiting); chatCase = held && held.case_id ? held.case_id : 'general'; openCopilot(); chatLog = await (await apiFetch('/api/chat/' + chatCase)).json(); return render(true); }
     case 'share_yes': case 'share_no': case 'share_stop': {
       const k = chatCase === 'general' ? '0' : String(chatCase); shareAnswered.add(k); plusOpen = false;
       if (a === 'share_no') return render(true);
@@ -975,7 +989,7 @@ function openCopilot() { copilotOpen = true; if (!narrow()) store('sl-copilot', 
 $('#side-toggle').addEventListener('click', () => { sideCollapsed = !sideCollapsed; store('sl-side', sideCollapsed ? '1' : '0'); render(true); });
 $('#copilot-toggle').addEventListener('click', async () => {
   copilotOpen = !copilotOpen; store('sl-copilot', copilotOpen ? '1' : '0');
-  if (copilotOpen) chatLog = await (await fetch('/api/chat/' + chatCase)).json();
+  if (copilotOpen) chatLog = await (await apiFetch('/api/chat/' + chatCase)).json();
   render(true); if (copilotOpen) $('#chatin')?.focus();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && copilotOpen && narrow()) { copilotOpen = false; render(true); } });
@@ -1020,11 +1034,14 @@ $('#invite').addEventListener('click', async () => {
   catch { $('#invite-qr').textContent = 'QR code unavailable offline. Type the link instead.'; }
 });
 $('#invite-close').addEventListener('click', () => $('#invite-dlg').close());
+// Exit demo: back to the live console. The demo world stays on the server until the next "View demo".
+$('#exit-demo').addEventListener('click', () => { location.href = '/?demo=0'; });
 
 // Deep links for slides: /?scene=m1057&play=1&view=employee
 (async () => {
   const q = new URLSearchParams(location.search);
   const v = q.get('view'), pg = q.get('page');
+  if (q.has('demo')) history.replaceState(null, '', '/');
   if (v === 'member') page = 'home'; else if (v === 'employee') page = 'console'; else if (v === 'both') page = 'split';
   if (['home', 'inbox', 'settings', 'profile', 'onboarding', 'console', 'split', 'timeline', 'guardian', 'email', 'channels'].includes(pg)) page = pg;
   if (q.get('gmail')) { const g = q.get('gmail'); setTimeout(() => toast(g === 'connected' ? 'Gmail connected. Vantis checks new mail every minute.' : 'Gmail: ' + g), 800); history.replaceState(null, '', '/?page=channels'); }

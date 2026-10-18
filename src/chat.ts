@@ -100,6 +100,9 @@ const withEvidence = (raw: any, opts: ChatOpts) => {
   const ev: any = opts.evidence?.() ?? {};
   return { ...raw, ...ev, tactics: [...new Set([...(raw?.tactics ?? []), ...(ev.tactics ?? [])])] };
 };
+// Chat keys are `${world key}:${scene}`; a report goes to the world the chat belongs to (live or demo).
+const worldOf = (scene: string) => scene.slice(0, scene.lastIndexOf(':'));
+
 export async function chat(scene: string, caseId: number, text: string, att: Attachment[] = [], opts: ChatOpts = {}): Promise<{ reply: string; source: 'claude' | 'offline'; att: ReturnType<typeof attView>; reported: boolean }> {
   const general = caseId === GENERAL;
   const k = general ? null : caseForChat(caseId);
@@ -123,7 +126,7 @@ export async function chat(scene: string, caseId: number, text: string, att: Att
       // The member agreed: file the report, then let Claude tell them it's done.
       const use = r.content.find((b: any) => b.type === 'tool_use' && b.name === 'report_to_sound') as any;
       if (use && r.stop_reason === 'tool_use') {
-        const out = await fileReport(scene.split(':')[0], normalize(withEvidence(use.input, opts), opts.channel ?? 'chat', { linked: true }));
+        const out = await fileReport(worldOf(scene), normalize(withEvidence(use.input, opts), opts.channel ?? 'chat', { linked: true }));
         reported = true;
         final = await client.messages.create({ ...params, messages: [...params.messages, { role: 'assistant', content: r.content }, { role: 'user', content: [{ type: 'tool_result', tool_use_id: use.id, content: `Filed as case ${out.case_id}. In the employee work queue as urgent${out.emailed ? ', and emailed to the fraud team' : ''}. A Sound team member will call the member on the number on file.` }] }] } as any, { timeout: 45_000 });
       }
@@ -138,7 +141,7 @@ export async function chat(scene: string, caseId: number, text: string, att: Att
   }
   // Offline: the member explicitly asks to report it, so file with what they typed.
   if (!reply && /\b(report (it|this)|tell sound|let sound know|notify sound|yes,? (please )?(report|tell))\b/i.test(msg)) {
-    await fileReport(scene.split(':')[0], normalize(withEvidence({ summary: chatHistory(scene, caseId).filter((m: any) => m.role === 'user').map((m: any) => m.text).join(' ').slice(-600), money_sent: /\b(sent|paid|transferred|wired)\b/i.test(msg) ? true : undefined }, opts), opts.channel ?? 'chat', { linked: true }));
+    await fileReport(worldOf(scene), normalize(withEvidence({ summary: chatHistory(scene, caseId).filter((m: any) => m.role === 'user').map((m: any) => m.text).join(' ').slice(-600), money_sent: /\b(sent|paid|transferred|wired)\b/i.test(msg) ? true : undefined }, opts), opts.channel ?? 'chat', { linked: true }));
     reported = true;
     reply = 'Done. I’ve told Sound’s fraud team what you shared, and a Sound team member will call you on the number on file.';
   }
