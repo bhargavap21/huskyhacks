@@ -16,6 +16,7 @@ HANDOFF.md (Sound-embedded version) replaced the email-first handoff on 2026-10-
 | 11 | 2026-10-17 | Deleted `src/email/schema.ts` (never imported) rather than promoting it, and dropped the unused `googleapis` dependency. It was the email-first design superseded by #4: its own database file, per-account Gmail tokens and a second `audit_log`. The built channels keep their tables in `src/db.ts`; the unified message and case model (issue #2) is designed from those, not from this file. | Issue #20: one database and one audit log, no dead code. |
 | 7 | 2026-10-17 | Fixtures: use the `fixtures/emails.json` from `second-look-handoff.zip` (the version HANDOFF references). Mine is replaced. | HANDOFF wins on conflicts. |
 | 10 | 2026-10-17 | **Classifier output is advisory alerting, never payment detection.** See ADR 10 below. | Issue #8. |
+| 13 | 2026-10-18 | Combined scoring (issue #9) is `DETECTION_MODE=hybrid`: the classifier sees every opted-in message and risk comes from the merged rule and model evidence. The default stays `gate` (ordinary mail never reaches the model) until PII redaction (#11) lands; then switch the default to `hybrid` if the eval agrees. No separate numeric score: `tier()` already combines both sources, and sensitivity (#16) can set the tier cutoff. | Sending every message raw to an external model before redaction breaks the plan's own constraint. |
 
 ## Rule catch counts (HANDOFF section 9 rules as written; Member Key used for measurement only)
 

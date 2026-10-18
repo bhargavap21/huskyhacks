@@ -42,9 +42,9 @@ export const DETECTORS: Detector[] = [
       return { flag: r.flag, signals, why: [...r.tactics.map(t => t.label), ...r.links.filter(l => l.note && !l.note.startsWith('This is')).map(l => `${l.domain}: ${l.note}`)] };
     },
   },
-  ...(['classifier', 'gate'] as const).map((mode): Detector => ({
+  ...(['classifier', 'hybrid', 'gate'] as const).map((mode): Detector => ({
     name: mode, available: !!client, signals: true,
-    about: mode === 'gate' ? 'Production default: rules gate, then the classifier decides (`assess` in src/monitor.ts, DETECTION_MODE=gate)' : 'The classifier sees every message (`assess`, DETECTION_MODE=classifier)',
+    about: { classifier: 'The model\'s evidence only, no rules (`assess`, DETECTION_MODE=classifier)', hybrid: 'The model sees every message; its evidence and the rules\' are merged and risk is computed from both (`assess`, DETECTION_MODE=hybrid)', gate: 'Production default: hybrid, but ordinary mail never reaches the model (`assess`, DETECTION_MODE=gate)' }[mode],
     run: async c => {
       const d = await assess(c.channel === 'call' ? 'call screening' : 'email', c.from ?? 'unknown sender', c.subject ?? '', text(c), [], { mode });
       return { flag: !!d, signals: [...new Set((d?.signals ?? []).map(x => x.key))], why: d?.why ?? [] };
