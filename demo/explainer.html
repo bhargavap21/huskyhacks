@@ -85,18 +85,18 @@ html, body { height: 100%; background: #2a2c31; overflow: hidden; color: var(--i
 
 .start button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 /* Start and end screens */
-.start, .end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #fff; }
-.start { background: rgba(20,21,24,.82); z-index: 50; }
+.end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #fff; }
+.start { position: absolute; top: 28px; right: 28px; z-index: 50; }
+.port .start { top: 18px; right: 18px; }
 .end { background: var(--hud); display: none; z-index: 20; padding: 0 40px; }
 .end.on { display: flex; }
-.start h1, .end h1 { font-family: var(--px); font-weight: 400; font-size: 64px; line-height: 1.1; letter-spacing: 2px; }
-.start p, .end p { font-size: 28px; line-height: 38px; margin-top: 14px; max-width: 900px; }
-.start button { font-family: var(--px); font-size: 24px; margin-top: 30px; padding: 14px 26px; background: var(--accent); color: #fff; border: 4px solid #fff; cursor: pointer; box-shadow: 5px 5px 0 #000; }
-.start .alt { background: transparent; border: 0; box-shadow: none; font-size: 16px; margin-top: 16px; text-decoration: underline; padding: 6px; }
-.start small, .end small { display: block; margin-top: 26px; font-size: 18px; color: #a9abb2; }
+.end h1 { font-family: var(--px); font-weight: 400; font-size: 64px; line-height: 1.1; letter-spacing: 2px; }
+.end p { font-size: 28px; line-height: 38px; margin-top: 14px; max-width: 900px; }
+.start button { font-family: var(--px); font-size: 22px; padding: 12px 22px; background: var(--accent); color: #fff; border: 4px solid #fff; cursor: pointer; box-shadow: 5px 5px 0 #000; }
+.end small { display: block; margin-top: 26px; font-size: 18px; color: #a9abb2; }
 .end .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 26px; }
 .end .chip { display: inline-block; background: transparent; color: #fff; border-color: #fff; font-size: 16px; }
-.port .start h1, .port .end h1 { font-size: 52px; } .port .start p, .port .end p { font-size: 30px; }
+.port .end h1 { font-size: 52px; } .port .end p { font-size: 30px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 </head>
@@ -117,12 +117,7 @@ html, body { height: 100%; background: #2a2c31; overflow: hidden; color: var(--i
     <small>Simulated demo. Linda and the caller are made-up characters.</small>
   </div>
 
-  <div class="start" id="start">
-    <h1>VANTIS</h1>
-    <p>A calm check on texts and calls, before money moves.</p>
-    <button id="go">▶ Play</button>
-    <small>Sound on · simulated demo · fake data · loops on its own</small>
-  </div>
+  <div class="start" id="start"><button id="go" aria-label="Play the Vantis explainer">▶ PLAY</button></div>
 </div>
 
 <script>
