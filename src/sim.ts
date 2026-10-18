@@ -1,11 +1,13 @@
 // Simulated Sound environment: replays one member's kit timeline on a compressed clock and,
 // in "with Vantis" mode, runs the rules and the enforced payment state machine.
+// Each browser session has two worlds: the live console (real-time clock, seeded sample cases flagged `sample`, and
+// reports from the member's real channels) and, behind "View demo", the scene replay. They never share state.
 // Nothing here touches real money, accounts, or Sound systems.
 import type { FraudCase } from './reports.ts';
 import { memberEvents, historyUpTo, type KitEvent } from './kit.ts';
 import { score, primary, type Finding, HOLDABLE } from './rules.ts';
 import { newPayment, transition, TERMINAL, TransitionError, type Payment, type Gate } from './payments.ts';
-import { audit, db } from './db.ts';
+import { audit, db, type AuditWorld } from './db.ts';
 import { newPolicy, decide, dismiss, type PolicyState, type Decision, type Sensitivity } from './alerts.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -36,6 +38,7 @@ export const SCENES: Scene[] = [
 export type CaseRec = {
   id: number; pid: string; pids: string[]; recipient: string; rule: string; title: string; tier: 'T0' | 'T1' | 'T2'; output: string;
   evidence: Finding['evidence']; findings: Finding[]; status: 'open' | 'closed'; created_sim: number; created_real: number;
+  member_id?: string; sample?: boolean; // live console: whose case, and whether it is a seeded sample
   member_label: 'none' | 'looks_fine' | 'reported'; label_seconds: number | null; callback_requested: boolean;
   actions: { ts: number; actor: string; action: string; detail: string }[];
   alert: Decision | null;
@@ -43,6 +46,7 @@ export type CaseRec = {
 export type PayRec = {
   pid: string; rail: string; amount: number; recipient: string; channel: string; initiated_sim: number;
   state: Payment; kit_status?: string; case_id: number | null; row: KitEvent;
+  member_id?: string; settled?: boolean;
 };
 export type Member = {
   id: string; name: string; enrolled: boolean; trusted_contact: { name: string; relation: string; when: string } | null;
@@ -50,6 +54,7 @@ export type Member = {
 };
 
 type World = {
+  kind: AuditWorld; live: boolean; members: Record<string, Member>; // live: several members' cases in one queue
   scene: Scene; mode: Mode; sim: number; speed: number; running: boolean; cursor: number; events: KitEvent[];
   timeline: { ts: number; text: string; kind: 'kit' | 'suppressed' | 'system' }[];
   payments: Map<string, PayRec>; cases: CaseRec[]; awaiting: string | null; member: Member;
@@ -59,25 +64,32 @@ type World = {
   callbacks: { id: number; ts: number; reason: string; source: string; urgent: boolean; status: 'waiting' | 'done'; note: string; report?: FraudReport }[];
 };
 
-// One simulation per browser session so viewers don't interfere with each other.
+// Worlds per browser session so viewers don't interfere with each other: the live console under the session id,
+// the demo walkthrough under demoKey(sid).
 const worlds = new Map<string, World>();
 const MAX_WORLDS = 300, IDLE_MS = 3 * 3_600_000;
 let w: World;
+export const DEMO_SUFFIX = '~demo';
+export const demoKey = (sid: string) => sid + DEMO_SUFFIX;
+export const isDemoKey = (key: string) => key.endsWith(DEMO_SUFFIX);
 
-/** Select (or create) this session's world. All exported functions act on the selected world. */
-export function useWorld(sid: string) {
-  let x = worlds.get(sid);
+function select(key: string, make: () => World) {
+  let x = worlds.get(key);
   if (!x) {
     if (worlds.size >= MAX_WORLDS) {
       const oldest = [...worlds.entries()].sort((a, b) => a[1].seen - b[1].seen)[0];
       worlds.delete(oldest[0]);
     }
-    x = blank(SCENES[1]);
-    worlds.set(sid, x);
+    x = make();
+    worlds.set(key, x);
   }
   x.seen = Date.now();
   w = x;
 }
+/** Select (or create) a scene world by key. All exported functions act on the selected world. */
+export function useWorld(key: string) { select(key, () => blank(SCENES[1])); }
+/** Select (or create) this session's live console world. */
+export function useLive(sid: string) { select(sid, liveWorld); }
 
 /** Advance every active world's clock. */
 export function tickAll(realMs: number) {
@@ -92,6 +104,7 @@ function blank(scene: Scene): World {
   const events = memberEvents(scene.member);
   const start = toMs(scene.start), who = identity(scene.member);
   const w0: World = {
+    kind: 'demo', live: false, members: {},
     scene, mode: scene.mode, sim: start, speed: NORMAL_SPEED, running: false, cursor: 0, events, timeline: [],
     payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null, next_case: 1, seen: Date.now(), policy: newPolicy(), notifications: [], callbacks: [],
     member: { id: scene.member, name: who.name, enrolled: scene.mode === 'second_look', trusted_contact: null, contact_changed_sim: null, pre_change_contact: who.contact + (who.on_file_since ? ` (on file since ${who.on_file_since})` : ''), current_contact: who.contact },
@@ -110,7 +123,53 @@ export function loadScene(id: string, sid: string) {
   w = blank(s);
   worlds.set(sid, w);
   db.prepare('DELETE FROM chat_messages WHERE scene = ?').run(`${sid}:${s.id}`);
-  audit('demo', 'scene_loaded', s.id);
+  audit('demo', 'scene_loaded', s.id, 'demo');
+}
+
+// ---- The live console: seeded sample cases on a real-time clock ----
+// The kit is synthetic, so the live queue starts with sample cases taken from the with-Vantis scenes, each stopped
+// at the moment its case opens and flagged `sample`. Linda (the first) is the member the member view shows.
+const LIVE_SCENE: Scene = { id: 'live', member: 'M1001', mode: 'second_look', start: '', title: 'Live', blurb: '' };
+const SAMPLE_SEEDS = ['linda-sl', 'm1003', 'm1057'];
+let seeding = false; // seeding replays kit rows; those aren't actions anyone took, so they aren't audited
+
+function runToCase(scene: Scene) {
+  const x = blank(scene), prev = w; w = x;
+  while (!x.awaiting && x.cursor < x.events.length) { x.sim = Math.max(x.sim, x.events[x.cursor].ts); applyRow(x, x.events[x.cursor++]); }
+  w = prev;
+  return x;
+}
+/** Move a seed world's clock (and every time in it) so its case opened just now. */
+function shiftTo(x: World, now: number) {
+  const d = now - x.sim;
+  for (const p of x.payments.values()) {
+    p.initiated_sim += d;
+    if (p.state.hold_started_at !== null) p.state = { ...p.state, hold_started_at: p.state.hold_started_at + d, hold_expires_at: (p.state.hold_expires_at ?? 0) + d };
+  }
+  for (const c of x.cases) { c.created_sim += d; for (const a of c.actions) a.ts += d; }
+  for (const n of x.notifications) n.ts += d;
+  if (x.member.contact_changed_sim !== null) x.member.contact_changed_sim += d;
+  x.sim = now;
+}
+function liveWorld(): World {
+  const now = Date.now();
+  seeding = true;
+  let seeds: World[];
+  try { seeds = SAMPLE_SEEDS.map(id => runToCase(SCENES.find(s => s.id === id)!)); } finally { seeding = false; }
+  seeds.forEach(x => shiftTo(x, now));
+  const [base, ...rest] = seeds;
+  const L: World = { ...base, kind: 'live', live: true, scene: LIVE_SCENE, members: { [base.member.id]: base.member }, running: true, ended: false, speed: 1, timeline: [], cursor: base.events.length, seen: now };
+  for (const c of L.cases) Object.assign(c, { member_id: base.member.id, sample: true });
+  for (const p of L.payments.values()) p.member_id = base.member.id;
+  for (const x of rest) {
+    L.members[x.member.id] = x.member;
+    for (const c of x.cases.slice().reverse()) {
+      const id = L.next_case++;
+      for (const pid of c.pids) { const p = x.payments.get(pid)!; p.case_id = id; p.member_id = x.member.id; L.payments.set(pid, p); }
+      L.cases.push({ ...c, id, member_id: x.member.id, sample: true });
+    }
+  }
+  return L;
 }
 
 const SKIP = new Set(['Login', 'Debit Purchase', 'ATM Withdrawal', 'Deposit', 'Automatic Payment', 'Bill Payment']);
@@ -119,7 +178,7 @@ const line = (e: KitEvent) => `${e.event_type}${e.payment_id ? ` · ${e.payment_
 
 function act(c: CaseRec, actor: string, action: string, detail = '') {
   c.actions.push({ ts: w.sim, actor, action, detail });
-  audit(actor, action, `case ${c.id} ${c.pid}${detail ? ': ' + detail : ''}`);
+  if (!seeding) audit(actor, action, `case ${c.id} ${c.pid}${detail ? ': ' + detail : ''}`, w.kind);
 }
 
 /** Apply one kit row. In second_look mode, rows for a payment Vantis took over are suppressed. */
@@ -189,9 +248,11 @@ function openCase(W: World, p: PayRec, e: KitEvent) {
   W.timeline.push({ ts: W.sim, text: `Vantis: ${f.rule} — ${f.title} → ${f.output.replace('_', ' ').toLowerCase()}`, kind: 'system' });
 }
 
+// Live: any member's payment settles (the queue holds several members). Demo: only the one the scene waits on.
 function settle(p: PayRec) {
-  if (TERMINAL.includes(p.state.status) && w.awaiting === p.pid) {
-    w.awaiting = null; w.speed = NORMAL_SPEED;
+  if (TERMINAL.includes(p.state.status) && !p.settled && (w.awaiting === p.pid || w.live)) {
+    p.settled = true;
+    if (w.awaiting === p.pid) { w.awaiting = null; w.speed = w.live ? 1 : NORMAL_SPEED; }
     const c = w.cases.find(x => x.id === p.case_id);
     if (c) {
       act(c, 'system', 'payment_final', `${p.pid}: ${p.state.status}`);
@@ -204,7 +265,7 @@ function settle(p: PayRec) {
 /** Advance the clock. Called by the server loop (real ms elapsed). */
 export function tick(realMs: number) {
   if (!w.running || w.ended) return;
-  w.sim += realMs * w.speed;
+  w.sim = w.live ? Date.now() : w.sim + realMs * w.speed;
   for (const p of w.payments.values()) {
     if (p.state.status === 'Held' && p.state.hold_expires_at !== null && w.sim >= p.state.hold_expires_at) {
       w.sim = p.state.hold_expires_at;
@@ -214,7 +275,7 @@ export function tick(realMs: number) {
       settle(p);
     }
   }
-  if (w.awaiting) return; // the journey waits on people; only the hold clock runs
+  if (w.live || w.awaiting) return; // live has no replay; in a scene the journey waits on people and only the hold clock runs
   while (w.cursor < w.events.length && w.events[w.cursor].ts <= w.sim) {
     applyRow(w, w.events[w.cursor++]);
     if (w.awaiting) break;
@@ -239,14 +300,15 @@ const caseFor = (p: PayRec) => caseOf(p.case_id!);
 
 /** Member-side actions (the member app). */
 export function member(action: string, b: any) {
-  if (action === 'enroll') { w.member.enrolled = !!b.on; audit('member', b.on ? 'second_look_on' : 'second_look_off', w.member.id); return; }
+  if (action === 'enroll') { w.member.enrolled = !!b.on; audit('member', b.on ? 'second_look_on' : 'second_look_off', w.member.id, w.kind); return; }
   if (action === 'alert_settings') {
     if (['fewer', 'standard', 'more'].includes(b.sensitivity)) w.policy.sensitivity = b.sensitivity as Sensitivity;
     if (b.quiet !== undefined) w.policy.quiet = b.quiet ? { start_hour: 21, end_hour: 7 } : null;
-    audit('member', 'alert_settings', `${w.policy.sensitivity}; quiet hours ${w.policy.quiet ? 'on' : 'off'}`); return;
+    audit('member', 'alert_settings', `${w.policy.sensitivity}; quiet hours ${w.policy.quiet ? 'on' : 'off'}`, w.kind); return;
   }
-  if (action === 'trusted_contact') { w.member.trusted_contact = b.remove ? null : { name: String(b.name || '').slice(0, 60), relation: String(b.relation || '').slice(0, 40), when: 'a payment is held' }; audit('member', b.remove ? 'trusted_contact_revoked' : 'trusted_contact_enrolled', w.member.id); return; }
+  if (action === 'trusted_contact') { w.member.trusted_contact = b.remove ? null : { name: String(b.name || '').slice(0, 60), relation: String(b.relation || '').slice(0, 40), when: 'a payment is held' }; audit('member', b.remove ? 'trusted_contact_revoked' : 'trusted_contact_enrolled', w.member.id, w.kind); return; }
   const p = pay(b.pid); const c = caseFor(p);
+  if (p.member_id && p.member_id !== w.member.id) throw new TransitionError('Unknown payment'); // another member's case in the live queue
   switch (action) {
     case 'looks_fine': // banner path: one tap
       p.state = transition(p.state, { kind: 'clear_gate', actor: 'member' });
@@ -295,7 +357,7 @@ export function requestCallback(kind: string, caseId: number) {
   const id = w.callbacks.length + 1;
   const source = caseId ? `chat about case ${caseId}` : 'Something feels off chat';
   w.callbacks.unshift({ id, ts: w.sim, reason: r.text, source, urgent: r.urgent, status: 'waiting', note: '' });
-  audit('member', 'callback_requested', `${kind} from ${source}`);
+  audit('member', 'callback_requested', `${kind} from ${source}`, w.kind);
   if (caseId) { const c = w.cases.find(x => x.id === caseId); if (c) { c.callback_requested = true; act(c, 'member', 'asked_to_talk', r.text); } }
   return id;
 }
@@ -306,14 +368,14 @@ export function fraudReport(r: FraudReport) {
   if (open) { open.report = r; open.urgent = open.urgent || r.money_sent; return open.id; } // one open report per channel, kept up to date
   const id = w.callbacks.length + 1;
   w.callbacks.unshift({ id, ts: w.sim, reason: r.money_sent ? 'Vantis report: money may already be gone, start recovery' : 'Vantis report: member facing a possible scam', source: `Filed by Vantis from ${r.channel}, at the member’s request`, urgent: true, status: 'waiting', note: '', report: r });
-  audit('second-look', 'fraud_report', `${r.channel}: ${r.summary.slice(0, 200)}`);
+  audit('second-look', 'fraud_report', `${r.channel}: ${r.summary.slice(0, 200)}`, w.kind);
   return id;
 }
 export function callbackDone(id: number, note: string) {
   const cb = w.callbacks.find(x => x.id === id);
   if (!cb) throw new TransitionError('Unknown request');
   cb.status = 'done'; cb.note = note.slice(0, 300) || 'Called member';
-  audit('employee', 'callback_done', `request ${id}: ${cb.note}`);
+  audit('employee', 'callback_done', `request ${id}: ${cb.note}`, w.kind);
 }
 
 /** Employee console actions. Every one is audited. */
@@ -336,12 +398,14 @@ export function employee(action: string, b: any) {
       break;
     case 'verify_ato':
       if (c.rule !== 'R2') throw new TransitionError('Takeover verification applies to the R2 pattern only');
-      p.state = transition(p.state, { kind: 'verify_ato' }); act(c, 'employee', 'ato_verified', 'SCRIPTED PREMISE: member confirmed via pre-change phone that they did not make these changes'); break;
+      p.state = transition(p.state, { kind: 'verify_ato' }); act(c, 'employee', 'ato_verified', `${w.live ? '' : 'SCRIPTED PREMISE: '}member confirmed via pre-change phone that they did not make these changes`); break;
     case 'stop':
       p.state = transition(p.state, { kind: 'stop' }); act(c, 'employee', 'stopped', 'verified account takeover'); break;
-    case 'trusted_notify':
-      if (!w.member.trusted_contact) throw new TransitionError('No trusted contact enrolled. The member can add one in Settings.');
-      act(c, 'employee', 'trusted_contact_notified', `informational message to ${w.member.trusted_contact.name}: no balances, no account access`); break;
+    case 'trusted_notify': {
+      const m = (c.member_id && w.members[c.member_id]) || w.member;
+      if (!m.trusted_contact) throw new TransitionError('No trusted contact enrolled. The member can add one in Settings.');
+      act(c, 'employee', 'trusted_contact_notified', `informational message to ${m.trusted_contact.name}: no balances, no account access`); break;
+    }
     case 'recovery':
       act(c, 'employee', 'recovery_request', HOLDABLE.has(p.rail) ? 'recall/return requested: not guaranteed, faster is better' : 'P2P cannot be recalled'); break;
     default: throw new TransitionError('Unknown employee action');
@@ -356,13 +420,14 @@ export function caseForChat(id: number) {
 
 export function snapshot() {
   const pays = [...w.payments.values()].map(p => ({
-    pid: p.pid, rail: p.rail, amount: p.amount, recipient: p.recipient, channel: p.channel, initiated: fmt(p.initiated_sim),
+    pid: p.pid, rail: p.rail, amount: p.amount, recipient: p.recipient, channel: p.channel, initiated: fmt(p.initiated_sim), initiated_at: p.initiated_sim,
     status: p.case_id != null ? p.state.status : (p.kit_status ?? p.state.status), gate: p.state.gate,
     hold_expires_at: p.state.hold_expires_at, hold_started_at: p.state.hold_started_at, reconfirmed: p.state.member_reconfirmed,
-    ato_verified: p.state.ato_verified, case_id: p.case_id,
+    ato_verified: p.state.ato_verified, case_id: p.case_id, member_id: p.member_id,
     row: { ratio: p.row.ratio, gap: p.row.days_since_last_same_rail, recipient_status: p.row.recipient_status, recipient_age_days: p.row.recipient_age_days, band: p.row.baseline_band, profile_change_recent: p.row.profile_change_recent, password_reset_recent: p.row.password_reset_recent, trusted_contact_enrolled: p.row.trusted_contact_enrolled, balance_after: p.row.available_balance_after },
   }));
   return {
+    live: w.live, members: w.live ? w.members : undefined,
     scene: w.scene, scenes: SCENES.map(s => ({ id: s.id, title: s.title })), mode: w.mode, sim: w.sim, sim_text: fmt(w.sim),
     speed: w.speed, running: w.running, ended: w.ended, awaiting: w.awaiting, member: w.member,
     callbacks: w.callbacks.map(c => ({ ...c, ts_text: fmt(c.ts) })),

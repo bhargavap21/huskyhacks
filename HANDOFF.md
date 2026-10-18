@@ -27,7 +27,9 @@ The team set two priorities [USER]:
 - **Recovery:** wire recalls and ACH returns **can be requested but are not guaranteed**; odds fall the longer a scam goes unreported.
 - **Trusted contacts:** Sound does **not** offer this today; teams may assume Sound could launch it. Voluntary, revocable, member-directed; the contact is **informed, never given account access or control** [KIT guardrails].
 
-Everything the demo shows must be one of these powers, clearly labeled simulated. We never claim an account freeze.
+Everything the demo shows must be one of these powers. We never claim an account freeze.
+
+**Updated 2026-10-18 (DECISIONS #15):** the default screens now present the product as Sound would run it: a staff console and a member view, with no demo controls or "simulated" labels. Honesty is carried three ways instead. (1) Every seeded case is badged **Sample** and the queue says **Includes sample cases**. (2) The guided walkthrough (scenes, replay clock, kit timeline, staged samples) sits behind **View demo**, where the "simulated" labels remain. (3) The presenter says it out loud: this is a concept on synthetic data, and holds change only the simulation.
 
 **What the demo is:** we have no access to Sound's real app, APIs, or systems. The demo is a **simulated Sound environment**: a member app that looks and reads like a Sound mobile app, an employee console, and a payment engine that replays the kit's synthetic events. Holds, releases, stops, and cancellations in the demo are **enforceable only inside the simulation** - the payment engine actually changes payment state, so a hold genuinely blocks the (synthetic) wire until it is released or expires. That is the honest middle ground: the pause really pauses the demo payment; it touches no real money, account, or Sound system. Say exactly this in the pitch.
 

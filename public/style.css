@@ -489,3 +489,39 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 }
 .page-member .app-body > :is(.em-found, .scr) { grid-column: 1 / -1; }
 .g-link.verify .row input { max-width: 180px; font-variant-numeric: tabular-nums; letter-spacing: .1em; }
+
+/* Live product vs demo walkthrough: the hidden attribute always wins over a component's display. */
+[hidden] { display: none !important; }
+.side-group { display: contents; }
+/* Staff console / Member view switch in the header band. */
+.view-switch { display: inline-flex; gap: 0; margin-left: var(--space-3); }
+.view-switch button { min-height: 36px; padding: var(--space-1) var(--space-4); border-radius: 0; color: var(--ink-body); }
+.view-switch button:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.view-switch button:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-left: -1px; }
+.view-switch button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.demo-bar .tag { color: var(--ink); }
+/* Audit log page (staff). */
+.audit-list { list-style: none; margin: 0; padding: 0; }
+.audit-list li { padding: var(--space-3) 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 22px; }
+.audit-list li:first-child { border-top: 0; }
+@media (max-width: 900px) {
+  .view-switch { margin-left: 0; }
+  .view-switch button { padding: var(--space-1) var(--space-3); }
+}
+@media (max-width: 600px) {
+  .topbar { flex-wrap: wrap; row-gap: var(--space-2); }
+  .view-switch { order: 10; width: 100%; }
+  .view-switch button { flex: 1; white-space: nowrap; }
+}
+
+/* Case view: one column. Header and summary share a card; the next-step card runs full width below. */
+.case-head { display: block; }
+.case-top { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.case-head .case-summary { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.case-head .signals { margin-bottom: var(--space-3); }
+.case-next { margin-top: var(--space-4); }
+.outcome-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); max-width: 480px; margin-top: var(--space-2); }
+.outcome-form select, .outcome-form input { width: 100%; box-sizing: border-box; }
+.outcome-form select { min-height: 44px; }
+.outcome-form .row { margin-top: var(--space-2); }
+.q-link { min-height: 0; padding: 0; font: inherit; }

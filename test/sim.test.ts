@@ -61,3 +61,69 @@ kitTest('members can ask for a person from any chat; one request per reason; emp
   assert.equal(s.callbacks.find((x: any) => x.id === a)?.status, 'done');
   assert.throws(() => requestCallback('wire it for me', 0));
 });
+
+kitTest('live console: seeded sample cases for three members, on a real-time clock, flagged sample; nothing audited by seeding', async () => {
+  const { useLive } = await import('../src/sim.ts');
+  const { auditLog } = await import('../src/db.ts');
+  const before = auditLog('live').length;
+  useLive('live1');
+  const s = snapshot();
+  assert.equal(s.live, true);
+  assert.equal(s.member.id, 'M1001');
+  assert.deepEqual(Object.keys(s.members ?? {}).sort(), ['M1001', 'M1003', 'M1057']);
+  assert.ok(s.cases.length >= 3 && s.cases.every((c: any) => c.sample === true && c.member_id));
+  assert.deepEqual(new Set(s.cases.map((c: any) => c.id)).size, s.cases.length);
+  const held = s.payments.find((p: any) => p.pid === s.awaiting);
+  assert.equal(held?.status, 'Held');
+  assert.ok(Math.abs((held?.hold_expires_at ?? 0) - (Date.now() + 4 * 3_600_000)) < 60_000, 'the hold runs four real hours from now');
+  assert.equal(auditLog('live').length, before);
+});
+
+kitTest('live console: another member’s case can be worked by staff, settles and closes; members can’t act on it', async () => {
+  const { useLive } = await import('../src/sim.ts');
+  useLive('live2');
+  const k = snapshot().cases.find((c: any) => c.member_id === 'M1057')!;
+  assert.throws(() => member('cancel', { pid: k.pid }), /Unknown payment/);
+  employee('release', { caseId: k.id, reason: 'Member confirmed by phone: legitimate' });
+  const s = snapshot();
+  assert.equal(s.payments.find((p: any) => p.pid === k.pid)?.status, 'Completed');
+  assert.equal(s.cases.find((c: any) => c.id === k.id)?.status, 'closed');
+});
+
+kitTest('demo and live never share state: demo actions stay out of the live queue and the live audit log', async () => {
+  const { useLive, demoKey } = await import('../src/sim.ts');
+  const { auditLog } = await import('../src/db.ts');
+  useLive('sep'); const liveCases = JSON.stringify(snapshot().cases);
+  const d = demoKey('sep');
+  useWorld(d); loadScene('m1057', d); control('play', d); run(); useWorld(d);
+  const k = snapshot().cases[0];
+  employee('release', { caseId: k.id, reason: 'demo release' });
+  useLive('sep');
+  assert.equal(JSON.stringify(snapshot().cases), liveCases);
+  assert.ok(!auditLog('live').some(r => /demo release/.test(r.detail)));
+  assert.ok(auditLog('demo').some(r => /demo release/.test(r.detail)));
+  employee('outreach', { caseId: snapshot().cases[0].id, reason: 'live call' });
+  assert.ok(auditLog('live').some(r => /live call/.test(r.detail)));
+  assert.ok(!auditLog('demo').some(r => /live call/.test(r.detail)));
+});
+
+kitTest('live: a real caller’s report is filed under what they said, never the sample member; demo keeps the scene member', async () => {
+  delete process.env.AGENTMAIL_API_KEY; // no fraud-team email from tests
+  const { useLive, demoKey } = await import('../src/sim.ts');
+  await import('../src/chat.ts'); // chat and reports import each other; load in the server's order
+  const { fileReport, normalize } = await import('../src/reports.ts');
+  await fileReport('rep', normalize({ summary: 'A caller said he was from Sound and asked for a code.', member_name: 'Bhargava', threat_type: 'bank or credit union impersonation' }, 'phone', { phone: '+12065550100', linked: true }));
+  useLive('rep');
+  const r = snapshot().callbacks[0].report!;
+  assert.equal(r.member.name, 'Bhargava');
+  assert.equal(r.member.member_id, '');
+  assert.equal(r.member.phone, '(206) 555-0100');
+  await fileReport('rep2', normalize({ summary: 'No name given.' }, 'phone', { phone: '+12065550101', linked: true }));
+  useLive('rep2');
+  const r2 = snapshot().callbacks[0].report!;
+  assert.equal(r2.member.name, '');
+  assert.ok(r2.missing.includes('member’s name'));
+  await fileReport(demoKey('rep'), normalize({ summary: 'From the demo.' }, 'chat', { linked: true }));
+  useWorld(demoKey('rep'));
+  assert.match(snapshot().callbacks[0].report!.member.name, /\(demo member\)$/);
+});
