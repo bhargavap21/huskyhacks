@@ -22,7 +22,7 @@ export type ScreenedCall = ScreenInput & ScreenResult & { id: number; ts: number
 
 // Organizations whose calls Vantis never puts through: the member should call them back on a number they
 // already have. Delivery companies, pharmacies and doctors are fine; banks, government and "tech support" are not.
-const NEVER_CONNECT = /\b(sound(?: credit union)?|credit union|bank|fraud (?:department|team|unit|prevention)|security (?:team|department)|irs|internal revenue|fbi|federal|sheriff|police|social security|ssa|medicare|government|tech(?:nical)? support|microsoft|apple support|geek squad|norton|mcafee)\b/i;
+export const NEVER_CONNECT = /\b(sound(?: credit union)?|credit union|bank|fraud (?:department|team|unit|prevention)|security (?:team|department)|irs|internal revenue|fbi|federal|sheriff|police|social security|ssa|medicare|government|tech(?:nical)? support|microsoft|apple support|geek squad|norton|mcafee)\b/i;
 // Signals that always hold a call back. Urgency alone ("can you call me back today") doesn't.
 const HOLD_ON: Signal[] = ['credential_request', 'payment_pressure', 'secrecy', 'remote_access', 'coaching', 'threats', 'impersonation', 'online_relationship'];
 

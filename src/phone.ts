@@ -10,7 +10,7 @@ import { startCall, addText, stopCall, callState } from './guardian.ts';
 import { client, MODEL } from './chat.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
 import { sidsWhere, settings, assess, record, notifyMember, onCritical, detection, updateDetection, type Detection } from './monitor.ts';
-import { decide, input as screenInput, logScreened, finishScreened, TOOL_SECRET } from './screening.ts';
+import { decide, input as screenInput, logScreened, finishScreened, TOOL_SECRET, NEVER_CONNECT } from './screening.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { sendEmail } from './email.ts';
 import { scrub } from './redact.ts';
@@ -213,7 +213,7 @@ const lastTransfer = new Map<string, number>(); // `${sid}|${caller}` -> when we
 /** The agent's custom tool. Checks the secret, then decides; never throws (the agent treats errors as "hold"). */
 export async function handleScreeningTool(secret: string | undefined, body: any) {
   const a = Buffer.from(secret ?? ''), b = Buffer.from(TOOL_SECRET);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return { status: 401, json: { decision: 'hold', say: 'Thanks, I’ll pass your message on.' } };
+  if (a.length !== b.length || !timingSafeEqual(a, b)) { console.error('phone: screening decision request with a wrong secret; answered hold'); return { status: 401, json: { decision: 'hold', say: 'Thanks, I’ll pass your message on.' } }; }
   const i = screenInput(body?.args ?? body?.arguments ?? body?.parameters ?? body);
   const live = [...screening.entries()].filter(([, v]) => Date.now() - v.started < 15 * 60_000).sort((x, y) => y[1].started - x[1].started)[0];
   const callId = String(body?.call?.call_id ?? body?.call_id ?? live?.[0] ?? '') || null;
@@ -310,9 +310,14 @@ async function screened(sid: string, caller: string, turns: { role: string; cont
   const said = turns.filter(t => t.role === 'user').map(t => t.content).join('\n');
   if (!said.trim()) return;
   try {
-    const transcript = turns.map(t => `${t.role === 'agent' ? 'Vantis' : 'Caller'}: ${t.content}`).join('\n');
-    const d = await assess('call screening', caller, 'Call Vantis screened for you', transcript);
+    // Only the caller's words are checked: Vantis's own lines ("an AI assistant for a Sound member") aren't evidence.
+    // A caller who says they're a bank, credit union or agency is a hard check, so with a money or code ask it's Level 4
+    // whatever the model makes of it.
+    const claim = NEVER_CONNECT.exec(said);
+    const extra = claim ? [`The caller said they were calling from “${claim[0]}”. Call that organization back on a number you already have.`] : [];
+    const d = await assess('call screening', caller || 'a hidden number', 'Call Vantis screened for you', said, extra);
     if (!d) { console.log('phone: screened call looked ordinary; nothing kept'); return; }
+    console.log(`phone: screened call is Level ${({ low: 1, medium: 2, high: 3, critical: 4 } as const)[d.risk]} (${d.risk})`);
     await record(sid, d, emailFor(sid), sendEmail);
   } catch (e) { console.error('phone: screening check failed:', (e as Error).message); }
 }

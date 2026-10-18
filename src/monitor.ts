@@ -139,7 +139,10 @@ export async function assess(channel: Detection['channel'], from: string, subjec
   if (v && !v.alert && !specific) return null;
   if (!signals.length && !other.length) return null; // no evidence, no alert
   let risk = tier(signals, (modelOnly ? 0 : hard) + (v?.injection ? 1 : 0));
-  if (v && !v.alert && (risk === 'high' || risk === 'critical')) risk = 'medium';
+  // The model's "ordinary" caps the level at 2, except when hard evidence alone makes it Level 4: a claim to be a bank or
+  // agency, or a look-alike link, together with a clear money, code or remote-access ask. That never waits on the model.
+  const hardCritical = !modelOnly && hard > 0 && tier(rules, hard) === 'critical';
+  if (v && !v.alert && !hardCritical && (risk === 'high' || risk === 'critical')) risk = 'medium';
   return {
     channel, from, subject, risk, source: v ? 'classifier' : 'rules',
     title: (v?.title || `${channel === 'call screening' ? 'A screened call' : 'A message'} has warning signs: ${[...signals.map(s => s.label.toLowerCase()), ...(lookalikes.length ? ['look-alike link'] : [])].join(', ')}`).slice(0, 140),

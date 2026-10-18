@@ -63,7 +63,7 @@ export function tier(signals: Signal[], hardChecks: number): Risk {
   // secrecy (or behind a look-alike link). The scam is live and the member may act in minutes.
   const ask = clear.some(s => s.key === 'credential_request' || s.key === 'payment_pressure' || s.key === 'remote_access');
   const pressure = moderate.some(s => s.key === 'impersonation' || s.key === 'threats' || s.key === 'secrecy') || hardChecks > 0;
-  if (ask && pressure && moderate.length >= 2) return 'critical';
+  if (ask && pressure && (moderate.length >= 2 || hardChecks > 0)) return 'critical';
   if (clear.length >= 2) return 'high';
   if (clear.some(s => s.key === 'credential_request' || s.key === 'payment_pressure' || s.key === 'remote_access') && moderate.length >= 2) return 'high';
   if (hardChecks && moderate.length) return 'high';

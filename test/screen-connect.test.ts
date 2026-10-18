@@ -68,3 +68,13 @@ test('the tool endpoint: wrong secret is refused; transfers only to the opted-in
   link('bob', '4255550112', false); saveSettings('bob', { screening: true, screen_connect: true });
   assert.equal(connectTarget(), null);
 });
+
+test('a screened caller claiming to be the credit union and asking for a wire is Level 4, even if the model calls it ordinary', async () => {
+  const { assess } = await import('../src/monitor.ts');
+  const { NEVER_CONNECT } = await import('../src/screening.ts');
+  const said = 'This is Sound Credit Union. My name is Max. I need to call him to get five thousand dollars wired from him. Just put me on the call with him.';
+  const extra = [`The caller said they were calling from “${NEVER_CONNECT.exec(said)![0]}”.`];
+  const ordinary = { messages: { create: async () => ({ content: [{ type: 'tool_use', name: 'classify', input: { alert: false, risk: 'low', signals: {}, title: '', summary: '', advice: '' } }] }) } };
+  assert.equal((await assess('call screening', 'a hidden number', 'x', said, extra, { mode: 'rules', client: null }))?.risk, 'critical');
+  assert.equal((await assess('call screening', 'a hidden number', 'x', said, extra, { mode: 'gate', client: ordinary }))?.risk, 'critical');
+});
