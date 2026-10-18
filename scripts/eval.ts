@@ -3,6 +3,7 @@
 // The dataset is the answer key: detectors get only the conversation text, never the labels, and the app
 // never reads it (test/leakage.test.ts).
 // Run: npm run eval [-- --out eval/report.md]   Detectors that need an API key are skipped without one.
+import 'dotenv/config'; // the model detectors run only when .env has ANTHROPIC_API_KEY
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -57,8 +58,10 @@ const pct = (n: number, d: number) => (d ? `${Math.round((100 * n) / d)}%` : 'n/
 const prf = (c: Counts) => ({ precision: pct(c.tp, c.tp + c.fp), recall: pct(c.tp, c.tp + c.fn) });
 
 export async function evaluate(det: Detector, data: Conversation[]) {
-  const rows: { c: Conversation; out: Output }[] = [];
-  for (const c of data) rows.push({ c, out: await det.run(strip(c)) });
+  // A few conversations at a time: model calls take seconds each. Order is kept.
+  const rows: { c: Conversation; out: Output }[] = new Array(data.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: 6 }, async () => { while (next < data.length) { const i = next++; rows[i] = { c: data[i], out: await det.run(strip(data[i])) }; } }));
   const flag: Counts = { tp: 0, fp: 0, fn: 0, tn: 0 };
   for (const { c, out } of rows) flag[out.flag ? (c.expected.flag ? 'tp' : 'fp') : (c.expected.flag ? 'fn' : 'tn')]++;
   const perSignal = SIGNALS.map(s => {
