@@ -98,13 +98,17 @@ export function ruleCheck(subject: string, body: string, extra: string[] = []) {
   return { ...f, lookalike, flag: f.tactics.length > 0 || lookalike || extra.length > 0 };
 }
 
-// How incoming messages are checked (issue #3; the detection eval compares them):
-//   gate        rules first; clearly ordinary mail never reaches the model, otherwise the classifier decides
+// How incoming messages are checked (issues #3, #9; the detection eval compares them):
+//   gate        (default) like hybrid, but clearly ordinary mail (no tactic, look-alike link or money word)
+//               never reaches the model
+//   hybrid      the classifier sees every message; its evidence and the rules' are merged per signal, and
+//               risk comes from the combined evidence (signals.ts)
 //   rules       rules only, no model
-//   classifier  the classifier sees every message
-// Without an API key every mode falls back to the rules.
-export type Mode = 'gate' | 'rules' | 'classifier';
-const MODES: Mode[] = ['gate', 'rules', 'classifier'];
+//   classifier  the model's evidence only, no rules: for measuring the classifier on its own
+// Without an API key, or if the call fails, every mode falls back to the rules.
+// gate stays the default until PII redaction (#11) lands: hybrid sends every opted-in message to the model.
+export type Mode = 'gate' | 'hybrid' | 'rules' | 'classifier';
+const MODES: Mode[] = ['gate', 'hybrid', 'rules', 'classifier'];
 export const DETECTION_MODE: Mode = MODES.includes(process.env.DETECTION_MODE as Mode) ? (process.env.DETECTION_MODE as Mode) : 'gate';
 
 /**
@@ -126,14 +130,15 @@ export async function assess(channel: Detection['channel'], from: string, subjec
     catch (e) { console.error('monitor: Claude unavailable, using automatic checks:', (e as Error).message); }
   }
   if (v?.dropped.length) console.log(`monitor: dropped ${v.dropped.length} model signal(s) without a real quote`);
-  const signals = merge(v, rules);
-  const other = [...lookalikes, ...extra, ...(v?.injection ? [`Contains instructions aimed at automated checkers: “${v.injection}”`] : [])];
+  const modelOnly = mode === 'classifier' && !!v; // with no model result, fall back to the rules like every mode
+  const signals = merge(v, modelOnly ? [] : rules);
+  const other = [...(modelOnly ? [] : [...lookalikes, ...extra]), ...(v?.injection ? [`Contains instructions aimed at automated checkers: “${v.injection}”`] : [])];
   // The model may call a message ordinary, which discards generic wording ("today", "your bank").
   // It can't discard specific evidence: a look-alike link, failed authentication, or a code, payment or remote-access ask.
-  const specific = hard > 0 || rules.some(s => s.key === 'credential_request' || s.key === 'payment_pressure' || s.key === 'remote_access');
+  const specific = !modelOnly && (hard > 0 || rules.some(s => s.key === 'credential_request' || s.key === 'payment_pressure' || s.key === 'remote_access'));
   if (v && !v.alert && !specific) return null;
   if (!signals.length && !other.length) return null; // no evidence, no alert
-  let risk = tier(signals, hard + (v?.injection ? 1 : 0));
+  let risk = tier(signals, (modelOnly ? 0 : hard) + (v?.injection ? 1 : 0));
   if (v && !v.alert && risk === 'high') risk = 'medium';
   return {
     channel, from, subject, risk, source: v ? 'classifier' : 'rules',

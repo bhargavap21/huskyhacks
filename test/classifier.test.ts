@@ -43,7 +43,7 @@ test('classify asks for the tool and returns the validated result; null without 
 });
 
 test('assess turns classifier evidence into quoted, per-signal reasons; rules fill gaps; risk is computed (ADR 10)', async () => {
-  const d = await assess('email', 'x', '', MSG, [], { mode: 'classifier', client: fake(raw) });
+  const d = await assess('email', 'x', '', MSG, [], { mode: 'hybrid', client: fake(raw) });
   assert.equal(d!.source, 'classifier');
   assert.deepEqual(d!.signals!.map(s => [s.key, s.source]), [['credential_request', 'model'], ['impersonation', 'model'], ['urgency', 'rules']]);
   assert.deepEqual(d!.why.slice(0, 2), ['Asked for a code or password: “Read me the code we just texted you”', 'Claims to be someone you trust: “Mark from the Sound fraud department”']);
@@ -52,8 +52,22 @@ test('assess turns classifier evidence into quoted, per-signal reasons; rules fi
   assert.equal(r!.source, 'rules');
   assert.ok(r!.signals!.every(s => MSG.includes(s.span)), 'rule evidence quotes the message too');
   // The model can't wave away a rule-matched code request; it stays, capped at medium.
-  const vetoed = await assess('email', 'x', '', MSG, [], { mode: 'classifier', client: fake({ ...raw, alert: false }) });
+  const vetoed = await assess('email', 'x', '', MSG, [], { mode: 'hybrid', client: fake({ ...raw, alert: false }) });
   assert.equal(vetoed!.risk, 'medium');
   // Generic wording only: the model's "ordinary" stands.
-  assert.equal(await assess('email', 'x', '', 'Our office closes early today, so please stop by right now if you need help.', [], { mode: 'classifier', client: fake({ ...raw, alert: false, signals: {} }) }), null);
+  assert.equal(await assess('email', 'x', '', 'Our office closes early today, so please stop by right now if you need help.', [], { mode: 'hybrid', client: fake({ ...raw, alert: false, signals: {} }) }), null);
+});
+
+test('modes: classifier uses only the model, hybrid merges in the rules, gate skips the model on ordinary mail (#9)', async () => {
+  const pure = await assess('email', 'x', '', MSG, [], { mode: 'classifier', client: fake(raw) });
+  assert.ok(pure!.signals!.every(s => s.source === 'model'), 'no rule signals in classifier-only');
+  const both = await assess('email', 'x', '', MSG, [], { mode: 'hybrid', client: fake(raw) });
+  assert.ok(both!.signals!.some(s => s.source === 'rules'));
+  assert.equal(await assess('email', 'x', '', MSG, [], { mode: 'classifier', client: fake({ ...raw, alert: false }) }), null, 'the model alone can say no');
+  const ordinary = 'Lunch on Thursday? The usual place works for me.';
+  let calls = 0; const counting = { messages: { async create() { calls++; return { content: [] }; } } };
+  await assess('email', 'x', '', ordinary, [], { mode: 'gate', client: counting });
+  assert.equal(calls, 0, 'gate never sends ordinary mail to the model');
+  await assess('email', 'x', '', ordinary, [], { mode: 'hybrid', client: counting });
+  assert.equal(calls, 1, 'hybrid does');
 });

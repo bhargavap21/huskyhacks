@@ -54,15 +54,16 @@ Every signal must be present with a `score` from 0 to 1 and a `quote`.
 
 ## How it is used
 
-`assess()` in `src/monitor.ts` runs in one of three modes, set by `DETECTION_MODE`:
+`assess()` in `src/monitor.ts` runs in one of four modes, set by `DETECTION_MODE`:
 
-- `gate` (default): the rules run first; mail with no tactic, look-alike link or money word never reaches the model. Otherwise the classifier decides.
-- `rules`: rules only.
-- `classifier`: the classifier sees every message.
+- `hybrid`: the classifier sees every message. Its evidence and the rules' are merged per signal (`merge()` in `src/signals.ts`), and one risk tier is computed from the combined evidence (`tier()`; see [signals.md](signals.md)).
+- `gate` (default): like `hybrid`, but mail with no tactic, look-alike link or money word never reaches the model. It stays the default until PII redaction (issue #11) lands, because `hybrid` sends every opted-in message to the model (DECISIONS #13).
+- `rules`: rules only, no model.
+- `classifier`: the model's evidence only, no rules. For measuring the classifier on its own (issue #10), not for production.
 
 Without an API key, or if the call fails, every mode falls back to the rules, whose evidence is also quoted (the phrase each rule matched). Either way a detection carries `signals` (per-signal evidence) and `why` lines such as `Asked for a code or password: “read me the code”`, which the member's alert card and the fraud case show.
 
-How classifier output may feed payment decisions is decided in the ADR for issue #8; until then it only informs alerts and cases.
+Classifier output never feeds payment decisions (DECISIONS.md, ADR 10).
 
 ## Changing the schema
 
