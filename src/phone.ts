@@ -10,7 +10,7 @@ import { startCall, addText, stopCall, callState } from './guardian.ts';
 import { client, MODEL } from './chat.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
 import { demoKey } from './sim.ts';
-import { sidsWhere, settings, assess, record, notifyMember, onCritical, detection, updateDetection, withIntake, type Detection } from './monitor.ts';
+import { sidsWhere, settings, assess, record, notifyMember, onCritical, detection, detections, updateDetection, withIntake, type Detection } from './monitor.ts';
 const INTAKE_KEYS = ['claimed_identity', 'scammer_name', 'scammer_phone', 'asked_for', 'amount_requested', 'payment_method', 'deadline'];
 import { decide, input as screenInput, logScreened, finishScreened, TOOL_SECRET, NEVER_CONNECT } from './screening.ts';
 import { timingSafeEqual } from 'node:crypto';
@@ -99,6 +99,10 @@ export async function callMe(sid: string, context: string) {
 const CHANNEL_NAME: Record<Detection['channel'], string> = { email: 'email', gmail: 'email', text: 'text message', whatsapp: 'WhatsApp message', 'call screening': 'phone call Vantis screened' };
 const lastThreatCall = new Map<string, number>();
 const pendingThreat = new Map<string, { id: number; at: number }>(); // sid -> the detection the call is about
+function lastThreatCalled(sid: string) {
+  const r = detections(sid).find(x => x.risk === 'critical' && !x.reported && x.alerted_by?.includes('phone call') && Date.now() - x.ts < 15 * 60_000);
+  return r ? { id: r.id, at: r.ts } : undefined;
+}
 export async function callAboutThreat(sid: string, id: number, d: Detection) {
   if (!phoneEnabled) return;
   const l = linkFor(sid);
@@ -429,7 +433,10 @@ export async function reportIfAgreed(sid: string | null, member: string, turns: 
       turns.map(t => `${t.role === 'agent' ? 'Vantis' : 'Member'}: ${t.content}`).join('\n'), true);
     if (!d?.agreed) return;
     // A call about a Level 4 threat: the case carries what Vantis saw, with its quotes.
-    const p = sid ? pendingThreat.get(sid) : undefined, det = p && Date.now() - p.at < 30 * 60_000 ? detection(sid!, p.id) : null;
+    // The Level 4 detection this call was about. Kept in memory, with the database as a fallback so a server restart
+    // mid-call doesn't lose it: the newest unreported Level 4 that Vantis phoned the member about in the last 15 minutes.
+    const p = sid ? pendingThreat.get(sid) ?? lastThreatCalled(sid) : undefined, det = p && Date.now() - p.at < 30 * 60_000 ? detection(sid!, p.id) : null;
+    if (det) d.quotes = []; // the member's "yes, please" isn't evidence; the caller's own words come from the detection
     if (det) withIntake(d, det);
     if (det) Object.assign(d, { signals: det.signals ?? [], tactics: [...new Set([...(d.tactics ?? []), ...(det.signals ?? []).map(x => x.label)])], contact_method: d.contact_method || CHANNEL_NAME[det.channel], scammer_phone: d.scammer_phone || det.numbers?.[0] || (det.channel === 'call screening' && /\d{7}/.test(det.from) ? det.from : '') });
     const out = await fileReport(det?.demo && sid ? demoKey(sid) : sid, normalize(d, 'phone', { phone: member, linked: !!sid })); // a demo sample's call reports into the demo
