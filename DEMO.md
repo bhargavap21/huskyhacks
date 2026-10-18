@@ -33,6 +33,40 @@ Say these out loud every time:
 
 ## Phase 2: 5-minute live demo (Sunday)
 
+### Sunday plan: slides, then one live Level 4 threat
+
+Slides 1–8 (about 2:15): problem, how Vantis works, threat levels 0–4, one slide per use case. Then slide 9 and the live demo (about 2:15), then the close (slide 10). The older steps below stay as optional extras and Q&A material.
+
+**Threat levels and actions** (`tier()` in `src/signals.ts`, actions in `src/monitor.ts` and `src/phone.ts`):
+
+| Level | Looks like | Vantis |
+|---|---|---|
+| 0 | Ordinary message | Checked, thrown away |
+| 1 Low | One faint sign | Note in the app only |
+| 2 Medium | One clear sign or a look-alike link | Notification, reply on the channel |
+| 3 High | Several clear signs | Notification with "Report to Sound" first |
+| 4 Critical | Clear code/money/remote-access ask + poses as trusted, threats or secrecy | All of the above, and **Vantis calls the member within seconds**, coaches them, offers to tell Sound; a yes files the case with the evidence |
+
+**Before going on stage**
+- [ ] Bhargava's phone is linked on **Call guardian** and shows **Confirmed** (it's on the team list, so it confirms straight away).
+- [ ] WhatsApp is configured (README, "WhatsApp setup"): Bhargava's phone is an allowed recipient of the Meta test number, and **Connected channels → WhatsApp** is on. Send "hi" to Vantis's WhatsApp once, so it can reply.
+- [ ] Rehearse with **Connected channels → Sample Level 4 threat**: the phone should ring within about 10 seconds.
+- [ ] Dheeraj's number is **not** saved in Bhargava's contacts (or he uses a second phone).
+- [ ] Phone mirrored to the projector; laptop tabs: member app on **Connected channels** (Recent alerts), employee **Console**.
+- [ ] Public link loads (the quick tunnel can die; check right before).
+- [ ] Claude reachable: with Claude the demo message is Level 4; the rules alone rate it Level 2 and Vantis would not call.
+
+**Live (about 2 minutes)**
+1. "Dheeraj is going to try to scam me." Dheeraj sends on WhatsApp: *"This is the Sound Credit Union fraud team. Your account will be frozen in the next 30 minutes. Reply with the 6-digit code we just texted you to keep it open."*
+2. Bhargava long-presses → **Forward** → **Vantis**. Vantis replies in the WhatsApp chat; the app shows **Level 4 · Act now** with each sign and its quoted words.
+3. The phone rings: Vantis. Put it on speaker. It asks whether he replied or shared a code ("No"), explains what the message claims, and says what to do (don't reply, don't click, call Sound on the card).
+4. When it offers to tell Sound: "Yes, please." Hang up. Switch to the console: the fraud case is at the top, Critical, with the quoted evidence.
+
+**If something fails**
+- WhatsApp doesn't arrive: Dheeraj texts the same message instead; Bhargava forwards the text to **(229) 471-5015**. Same Level 4 call.
+- No call within 20 s: tap **Sample Level 4 threat** on Connected channels (same call path).
+- Bonus, fully automatic (only if call forwarding and Silence Unknown Callers are set up on Bhargava's phone): Dheeraj calls Bhargava with `*67` and says he's Sound's fraud team needing the code. Vantis screens it, holds it back, and alerts him.
+
 0. **Opt-in, no new app** (30 s, optional). Page list → **App setup** (or the **Finish setting up** card on Home). Step 1 offers Vantis with **Not now** right beside it ("if you choose not now, it stays off and we won't keep asking"). Turn it on, pick **Standard** alerts, skip the trusted contact, and show the summary. "It's a setting inside the app members already use. No new account, no new app." Then open the account menu → **Profile** to show the same choices.
 1. **Linda as it happened** (30 s). Scene **Linda: what happened in the kit**, Play. State the facts only: held 14:21, outreach 15:42, she confirmed, released 17:04. The next-day cash request was the one stopped. Don't diagnose.
 2. **Linda with Vantis** (90 s). The R1 hold appears at 14:11, at initiation, with the three kit fields. Employee: read guide question 3 ("Has anyone asked you to keep this quiet?"). Member: **Talk it through**, type "He said not to tell mom". The reply notes secrecy and suggests calling a number she already had. Then she presses **Cancel this payment**. "Our hypothesis is that evidence plus an early guided conversation changes decisions. The pilot is how you'd measure it."
