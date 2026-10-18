@@ -120,6 +120,14 @@ export async function configureAgent() {
 }
 
 // ---- Watching live calls ----
+// Call screening: an unknown caller on an inbound call is someone trying to reach a member who forwarded
+// unanswered calls here. Every forwarded call arrives on the same Second Look number, and the caller's
+// number says nothing about which member forwarded it, so route only when that's unambiguous: exactly one
+// member has screening on. Otherwise drop it rather than show one member another member's call.
+export function screeningTarget(): string | 'ambiguous' | null {
+  const on = sidsWhere(s => s.screening);
+  return on.length === 1 ? on[0].sid : on.length > 1 ? 'ambiguous' : null;
+}
 const tracked = new Set<string>();
 type KeyFor = (sid: string) => string;
 
@@ -130,11 +138,11 @@ export async function follow(call: any, keyFor: KeyFor) {
   const key = who ? keyFor(who.sid) : '';
   if (who) startCall(key, !!who.share, call.direction === 'outbound' ? 'phone-out' : 'phone-in');
   const turns: { role: string; content: string }[] = [];
-  // Call screening: an unknown caller on an inbound call, while a member has screening on (most recent wins in this demo).
-  const screenFor = !who && call.direction === 'inbound' ? sidsWhere(s => s.screening).sort((a, b) => (b.s.screening_since ?? 0) - (a.s.screening_since ?? 0))[0]?.sid ?? null : null;
+  const screenFor = !who && call.direction === 'inbound' ? screeningTarget() : null;
   const done = async () => {
     if (who && callState(key)?.live) await stopCall(key);
-    if (screenFor) await screened(screenFor, member, turns);
+    if (screenFor === 'ambiguous') console.log('phone: screened call, but more than one member has screening on; not routed');
+    else if (screenFor) await screened(screenFor, member, turns);
     else await reportIfAgreed(who?.sid ?? null, member, turns);
   };
   try {

@@ -137,7 +137,6 @@ function channelState(sid: string) {
 app.post('/api/channels', async c => {
   const b = await c.req.json().catch(() => ({})), sid = c.get('sid'), patch: any = {};
   for (const k of ['email_watch', 'screening', 'texts'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
-  if (patch.screening) patch.screening_since = Date.now();
   if (b.dismiss_confirm) patch.forward_confirm = null;
   saveSettings(sid, patch);
   return c.json({ ok: true });

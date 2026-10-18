@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS detections (id INTEGER PRIMARY KEY, sid TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, sid TEXT NOT NULL, json TEXT NOT NULL);
 `);
 
-export type Settings = { email_watch: boolean; screening: boolean; screening_since: number | null; texts: boolean; push: boolean; gmail: { address: string; refresh: string; since: number } | null; forward_confirm: { code: string; link: string; from: string; ts: number } | null };
-const DEFAULTS: Settings = { email_watch: false, screening: false, screening_since: null, texts: false, push: false, gmail: null, forward_confirm: null };
+export type Settings = { email_watch: boolean; screening: boolean; texts: boolean; push: boolean; gmail: { address: string; refresh: string; since: number } | null; forward_confirm: { code: string; link: string; from: string; ts: number } | null };
+const DEFAULTS: Settings = { email_watch: false, screening: false, texts: false, push: false, gmail: null, forward_confirm: null };
 
 export function settings(sid: string): Settings {
   const r = db.prepare('SELECT json FROM channels WHERE sid = ?').get(sid) as { json: string } | undefined;
