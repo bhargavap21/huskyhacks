@@ -176,8 +176,8 @@ function liveWorld(sid: string): World {
 }
 
 // Fraud cases are kept in SQLite (fraud_cases); the work queue is rebuilt from them whenever this session's live world
-// is created, so a server restart or an idle session doesn't lose them. Same one-open-report-per-channel rule as
-// fraudReport; not audited again (they were audited when filed).
+// is created, so a server restart or an idle session doesn't lose them. One row per case, as in fraudReport;
+// not audited again (they were audited when filed).
 function restoreReports(L: World, sid: string) {
   let rows: { ts: number; json: string }[] = [];
   try { rows = db.prepare('SELECT ts, json FROM fraud_cases WHERE sid = ? ORDER BY id').all(sid) as typeof rows; } catch { return; } // no reports module loaded yet: nothing filed
@@ -186,8 +186,6 @@ function restoreReports(L: World, sid: string) {
     try { r = JSON.parse(row.json); } catch { continue; }
     if (!r?.case_id || r.world === 'demo') continue;
     const status = r.queue_status === 'done' ? 'done' : 'waiting';
-    const open = status === 'waiting' && L.callbacks.find(x => x.status === 'waiting' && x.report && x.report.channel === r.channel);
-    if (open) { open.report = r; open.urgent = open.urgent || r.money_sent; continue; }
     L.callbacks.unshift({ id: L.callbacks.length + 1, ts: row.ts, reason: r.money_sent ? 'Vantis report: money may already be gone, start recovery' : 'Vantis report: member facing a possible scam', source: `Filed by Vantis from ${r.channel}, at the member’s request`, urgent: true, status, note: r.queue_note ?? '', report: r });
   }
 }
@@ -384,8 +382,9 @@ export function requestCallback(kind: string, caseId: number) {
 /** What Vantis tells Sound's fraud team when the member agrees (from chat, a phone call, email or the app). */
 export type FraudReport = FraudCase;
 export function fraudReport(r: FraudReport) {
-  const open = w.callbacks.find(x => x.status === 'waiting' && x.report && x.report.channel === r.channel);
-  if (open) { open.report = r; open.urgent = open.urgent || r.money_sent; return open.id; } // one open report per channel, kept up to date
+  // Every filed case gets its own row; the same case filed again (same case id) just updates its row.
+  const same = r.case_id ? w.callbacks.find(x => x.report?.case_id === r.case_id) : undefined;
+  if (same) { same.report = r; same.urgent = same.urgent || r.money_sent; return same.id; }
   const id = w.callbacks.length + 1;
   w.callbacks.unshift({ id, ts: w.sim, reason: r.money_sent ? 'Vantis report: money may already be gone, start recovery' : 'Vantis report: member facing a possible scam', source: `Filed by Vantis from ${r.channel}, at the member’s request`, urgent: true, status: 'waiting', note: '', report: r });
   audit('second-look', 'fraud_report', `${r.channel}: ${r.summary.slice(0, 200)}`, w.kind);

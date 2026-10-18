@@ -19,3 +19,14 @@ test('filed cases come back after a restart or an idle session; done stays done;
   dropWorld('me');
   assert.deepEqual(mine().map((c: any) => [c.status, c.note]), [['done', 'Called the member back']]);
 });
+
+test('each filed case gets its own row, even two from the same channel, live and after a restart', async () => {
+  useLive('two'); const before = snapshot().callbacks.filter((c: any) => c.report).length;
+  const a = await fileReport('two', normalize({ summary: 'First screened call: bank fraud team asking for a wire.' }, 'phone'));
+  const b = await fileReport('two', normalize({ summary: 'Second screened call: same caller, now asking for a code.' }, 'phone'));
+  const ids = () => { useLive('two'); return snapshot().callbacks.filter((c: any) => c.report).map((c: any) => c.report.case_id); };
+  assert.deepEqual(ids().slice(0, 2), [b.case_id, a.case_id]);
+  assert.equal(ids().length, before + 2);
+  dropWorld('two');
+  assert.deepEqual(ids(), [b.case_id, a.case_id]);
+});
