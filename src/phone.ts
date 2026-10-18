@@ -302,6 +302,9 @@ export async function follow(call: any, keyFor: KeyFor) {
   if (screenFor && screenFor !== 'ambiguous') screening.set(call.id, { sid: screenFor, from: member, started: Date.now() });
   const done = async () => {
     screening.delete(call.id); finishScreened(call.id);
+    // The live stream can end before the last turns arrive; the stored transcript is complete, so check that.
+    const full = await finalTranscript(call.id);
+    if (full.length > turns.length) turns.splice(0, turns.length, ...full);
     if (who && callState(key)?.live) await stopCall(key);
     if (screenFor === 'ambiguous') console.log('phone: screened call, but more than one member has screening on; not routed');
     else if (screenFor) await screened(screenFor, member, turns);
@@ -326,6 +329,19 @@ export async function follow(call: any, keyFor: KeyFor) {
   await done();
 }
 
+async function finalTranscript(id: string): Promise<{ role: string; content: string }[]> {
+  for (let i = 0; i < 3; i++) {
+    try {
+      const t = await api('GET', `/v1/calls/${id}/transcript`);
+      const rows = (Array.isArray(t) ? t : t?.data ?? t?.transcript ?? []) as { role: string; content: string }[];
+      const out = rows.filter(r => r?.content?.trim()).map(r => ({ role: r.role, content: r.content.trim() }));
+      if (out.length) return out;
+    } catch { /* not stored yet */ }
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  return [];
+}
+
 // After a call: did the caller agree to a report? Claude reads the transcript and answers in a fixed shape.
 // A screened call: check what the caller said and alert the member if it's worth a look.
 async function screened(sid: string, caller: string, turns: { role: string; content: string }[]) {
@@ -338,7 +354,7 @@ async function screened(sid: string, caller: string, turns: { role: string; cont
     const claim = NEVER_CONNECT.exec(said);
     const extra = claim ? [`The caller said they were calling from “${claim[0]}”. Call that organization back on a number you already have.`] : [];
     const d = await assess('call screening', caller || 'a hidden number', 'Call Vantis screened for you', said, extra);
-    if (!d) { console.log('phone: screened call looked ordinary; nothing kept'); return; }
+    if (!d) { console.log(`phone: screened call looked ordinary (${said.split('\n').length} caller lines checked); nothing kept`); return; }
     console.log(`phone: screened call is Level ${({ low: 1, medium: 2, high: 3, critical: 4 } as const)[d.risk]} (${d.risk})`);
     await record(sid, d, emailFor(sid), sendEmail);
   } catch (e) { console.error('phone: screening check failed:', (e as Error).message); }
