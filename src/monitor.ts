@@ -47,6 +47,7 @@ export type Detection = {
   from: string; subject?: string; links?: { domain: string; note: string | null }[]; numbers?: string[];
   excerpt?: string; reported?: boolean; alerted_by?: string[];
   demo?: boolean; // a sample sent from the demo walkthrough: hidden from the live product, reported into the demo
+  intake?: Record<string, unknown>; // a screened call: the caller's details, pulled from what they told Vantis (for Sound's fraud team)
   files?: { kind: string; name: string; note: string }[]; // what the member sent along (names and transcripts only)
 };
 export function detections(sid: string) {
@@ -231,6 +232,15 @@ export async function record(sid: string, d: Detection, emailTo: string | null, 
   return id;
 }
 
+const INTAKE_THREAT = ['claimed_identity', 'scammer_name', 'scammer_phone', 'asked_for', 'amount_requested', 'payment_method', 'deadline', 'threat_type'] as const;
+/** Fill a case's empty threat fields from what a screened caller told Vantis. */
+export function withIntake(raw: any, d: Detection) {
+  const x: any = d.intake ?? {};
+  for (const k of INTAKE_THREAT) if (!raw[k] && x[k]) raw[k] = x[k];
+  raw.quotes = [...new Set([...(Array.isArray(raw.quotes) ? raw.quotes : []), ...(Array.isArray(x.quotes) ? x.quotes : [])])].slice(0, 3);
+  return raw;
+}
+
 /** "Report to Sound" on a detection: build the fraud case from what Vantis saw. */
 export async function reportDetection(sid: string, id: number) {
   const d = detection(sid, id);
@@ -238,7 +248,7 @@ export async function reportDetection(sid: string, id: number) {
   const base = { summary: `${d.title}. ${d.summary}`, contact_method: d.channel === 'call screening' ? 'phone call (screened by Vantis)' : d.channel === 'text' ? 'text message' : d.channel === 'whatsapp' ? 'WhatsApp message' : 'email', scammer_phone: d.channel === 'call screening' ? d.from : d.numbers?.[0] ?? '', scammer_email: /@/.test(d.from) ? d.from.replace(/^.*<([^>]+)>.*$/, '$1') : '', scammer_website: d.links?.find(l => l.note && !l.note.startsWith('This is'))?.domain ?? d.links?.[0]?.domain ?? '', tactics: d.signals ? d.signals.map(s => s.label) : d.why };
   const x = await extractIntake('You read something Vantis flagged on a credit union member’s connected channel (an email, text, or a call it screened). The member has not acted on it. Fill the fraud case: the threat details come from the message; the member did not send money or share anything unless the content says so.', `From: ${d.from}\nSubject: ${d.subject ?? ''}\n\n${d.excerpt ?? d.summary}`).catch(() => null);
   const tactics = d.signals ? d.signals.map(s => s.label) : d.why;
-  const out = await fileReport(d.demo ? demoKey(sid) : sid, normalize({ ...base, ...(x ?? {}), tactics: [...new Set([...tactics, ...(x?.tactics ?? [])])].slice(0, 8), signals: d.signals ?? [] }, d.channel === 'whatsapp' ? 'whatsapp' : 'app', { linked: true }));
+  const out = await fileReport(d.demo ? demoKey(sid) : sid, normalize(withIntake({ ...base, ...(x ?? {}), tactics: [...new Set([...tactics, ...(x?.tactics ?? [])])].slice(0, 8), signals: d.signals ?? [] }, d), d.channel === 'whatsapp' ? 'whatsapp' : 'app', { linked: true }));
   d.reported = true; updateDetection(sid, id, d);
   return out;
 }

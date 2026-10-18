@@ -17,7 +17,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS screened_calls (id INTEGER PRIMARY KEY, sid 
 
 export type ScreenInput = { name: string; organization: string; reason: string; callback: string; said: string };
 export type Decision = 'connect' | 'hold';
-export type ScreenResult = { decision: Decision; why: string; say: string; evidence: { key: string; label: string; quote: string }[] };
+// `ask`: on a suspicious hold, what to ask before ending, so Sound's fraud team gets the details (name and badge,
+// callback number, exactly what they want). The caller is never told why, and Vantis never agrees to anything.
+export type ScreenResult = { decision: Decision; why: string; say: string; evidence: { key: string; label: string; quote: string }[]; ask?: string[] };
 export type ScreenedCall = ScreenInput & ScreenResult & { id: number; ts: number; caller: string; outcome: 'connecting' | 'put through' | 'held back' };
 
 // Organizations whose calls Vantis never puts through: the member should call them back on a number they
@@ -39,6 +41,18 @@ const SAY = {
   loop: 'They didn’t pick up, so I’ll pass your message on.',
 };
 
+const MONEY_ASK = /\$\s?\d|\b\d[\d,]*\s*(?:dollars|grand|k)\b|\b(?:hundred|thousand)\b|\b(?:wire|gift ?cards?|crypto|bitcoin|zelle|venmo|cash ?app|code|password|pin)\b/i;
+const DEADLINE = /\b(?:today|tonight|now|immediately|right away|within|by (?:\d|noon|tomorrow|end of)|minutes?|hours?)\b/i;
+/** Up to three short questions for Sound's fraud team, skipping what the caller already said. */
+export function gather(i: ScreenInput): string[] {
+  const all = `${i.reason} ${i.said}`;
+  return [
+    !i.name ? 'Can I get your full name and your employee or badge number?' : 'And what’s your employee or badge number?',
+    !i.callback && 'What number can they reach you on?',
+    !(MONEY_ASK.test(all) && DEADLINE.test(all)) && 'What exactly do you need them to do: how much, how, and by when?',
+  ].filter((q): q is string => !!q).slice(0, 3);
+}
+
 /**
  * The connect-or-hold rules. `ctx.target` is the member who asked for legitimate callers to be put through
  * (null: nobody, so take a message). `ctx.lastTransfer` is when this member last got a transfer from this caller.
@@ -46,12 +60,13 @@ const SAY = {
 export async function decide(i: ScreenInput, ctx: { target: string | null; lastTransfer?: number; client?: any; budgetMs?: number }): Promise<ScreenResult> {
   const text = [i.organization, i.reason, i.said].filter(Boolean).join('. ');
   const hold = (why: string, say: string, evidence: ScreenResult['evidence'] = []): ScreenResult => ({ decision: 'hold', why, say, evidence });
+  const suspicious = (why: string, say: string, evidence: ScreenResult['evidence']): ScreenResult => ({ ...hold(why, say, evidence), ask: gather(i) });
   const claim = NEVER_CONNECT.exec(`${i.organization} ${i.reason} ${i.said}`);
   // "Calling from UPS" is an ordinary delivery call; an impersonation match holds only for banks, agencies, tech support, or family in trouble.
   const rules = tacticsIn(text).filter(t => HOLD_ON.includes(t.key) && (t.key !== 'impersonation' || NEVER_CONNECT.test(t.quote) || /family/i.test(t.label)))
     .map(t => ({ key: t.key, label: t.label, quote: t.quote }));
-  if (rules.length) return hold(rules.map(r => r.label.toLowerCase()).join(', '), SAY.message, rules);
-  if (claim) return hold(`said they were calling from ${claim[0].replace(/^\w/, c => c.toUpperCase())}`, SAY.authority, [{ key: 'impersonation', label: 'Claims to be a bank, agency or company', quote: claim[0] }]);
+  if (rules.length) return suspicious(rules.map(r => r.label.toLowerCase()).join(', '), SAY.message, rules);
+  if (claim) return suspicious(`said they were calling from ${claim[0].replace(/^\w/, c => c.toUpperCase())}`, SAY.authority, [{ key: 'impersonation', label: 'Claims to be a bank, agency or company', quote: claim[0] }]);
   if (!i.name || !i.reason) return hold('wouldn’t say who they are or why they’re calling', SAY.unknown);
   if (ctx.lastTransfer && Date.now() - ctx.lastTransfer < LOOP_MS) return hold('called back after an unanswered transfer', SAY.loop);
   // The rules found nothing: let the classifier read it, within the time a caller will wait. Past the budget, the rules stand.
@@ -62,7 +77,7 @@ export async function decide(i: ScreenInput, ctx: { target: string | null; lastT
       new Promise<null>(r => setTimeout(() => r(null), ctx.budgetMs ?? 2500)),
     ]);
     const flagged = v?.alert ? v.signals.filter(s => HOLD_ON.includes(s.signal)) : [];
-    if (flagged.length) return hold(flagged.map(s => s.label.toLowerCase()).join(', '), SAY.message, flagged.map(s => ({ key: s.signal, label: s.label, quote: s.quote })));
+    if (flagged.length) return suspicious(flagged.map(s => s.label.toLowerCase()).join(', '), SAY.message, flagged.map(s => ({ key: s.signal, label: s.label, quote: s.quote })));
   }
   if (!ctx.target) return hold('the member takes messages from unknown callers', SAY.message);
   return { decision: 'connect', why: [i.organization, i.reason].filter(Boolean).join(': '), say: SAY.connect(i), evidence: [] };

@@ -91,3 +91,31 @@ test('a screened “fraud team” caller asking to move money to a safe account 
     assert.equal((await assess('call screening', 'a hidden number', 'x', said, extra, { mode: 'gate', client: ordinary }))?.risk, 'critical', said);
   }
 });
+
+test('a suspicious hold asks for the caller’s details for Sound, skipping what they already said; ordinary calls don’t', async () => {
+  const { gather } = await import('../src/screening.ts');
+  const scam = await decide(call({ name: 'Max', organization: 'Sound fraud team', reason: 'account frozen', what_they_said: 'He needs to move his money to a safe account now.' }), { target: T, client: null });
+  assert.equal(scam.decision, 'hold');
+  assert.deepEqual(scam.ask, ['And what’s your employee or badge number?', 'What number can they reach you on?', 'What exactly do you need them to do: how much, how, and by when?']);
+  // Already said how much, how and by when, and gave a callback: only the badge is left.
+  assert.deepEqual(gather(input({ name: 'Max', callback: '2065550100', what_they_said: 'Wire $5,000 today or the account is closed.' })), ['And what’s your employee or badge number?']);
+  assert.equal(gather(input({ name: '' }))[0], 'Can I get your full name and your employee or badge number?');
+  const ok = await decide(call({ organization: 'Dr. Lee’s office', reason: 'appointment', what_they_said: 'Calling to confirm tomorrow.' }), { target: T, client: null });
+  assert.equal(ok.ask, undefined);
+  const plain = await decide(call({ name: '', reason: '', what_they_said: 'Is she there?' }), { target: T, client: null });
+  assert.equal(plain.ask, undefined, 'an ordinary hold just takes a message');
+  const r = await handleScreeningTool(TOOL_SECRET, { name: 'Max', organization: 'IRS', reason: 'back taxes', what_they_said: 'Pay with gift cards today.' });
+  assert.ok(Array.isArray(r.json.ask) && r.json.ask.length >= 1);
+});
+
+test('a case filed from a screened call carries the caller’s details', async () => {
+  const { withIntake } = await import('../src/monitor.ts');
+  const { normalize } = await import('../src/reports.ts');
+  const det: any = { channel: 'call screening', intake: { claimed_identity: 'Sound fraud team', scammer_name: 'Max, badge 4471', scammer_phone: '2065550100', amount_requested: '$5,000', payment_method: 'wire', deadline: 'today', quotes: ['move his money to a safe account now'] } };
+  const c = normalize(withIntake({ summary: 'Member agreed to report a screened call.', claimed_identity: '' }, det), 'phone');
+  assert.equal(c.threat.scammer_name, 'Max, badge 4471');
+  assert.equal(c.threat.claimed_identity, 'Sound fraud team');
+  assert.match(c.threat.scammer_phone.replace(/\D/g, ''), /2065550100/);
+  assert.equal(c.threat.payment_method, 'wire');
+  assert.ok(c.quotes.includes('move his money to a safe account now'));
+});

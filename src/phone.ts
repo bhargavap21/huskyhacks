@@ -10,7 +10,8 @@ import { startCall, addText, stopCall, callState } from './guardian.ts';
 import { client, MODEL } from './chat.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
 import { demoKey } from './sim.ts';
-import { sidsWhere, settings, assess, record, notifyMember, onCritical, detection, updateDetection, type Detection } from './monitor.ts';
+import { sidsWhere, settings, assess, record, notifyMember, onCritical, detection, updateDetection, withIntake, type Detection } from './monitor.ts';
+const INTAKE_KEYS = ['claimed_identity', 'scammer_name', 'scammer_phone', 'asked_for', 'amount_requested', 'payment_method', 'deadline'];
 import { decide, input as screenInput, logScreened, finishScreened, TOOL_SECRET, NEVER_CONNECT } from './screening.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { sendEmail } from './email.ts';
@@ -183,9 +184,11 @@ export const SCREEN_RULES = `Sometimes the caller is not a Sound member but some
 - You already introduced yourself and said the call is transcribed. Never greet or introduce yourself again.
 - Find out who they are, who they're with (if anyone) and what it's about. Ask only for what they haven't already said, in one short question. Never ask the same thing twice. Ask for a callback number at most once; if they won't give one, move on.
 - As soon as you know who they are and why they're calling, or if they ask to be put through, or if they won't say, say "One moment" and call the screening_decision tool with what they said, in their own words. Always call it before putting anyone through.
-- Say the tool's "say" line exactly as given. If its decision is "connect", transfer the call. If it is "hold", never transfer: end the call politely.
+- If its decision is "connect", say its "say" line exactly and transfer the call.
+- If it is "hold", never transfer. If it gives "ask" questions, first ask them one at a time, in order, skipping any the caller already answered; accept whatever they say without arguing, and if they refuse or get pushy, stop asking. These details go to Sound's fraud team. Then say its "say" line exactly and end the call.
+- While holding, never confirm the member's name, whether they have an account, or anything else about them; never agree to anything or promise a callback time; never say you suspect a scam.
 - If the tool fails or gives no answer, never transfer: say "Thanks, I'll pass your message on." and end the call.
-- Keep every reply under 20 words. Never confirm the member's name, accounts or any details. Never agree to anything, take payment details, or promise a callback time.`;
+- Keep every reply under 20 words. Never confirm the member's name, accounts or any details. Never agree to anything or promise a callback time. Asking how they want to be paid is fine, but never take down account, card or routing numbers: if they read one out, say you don't need it.`;
 
 export const LISTEN_RULES = `Sometimes the member adds you to a call that is already happening (a merged three-way call) so you can listen. If you hear the member talking with someone else, or they say they added you:
 - Stay quiet and let them talk. Do not reply to ordinary conversation. If you must produce a reply, make it a single short "Mm-hm." at most.
@@ -234,7 +237,7 @@ export async function configureAgent() {
 const BASE = (process.env.PUBLIC_BASE_URL ?? 'https://second-look-demo.vercel.app').replace(/\/$/, '');
 const SCREEN_TOOL = {
   name: 'screening_decision',
-  description: 'Ask Vantis whether to put a screened caller through to the member. Call it once you know who is calling and why, before any transfer. Returns {decision: "connect"|"hold", say}.',
+  description: 'Ask Vantis whether to put a screened caller through to the member. Call it once you know who is calling and why, before any transfer. Returns {decision: "connect"|"hold", say, ask?}: on hold, ask the "ask" questions one at a time before saying "say" and ending.',
   url: `${BASE}/hooks/screening-decision`, method: 'POST', headers: { 'x-second-look-secret': TOOL_SECRET },
   parameters: { type: 'object', properties: {
     name: { type: 'string', description: 'The caller’s name, as they said it' },
@@ -282,7 +285,7 @@ export async function handleScreeningTool(secret: string | undefined, body: any)
     void notifyMember(sid, `Putting a call through: ${[i.name, i.organization].filter(Boolean).join(', ')} about ${i.reason}`.slice(0, 160));
   }
   console.log(`phone: screening decision ${r.decision} (${scrub(r.why)})`);
-  return { status: 200, json: { decision: r.decision, say: r.say } };
+  return { status: 200, json: { decision: r.decision, say: r.say, ...(r.ask?.length ? { ask: r.ask } : {}) } };
 }
 
 // ---- Watching live calls ----
@@ -389,7 +392,11 @@ async function screened(sid: string, caller: string, turns: { role: string; cont
     if (!d) { console.log(`phone: screened call looked ordinary (${said.split('\n').length} caller lines checked); nothing kept`); return; }
     console.log(`phone: screened call is Level ${({ low: 1, medium: 2, high: 3, critical: 4 } as const)[d.risk]} (${d.risk})`);
     screenedWords.set(sid, said);
-    await record(sid, d, emailFor(sid), sendEmail);
+    // The caller's details for Sound's fraud team, read while the member's phone is already ringing.
+    const intake = extractIntake(`You read what an unknown caller told Vantis while it screened a call for a credit union member. The caller is the suspected scammer, not the member: the member never spoke to them and sent nothing. Fill only the threat fields, from the caller's own words: claimed_identity, scammer_name (with any employee or badge number they gave), scammer_phone (a callback number they gave), asked_for, amount_requested, payment_method, deadline, threat_type, and quotes (their exact phrases). Leave every member and exposure field out.`, said).catch(() => null);
+    const id = await record(sid, d, emailFor(sid), sendEmail);
+    const x = await intake, cur = x && detection(sid, id);
+    if (cur) { cur.intake = x; updateDetection(sid, id, cur); console.log(`phone: kept the caller's details for Sound (${INTAKE_KEYS.filter(k => x[k]).join(', ') || 'none given'})`); }
   } catch (e) { console.error('phone: screening check failed:', (e as Error).message); }
 }
 const emailFor = (sid: string) => (db.prepare('SELECT address FROM email_links WHERE sid = ? AND verified = 1').get(sid) as { address: string } | undefined)?.address ?? null;
@@ -423,7 +430,8 @@ export async function reportIfAgreed(sid: string | null, member: string, turns: 
     if (!d?.agreed) return;
     // A call about a Level 4 threat: the case carries what Vantis saw, with its quotes.
     const p = sid ? pendingThreat.get(sid) : undefined, det = p && Date.now() - p.at < 30 * 60_000 ? detection(sid!, p.id) : null;
-    if (det) Object.assign(d, { signals: det.signals ?? [], tactics: [...new Set([...(d.tactics ?? []), ...(det.signals ?? []).map(x => x.label)])], contact_method: d.contact_method || CHANNEL_NAME[det.channel], scammer_phone: d.scammer_phone || det.numbers?.[0] || '' });
+    if (det) withIntake(d, det);
+    if (det) Object.assign(d, { signals: det.signals ?? [], tactics: [...new Set([...(d.tactics ?? []), ...(det.signals ?? []).map(x => x.label)])], contact_method: d.contact_method || CHANNEL_NAME[det.channel], scammer_phone: d.scammer_phone || det.numbers?.[0] || (det.channel === 'call screening' && /\d{7}/.test(det.from) ? det.from : '') });
     const out = await fileReport(det?.demo && sid ? demoKey(sid) : sid, normalize(d, 'phone', { phone: member, linked: !!sid })); // a demo sample's call reports into the demo
     if (det && p) { det.reported = true; updateDetection(sid!, p.id, det); pendingThreat.delete(sid!); }
     console.log(`phone: case ${out.case_id} filed (queue: ${out.queued}, emailed: ${out.emailed})`);
