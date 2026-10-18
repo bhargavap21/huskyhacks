@@ -23,6 +23,7 @@ db.exec(`
 CREATE TABLE IF NOT EXISTS email_links (address TEXT PRIMARY KEY, sid TEXT NOT NULL, share INTEGER NOT NULL DEFAULT 0, ts INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS email_seen (message_id TEXT PRIMARY KEY, ts INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS email_reports (id INTEGER PRIMARY KEY, sid TEXT NOT NULL, ts INTEGER NOT NULL, subject TEXT, report TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS email_replies (address TEXT NOT NULL, ts INTEGER NOT NULL);
 `);
 
 export class EmailError extends Error {}
@@ -188,7 +189,13 @@ export async function reportEmailById(sid: string, id: number) {
   db.prepare('UPDATE email_reports SET report = ? WHERE id = ?').run(JSON.stringify(r), id);
 }
 
-const recent = new Map<string, number[]>(); // per-sender replies in the last hour (abuse guard)
+// Abuse guard: at most 10 replies per sender per hour. Kept in SQLite so a restart doesn't reset it.
+export function underReplyLimit(from: string) {
+  db.prepare('DELETE FROM email_replies WHERE ts < ?').run(Date.now() - 3600_000);
+  if ((db.prepare('SELECT COUNT(*) AS n FROM email_replies WHERE address = ?').get(from) as { n: number }).n >= 10) return false;
+  db.prepare('INSERT INTO email_replies (address, ts) VALUES (?, ?)').run(from, Date.now());
+  return true;
+}
 
 async function handle(m: any, keyFor: (sid: string) => string) {
   const from = addr(m.from ?? '');
@@ -202,9 +209,7 @@ async function handle(m: any, keyFor: (sid: string) => string) {
     console.log(`email: ignored mail from an unlinked address (${mask(from)}), left unread`); return;
   }
   if ((m.labels ?? []).includes('unauthenticated')) { console.log(`email: skipped unauthenticated mail claiming ${mask(from)}`); return; }
-  const hits = (recent.get(from) ?? []).filter(t => Date.now() - t < 3600_000);
-  if (hits.length >= 10) { console.log('email: hourly limit reached for', mask(from)); return; }
-  recent.set(from, [...hits, Date.now()]);
+  if (!underReplyLimit(from)) { console.log('email: hourly limit reached for', mask(from)); return; }
 
   const full = await api('GET', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}`);
   const own = String(full.extracted_text ?? '').trim(); // the member's own new words, without quoted or forwarded text

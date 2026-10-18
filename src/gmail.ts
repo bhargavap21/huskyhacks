@@ -15,11 +15,14 @@ const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 export const gmailEnabled = !!(ID && SECRET);
 
 db.exec(`CREATE TABLE IF NOT EXISTS gmail_seen (id TEXT PRIMARY KEY, ts INTEGER NOT NULL)`);
-const pending = new Map<string, { sid: string; ts: number }>(); // OAuth state -> member
+// OAuth state -> member, kept in SQLite so a sign-in that spans a server restart still completes.
+db.exec(`CREATE TABLE IF NOT EXISTS gmail_oauth (state TEXT PRIMARY KEY, sid TEXT NOT NULL, ts INTEGER NOT NULL)`);
+const STATE_TTL = 10 * 60_000;
 
 export function authUrl(sid: string) {
   const state = randomBytes(18).toString('hex');
-  pending.set(state, { sid, ts: Date.now() });
+  db.prepare('DELETE FROM gmail_oauth WHERE ts < ?').run(Date.now() - STATE_TTL);
+  db.prepare('INSERT INTO gmail_oauth (state, sid, ts) VALUES (?, ?, ?)').run(state, sid, Date.now());
   const q = new URLSearchParams({ client_id: ID, redirect_uri: REDIRECT, response_type: 'code', scope: SCOPE, access_type: 'offline', prompt: 'consent', state, include_granted_scopes: 'false' });
   return `https://accounts.google.com/o/oauth2/v2/auth?${q}`;
 }
@@ -32,8 +35,9 @@ async function token(body: Record<string, string>) {
 }
 
 export async function callback(state: string, code: string) {
-  const p = pending.get(state); pending.delete(state);
-  if (!p || Date.now() - p.ts > 10 * 60_000) throw new Error('That sign-in link expired. Try Connect Gmail again.');
+  const p = db.prepare('SELECT sid, ts FROM gmail_oauth WHERE state = ?').get(state) as { sid: string; ts: number } | undefined;
+  db.prepare('DELETE FROM gmail_oauth WHERE state = ?').run(state);
+  if (!p || Date.now() - p.ts > STATE_TTL) throw new Error('That sign-in link expired. Try Connect Gmail again.');
   const t = await token({ code, redirect_uri: REDIRECT, grant_type: 'authorization_code' });
   if (!t.refresh_token) throw new Error('Google did not grant offline access. Try again.');
   const prof: any = await (await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', { headers: { Authorization: `Bearer ${t.access_token}` } })).json();

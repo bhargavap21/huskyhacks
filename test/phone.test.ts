@@ -13,3 +13,10 @@ test('call screening routes only when exactly one member could have forwarded th
   saveSettings('alice', { screening: false });
   assert.equal(screeningTarget(), 'bob');
 });
+
+test('the email reply limit (10 per sender per hour) is kept in storage', async () => {
+  const { underReplyLimit } = await import('../src/email.ts');
+  for (let i = 0; i < 10; i++) assert.equal(underReplyLimit('a@example.com'), true);
+  assert.equal(underReplyLimit('a@example.com'), false);
+  assert.equal(underReplyLimit('b@example.com'), true);
+});

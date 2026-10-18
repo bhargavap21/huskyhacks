@@ -5,6 +5,7 @@
 import { tacticsIn, type Tactic } from './tactics.ts';
 import { transcribe } from './media.ts';
 import { client, MODEL } from './chat.ts';
+import { db } from './db.ts';
 
 // Call-specific patterns on top of the shared tactic list.
 const CALL_RULES: { key: string; label: string; re: RegExp }[] = [
@@ -37,7 +38,25 @@ export type Source = 'speaker' | 'sample' | 'phone-in' | 'phone-out';
 type Line = { at: number; text: string; who?: 'caller' | 'second-look' };
 type Call = { started: number; ended: number | null; share: boolean; source: Source; lines: Line[]; alerts: Alert[]; summary: string | null; summary_source: 'claude' | 'offline' | null };
 
-const calls = new Map<string, Call>(); // `${sid}:${scene}` -> the current call
+// `${sid}:${scene}` -> the current call, in SQLite so the member's call view survives a server restart.
+db.exec(`CREATE TABLE IF NOT EXISTS guardian_calls (key TEXT PRIMARY KEY, ts INTEGER NOT NULL, json TEXT NOT NULL)`);
+const load = (key: string) => { const r = db.prepare('SELECT json FROM guardian_calls WHERE key = ?').get(key) as { json: string } | undefined; return r ? (JSON.parse(r.json) as Call) : undefined; };
+const save = (key: string, call: Call) => db.prepare('INSERT OR REPLACE INTO guardian_calls (key, ts, json) VALUES (?, ?, ?)').run(key, Date.now(), JSON.stringify(call));
+
+/** At startup: a restart cuts the audio or transcript stream, so a call still open has ended. Transcripts are
+ *  kept a day at most. Exported for tests. */
+export function closeInterrupted(now = Date.now()) {
+  db.prepare('DELETE FROM guardian_calls WHERE ts < ?').run(now - 86_400_000);
+  for (const { key, json } of db.prepare('SELECT key, json FROM guardian_calls').all() as { key: string; json: string }[]) {
+    const call = JSON.parse(json) as Call;
+    if (call.ended) continue;
+    call.ended = now;
+    call.summary = 'Second Look stopped listening when it restarted. If anything on this call felt off, hang up and call the number on your card.';
+    call.summary_source = 'offline';
+    save(key, call);
+  }
+}
+closeInterrupted();
 
 const levelOf = (alerts: Alert[]): Level => (alerts.some(a => SERIOUS.has(a.key)) || alerts.length >= 3 ? 'high' : alerts.length ? 'careful' : 'listening');
 
@@ -47,11 +66,11 @@ function detect(text: string): Tactic[] {
 }
 
 export function startCall(key: string, share: boolean, source: Source = 'speaker') {
-  calls.set(key, { started: Date.now(), ended: null, share, source, lines: [], alerts: [], summary: null, summary_source: null });
+  save(key, { started: Date.now(), ended: null, share, source, lines: [], alerts: [], summary: null, summary_source: null });
 }
 
 export async function addChunk(key: string, audioB64: string) {
-  const call = calls.get(key);
+  const call = load(key);
   if (!call || call.ended) return { line: null, alerts: [] as Alert[], level: 'listening' as Level };
   const text = (await transcribe(audioB64)) ?? '';
   if (!text || NOISE.test(text)) return { line: null, alerts: [], level: levelOf(call.alerts) };
@@ -60,11 +79,12 @@ export async function addChunk(key: string, audioB64: string) {
 
 // One piece of transcript, from the speaker mic or from a phone call's live transcript.
 export function addText(key: string, text: string, who?: Line['who']) {
-  const call = calls.get(key);
+  const call = load(key);
   if (!call || call.ended) return { line: null, alerts: [] as Alert[], level: 'listening' as Level };
   const at = Date.now() - call.started;
   const line: Line = who ? { at, text, who } : { at, text };
   call.lines.push(line);
+  save(key, call);
   // Second Look's own words are never checked: its advice names the very tactics it warns about.
   if (who === 'second-look') return { line, alerts: [], level: levelOf(call.alerts) };
   // Check this piece plus the end of the previous one, so a phrase split across chunks still counts.
@@ -73,6 +93,7 @@ export function addText(key: string, text: string, who?: Line['who']) {
   const raised = new Set(call.alerts.map(a => a.key));
   const fresh = detect(`${prev} ${text}`).filter(t => !raised.has(t.key)).map(t => ({ ...t, advice: ADVICE[t.key] ?? '', quote: text, at }));
   call.alerts.push(...fresh);
+  save(key, call);
   return { line, alerts: fresh, level: levelOf(call.alerts) };
 }
 
@@ -82,10 +103,11 @@ function offlineSummary(call: Call) {
 }
 
 export async function stopCall(key: string) {
-  const call = calls.get(key);
+  const call = load(key);
   if (!call) return null;
   if (call.ended) return view(call);
   call.ended = Date.now();
+  save(key, call); // ended now, so new transcript lines are refused while the summary is written
   if (client && call.lines.length) {
     try {
       const r = await client.messages.create({
@@ -98,6 +120,7 @@ export async function stopCall(key: string) {
     } catch (e) { console.error('guardian: summary unavailable:', (e as Error).message); }
   }
   if (!call.summary) { call.summary = offlineSummary(call); call.summary_source = 'offline'; }
+  save(key, call);
   return view(call);
 }
 
@@ -107,8 +130,8 @@ function view(call: Call) {
 
 // For /api/state: the member's own view always; staff see it only when the member chose to share.
 export function callState(key: string) {
-  const call = calls.get(key);
+  const call = load(key);
   return call ? view(call) : null;
 }
 
-export function clearCall(key: string) { calls.delete(key); }
+export function clearCall(key: string) { db.prepare('DELETE FROM guardian_calls WHERE key = ?').run(key); }
