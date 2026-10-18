@@ -139,7 +139,7 @@ export async function assess(channel: Detection['channel'], from: string, subjec
   if (v && !v.alert && !specific) return null;
   if (!signals.length && !other.length) return null; // no evidence, no alert
   let risk = tier(signals, (modelOnly ? 0 : hard) + (v?.injection ? 1 : 0));
-  if (v && !v.alert && risk === 'high') risk = 'medium';
+  if (v && !v.alert && (risk === 'high' || risk === 'critical')) risk = 'medium';
   return {
     channel, from, subject, risk, source: v ? 'classifier' : 'rules',
     title: (v?.title || `${channel === 'call screening' ? 'A screened call' : 'A message'} has warning signs: ${[...signals.map(s => s.label.toLowerCase()), ...(lookalikes.length ? ['look-alike link'] : [])].join(', ')}`).slice(0, 140),
@@ -173,6 +173,14 @@ export function addPushSub(sid: string, sub: any) {
   saveSettings(sid, { push: true });
 }
 export function removePushSubs(sid: string) { db.prepare('DELETE FROM push_subs WHERE sid = ?').run(sid); saveSettings(sid, { push: false }); }
+
+// ---- What Vantis does at each threat level ----
+//   1 low       kept in the app, no interruption
+//   2 medium    notification (push, else email) and a reply on the channel it came in on
+//   3 high      same, with "Report to Sound" offered first
+//   4 critical  all of the above, and Vantis calls the member right away to talk them through it (phone.ts)
+let criticalHandler: ((sid: string, id: number, d: Detection) => Promise<void>) | null = null;
+export function onCritical(fn: typeof criticalHandler) { criticalHandler = fn; }
 
 /** A heads-up that isn't a warning ("Vantis is connecting Dr. Lee's office"): push if on, otherwise in the app only. */
 export async function notifyMember(sid: string, body: string, url = '/?page=channels') {
@@ -209,7 +217,10 @@ async function alertMember(sid: string, id: number, d: Detection, emailTo: strin
 // `notify: false` when the member is already reading Vantis's reply (WhatsApp): kept in the app, no push.
 export async function record(sid: string, d: Detection, emailTo: string | null, sendEmail: (to: string, subject: string, text: string) => Promise<void>, notify = true) {
   const id = Number(db.prepare('INSERT INTO detections (sid, ts, json) VALUES (?, ?, ?)').run(sid, Date.now(), JSON.stringify(d)).lastInsertRowid);
+  // Level 4: call first (seconds matter), then the usual alerts.
+  const call = d.risk === 'critical' && criticalHandler ? criticalHandler(sid, id, d).then(() => true, e => { console.error('monitor: critical call failed:', (e as Error).message); return false; }) : Promise.resolve(false);
   d.alerted_by = notify ? await alertMember(sid, id, d, emailTo, sendEmail) : ['app', ...(d.channel === 'whatsapp' ? ['WhatsApp reply'] : [])];
+  if (await call) d.alerted_by.push('phone call');
   updateDetection(sid, id, d);
   console.log(`monitor: ${d.channel} detection for a member (${d.risk}), alerted by ${d.alerted_by.join(', ')}`);
   return id;

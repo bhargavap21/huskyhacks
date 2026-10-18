@@ -9,7 +9,7 @@ import { db } from './db.ts';
 import { startCall, addText, stopCall, callState } from './guardian.ts';
 import { client, MODEL } from './chat.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
-import { sidsWhere, settings, assess, record, notifyMember } from './monitor.ts';
+import { sidsWhere, settings, assess, record, notifyMember, onCritical, detection, updateDetection, type Detection } from './monitor.ts';
 import { decide, input as screenInput, logScreened, finishScreened, TOOL_SECRET } from './screening.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { sendEmail } from './email.ts';
@@ -88,6 +88,45 @@ export async function callMe(sid: string, context: string) {
     systemPrompt: `${CALL_RULES}\n\nWhy you are calling: the member tapped "Have Vantis call me" in the Sound app.\n${context}\nStart by asking how they are and what happened. Use the context above; don't read it out word for word.`,
   });
 }
+
+// ---- Level 4 (critical) threats: Vantis calls the member right away ----
+// Same limits as "call me": a verified phone on the team's list (demo), and at most one such call per member every
+// 2 minutes. The call coaches the member and offers, once, to tell Sound's fraud team; if they say yes, the case is
+// filed after the call (reportIfAgreed) with the evidence Vantis already had.
+const CHANNEL_NAME: Record<Detection['channel'], string> = { email: 'email', gmail: 'email', text: 'text message', whatsapp: 'WhatsApp message', 'call screening': 'phone call Vantis screened' };
+const lastThreatCall = new Map<string, number>();
+const pendingThreat = new Map<string, { id: number; at: number }>(); // sid -> the detection the call is about
+export async function callAboutThreat(sid: string, id: number, d: Detection) {
+  if (!phoneEnabled) return;
+  const l = linkFor(sid);
+  if (!l?.verified || !ALLOWED_TO.has(l.number)) { console.log('phone: critical threat, but the member’s phone isn’t verified or on the demo list; no call'); return; }
+  if (Date.now() - (lastThreatCall.get(sid) ?? 0) < 120_000) return;
+  lastThreatCall.set(sid, Date.now()); lastOutbound = Date.now();
+  pendingThreat.set(sid, { id, at: Date.now() });
+  const what = CHANNEL_NAME[d.channel] ?? 'message';
+  const evidence = (d.signals ?? []).slice(0, 4).map(x => `- ${x.label}: "${x.span}"`).join('\n');
+  await api('POST', '/v1/calls', {
+    agentId: AGENT, toNumber: l.number,
+    initialGreeting: `Hi, this is Vantis from Sound, calling about a ${what} you just got. It has the signs of a scam that’s happening right now, so I wanted to reach you straight away. Do you have a moment?`,
+    systemPrompt: `${CALL_RULES}
+
+Why you are calling: Vantis rated a ${what} the member received as Level 4, critical: someone is asking for money, a code or access right now while posing as someone trusted or using fear or secrecy. You are calling to protect them before they act. This call was placed automatically by Vantis, not requested by the member.
+What it was: ${d.title}${d.summary ? `. ${d.summary}` : ''}
+From: ${d.from}
+Warning signs, with the words used:
+${evidence || '- (see summary)'}
+${d.other?.length ? `Other checks: ${d.other.join('; ')}` : ''}
+
+Talk them through it, in this order, briefly and calmly:
+1. Ask whether they have replied, clicked a link, called a number from it, sent money or shared a code. If they have, tell them to call Sound now on the number on the back of their card, and offer to tell Sound's fraud team right away.
+2. Say what the message claims and what it asks for, quoting one or two of its phrases. Never call the sender a scammer; say "this has the signs of a scam."
+3. Tell them how to respond: don't reply, don't click, don't call any number in it. If it says it's from Sound: Sound never asks for codes or to move money. To check, call Sound on the number on their card. They can block the sender.
+4. Offer once: "Would you like me to tell Sound's fraud team now? I'll pass on what I saw, and someone will call you." Their yes is enough.
+Keep it under two minutes unless they want to talk.`,
+  });
+  console.log(`phone: called a member about a critical ${what}`);
+}
+if (phoneEnabled) onCritical(callAboutThreat);
 
 // ---- Persona for every call (also set on the agent for inbound calls) ----
 export const CALL_RULES = `You are Vantis, the scam-protection helper from Sound Credit Union, on the phone. This is a hackathon concept demo; say so if asked.
@@ -305,7 +344,11 @@ export async function reportIfAgreed(sid: string | null, member: string, turns: 
       'You read a phone call between Vantis (a credit union scam-protection helper) and a member. Decide whether the member clearly agreed to a fraud report to Sound, or asked for one. If so, fill the fraud case from what the member said.',
       turns.map(t => `${t.role === 'agent' ? 'Vantis' : 'Member'}: ${t.content}`).join('\n'), true);
     if (!d?.agreed) return;
+    // A call about a Level 4 threat: the case carries what Vantis saw, with its quotes.
+    const p = sid ? pendingThreat.get(sid) : undefined, det = p && Date.now() - p.at < 30 * 60_000 ? detection(sid!, p.id) : null;
+    if (det) Object.assign(d, { signals: det.signals ?? [], tactics: [...new Set([...(d.tactics ?? []), ...(det.signals ?? []).map(x => x.label)])], contact_method: d.contact_method || CHANNEL_NAME[det.channel], scammer_phone: d.scammer_phone || det.numbers?.[0] || '' });
     const out = await fileReport(sid, normalize(d, 'phone', { phone: member, linked: !!sid }));
+    if (det && p) { det.reported = true; updateDetection(sid!, p.id, det); pendingThreat.delete(sid!); }
     console.log(`phone: case ${out.case_id} filed (queue: ${out.queued}, emailed: ${out.emailed})`);
   } catch (e) { console.error('phone: could not check for a report:', (e as Error).message); }
 }

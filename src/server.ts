@@ -168,6 +168,17 @@ app.post('/api/push/test', async c => {
     other: ['sound-secure-login.com: Uses Sound’s name, but it isn’t soundcu.com.'], why: ['Asks for a code or password: “reply with the 6-digit code we just texted you”', 'Pressure to hurry: “or your account will be locked within 1 hour”'], advice: 'Don’t click links or share codes. Check by typing soundcu.com yourself.', from: 'Sample', subject: 'Sample alert' }, em, sendEmail);
   return c.json({ ok: true });
 });
+// Rehearsal and stage backup: a sample Level 4 threat, so the "Vantis calls you" path can be shown on demand.
+app.post('/api/push/test-critical', async c => {
+  const sid = c.get('sid'), em = (db.prepare('SELECT address FROM email_links WHERE sid = ? AND verified = 1').get(sid) as any)?.address ?? null;
+  const sig = (key: keyof typeof SIGNAL_LABELS, score: number, span: string) => ({ key, label: SIGNAL_LABELS[key], score, span, source: 'model' as const });
+  await record(sid, { channel: 'whatsapp', risk: 'critical', from: 'WhatsApp from +1 (206) 555-0148, not in your contacts', subject: 'Sample Level 4 threat',
+    title: 'Sample: a WhatsApp from “Sound Fraud Team” asks for the code we just texted you', summary: 'This is a sample Level 4 threat for the demo. Nothing real happened.', signals_version: SIGNALS_VERSION,
+    signals: [sig('credential_request', 0.95, 'reply with the 6-digit code we just texted you'), sig('impersonation', 0.9, 'This is the Sound Credit Union fraud team'), sig('threats', 0.85, 'your account will be frozen'), sig('urgency', 0.8, 'in the next 30 minutes')],
+    other: [], why: ['Asked for a code or password: “reply with the 6-digit code we just texted you”', 'Claims to be someone you trust: “This is the Sound Credit Union fraud team”'],
+    advice: 'Don’t reply or share any code. Sound never asks for codes. If you’re worried, call Sound on the number on your card.' }, em, sendEmail);
+  return c.json({ ok: true });
+});
 app.post('/api/detections/:id/report', async c => { const out = await reportDetection(c.get('sid'), Number(c.req.param('id'))); return c.json({ ok: true, case_id: out.case_id }); });
 // Screen-then-connect: the phone agent's custom tool asks whether to put an unknown caller through (issue #25).
 // Outside /api: called by AgentPhone with a shared secret, not by a browser.

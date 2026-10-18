@@ -39,6 +39,14 @@ test('risk tiers come from evidence: low exists, and one generic word never reac
   assert.equal(tier([sig('impersonation', 0.5)], 1), 'high'); // look-alike link plus a sign
 });
 
+test('critical (Level 4) needs a clear ask plus someone posing as trusted, fear or secrecy', () => {
+  assert.equal(tier([sig('credential_request', 0.9), sig('impersonation', 0.8)], 0), 'critical');
+  assert.equal(tier([sig('payment_pressure', 0.9), sig('secrecy', 0.7)], 0), 'critical');
+  assert.equal(tier([sig('credential_request', 0.9), sig('urgency', 0.9)], 0), 'high', 'an ask with only urgency is high, not critical');
+  assert.equal(tier([sig('impersonation', 0.9), sig('threats', 0.9)], 0), 'high', 'pressure without an ask is high');
+  assert.equal(tier([sig('payment_pressure', 0.6), sig('impersonation', 0.9)], 0), 'medium', 'a vague ask is not critical');
+});
+
 test('rules-only path: every scam fixture alerts, no benign fixture interrupts', async () => {
   process.env.DB_PATH ??= ':memory:';
   const { assess } = await import('../src/monitor.ts');

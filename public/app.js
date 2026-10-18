@@ -372,13 +372,13 @@ const SL_NUMBER = () => fmtPhone(S.phone?.number || '');
 // Per-signal evidence (signals/v1): every sign comes with the words that show it, never a bare score.
 const STRENGTH = x => (x >= 0.7 ? 'Clear' : x >= 0.5 ? 'Likely' : 'Faint');
 const signalList = sigs => `<ul class="sig-list">${sigs.map(s => `<li><div class="sig-head"><b>${esc(s.label)}</b><span class="small muted">${STRENGTH(s.score)} · ${Number(s.score).toFixed(2)}${s.source === 'rules' ? ' · pattern match' : ''}</span></div><blockquote class="small">“${esc(s.span)}”</blockquote></li>`).join('')}</ul>`;
-const RISK_BADGE = { high: ['risk', 'Worth a look now'], medium: ['review', 'Worth a look'], low: ['neutral', 'Low concern'] };
+const RISK_BADGE = { critical: ['risk', 'Level 4 · Act now'], high: ['risk', 'Level 3 · Worth a look now'], medium: ['review', 'Level 2 · Worth a look'], low: ['neutral', 'Level 1 · Low concern'] };
 const SCREEN_NUMBER = () => S.phone?.screening_number || S.phone?.number || ''; // the member's own screening number, if they have one
 function detCard(d) {
   return `<li class="em-report">
     <div class="g-head"><span class="in-badge in-badge--${(RISK_BADGE[d.risk] || RISK_BADGE.medium)[0]}">${(RISK_BADGE[d.risk] || RISK_BADGE.medium)[1]}</span><span class="small muted">${esc({ email: 'Forwarded email', gmail: 'Gmail', 'call screening': 'Screened call', text: 'Forwarded text', whatsapp: 'WhatsApp' }[d.channel] || d.channel)} · ${emAgo(d.ts)}</span></div>
     <b>${esc(d.title)}</b>${d.summary ? `<p class="small">${esc(d.summary)}</p>` : ''}
-    ${d.signals ? `${d.signals.length ? signalList(d.signals) : ''}${d.other?.length ? `<ul class="em-links">${d.other.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}${d.risk === 'low' ? '<p class="small muted">Only faint signs, so Vantis didn’t send a notification.</p>' : ''}`
+    ${d.signals ? `${d.signals.length ? signalList(d.signals) : ''}${d.other?.length ? `<ul class="em-links">${d.other.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}${d.risk === 'low' ? '<p class="small muted">Only faint signs, so Vantis didn’t send a notification.</p>' : d.risk === 'critical' ? '<p class="small"><b>Vantis called you about this</b> because someone was asking for money, a code or access while posing as someone trusted.</p>' : ''}`
       : d.why?.length ? `<ul class="em-links">${d.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
     <p class="small"><b>What to do:</b> ${esc(d.advice)}</p>
     <div class="row">${d.reported ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : `<button data-act="det_report" data-id="${d.id}">Report to Sound</button>`}${d.alerted_by?.length ? `<span class="small muted">Told you by ${esc(d.alerted_by.join(', '))}</span>` : ''}</div></li>`;
@@ -395,7 +395,8 @@ function channelsView() {
       <p class="small muted">Read-only, and only the channels you turn on. Ordinary messages are checked and then thrown away; Vantis keeps only what it warns you about. Turn any channel off at any time.</p></div>
     <div class="card g-way"><h3>Alerts on this device</h3>
       <p class="small">Get a notification the moment Vantis spots something, even when the app is closed.</p>
-      <div class="row">${ch.push ? '<span class="in-badge in-badge--safe">On</span><button class="quiet" data-act="push_off">Turn off</button>' : `<button class="primary" data-act="push_on" ${ch.push_key ? '' : 'disabled'}>Turn on alerts</button>`}<button data-act="push_test">Send a sample alert</button></div>
+      <div class="row">${ch.push ? '<span class="in-badge in-badge--safe">On</span><button class="quiet" data-act="push_off">Turn off</button>' : `<button class="primary" data-act="push_on" ${ch.push_key ? '' : 'disabled'}>Turn on alerts</button>`}<button data-act="push_test">Send a sample alert</button><button data-act="push_test_critical" ${S.phone?.can_call_me ? '' : 'disabled'}>Sample Level 4 threat</button></div>
+      <p class="small muted">The Level 4 sample shows what happens with the most serious threats: Vantis alerts you and calls your linked phone right away.${S.phone?.can_call_me ? '' : ' It needs a confirmed phone on the team’s list.'}</p>
       <p class="small muted">On iPhone, first add this page to your Home Screen (Share, then Add to Home Screen). Without notifications, alerts come by email to your linked address.</p></div>
     ${emailWatchCard('Email')}
     ${screeningCard()}
@@ -912,6 +913,7 @@ document.addEventListener('click', async e => {
     case 'push_on': return pushOn();
     case 'push_off': { try { const reg = await navigator.serviceWorker.getRegistration('/'); const s = await reg?.pushManager.getSubscription(); await s?.unsubscribe(); } catch {} return post('push/unsubscribe'); }
     case 'push_test': { const j = await post('push/test'); if (j && j.ok) toast('Sample alert sent.'); return; }
+    case 'push_test_critical': { const j = await post('push/test-critical'); if (j && j.ok) toast('Sample Level 4 threat sent. Vantis is calling your phone.'); return; }
     case 'det_report': { const j = await post('detections/' + b.dataset.id + '/report'); if (j && j.ok) toast(`Reported to Sound as case ${j.case_id}. Someone will call you.`); return; }
     case 'gmail_off': return post('gmail/disconnect');
     case 'fwd_dismiss': return post('channels', { dismiss_confirm: true });

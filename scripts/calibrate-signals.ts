@@ -15,9 +15,9 @@ const { assess } = await import('../src/monitor.ts');
 
 const fixtures = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'emails.json'), 'utf8'));
 const OK: Record<string, (r: string) => boolean> = {
-  needs_human_review: r => r === 'high' || r === 'medium',
+  needs_human_review: r => r === 'critical' || r === 'high' || r === 'medium',
   no_concern_or_low: r => r === 'none' || r === 'low',
-  worth_a_second_look_or_unknown: r => r === 'low' || r === 'medium',
+  worth_a_second_look_or_unknown: r => r === 'low' || r === 'medium', // never high or critical
 };
 let fails = 0;
 console.log(`Mode: ${rulesOnly ? 'rules only' : 'Claude + rules'}\n`);

@@ -9,7 +9,9 @@ import type { Classification } from './classifier.ts';
 export const SIGNALS_VERSION = 'signals/v1';
 export { SIGNALS as SIGNAL_KEYS, SIGNAL_LABELS, type SignalKey };
 export type Signal = { key: SignalKey; label: string; score: number; span: string; source: 'model' | 'rules' };
-export type Risk = 'high' | 'medium' | 'low';
+export type Risk = 'critical' | 'high' | 'medium' | 'low';
+/** Threat levels as members and slides see them (0 = nothing kept). Each level has its own action (monitor.ts). */
+export const LEVEL: Record<Risk, number> = { low: 1, medium: 2, high: 3, critical: 4 };
 
 // A pattern match is not a judgment, so rules get fixed, modest scores: a specific ask scores higher than
 // wording that's common in ordinary mail ("today", "your bank"), which on its own only makes a low alert.
@@ -48,6 +50,7 @@ export function merge(v: Classification | null, rules: Signal[]): Signal[] {
 
 /**
  * Risk from evidence (calibrated against fixtures/emails.json; docs/signals.md):
+ * - critical: a clear code, payment or remote-access ask plus impersonation, threats, secrecy or a hard check.
  * - high: two clear signals (>= 0.7); or a clear code, payment or remote-access ask plus another sign at 0.5+;
  *   or a hard check (look-alike link, failed sender authentication, quoted prompt injection) plus a sign at 0.5+.
  * - medium: one sign at 0.5 or more, or a hard check alone.
@@ -56,6 +59,11 @@ export function merge(v: Classification | null, rules: Signal[]): Signal[] {
 export function tier(signals: Signal[], hardChecks: number): Risk {
   const clear = signals.filter(s => s.score >= 0.7);
   const moderate = signals.filter(s => s.score >= 0.5);
+  // Critical: a clear ask for a code, money or device access, from someone posing as trusted or using fear or
+  // secrecy (or behind a look-alike link). The scam is live and the member may act in minutes.
+  const ask = clear.some(s => s.key === 'credential_request' || s.key === 'payment_pressure' || s.key === 'remote_access');
+  const pressure = moderate.some(s => s.key === 'impersonation' || s.key === 'threats' || s.key === 'secrecy') || hardChecks > 0;
+  if (ask && pressure && moderate.length >= 2) return 'critical';
   if (clear.length >= 2) return 'high';
   if (clear.some(s => s.key === 'credential_request' || s.key === 'payment_pressure' || s.key === 'remote_access') && moderate.length >= 2) return 'high';
   if (hardChecks && moderate.length) return 'high';

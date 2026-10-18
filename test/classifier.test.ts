@@ -47,7 +47,7 @@ test('assess turns classifier evidence into quoted, per-signal reasons; rules fi
   assert.equal(d!.source, 'classifier');
   assert.deepEqual(d!.signals!.map(s => [s.key, s.source]), [['credential_request', 'model'], ['impersonation', 'model'], ['urgency', 'rules']]);
   assert.deepEqual(d!.why.slice(0, 2), ['Asked for a code or password: “Read me the code we just texted you”', 'Claims to be someone you trust: “Mark from the Sound fraud department”']);
-  assert.equal(d!.risk, 'high'); // two clear signals, whatever the model's own risk said
+  assert.equal(d!.risk, 'critical'); // poses as Sound and asks for the code: Level 4, whatever the model's own risk said
   const r = await assess('email', 'x', '', MSG, [], { mode: 'rules', client: fake(raw) });
   assert.equal(r!.source, 'rules');
   assert.ok(r!.signals!.every(s => MSG.includes(s.span)), 'rule evidence quotes the message too');
