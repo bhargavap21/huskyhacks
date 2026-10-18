@@ -5,600 +5,501 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Second Look explainer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500&family=Newsreader:opsz,wght@6..72,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Pixelify+Sans:wght@400;500&display=swap">
 <style>
-/* Self-contained explainer. Tokens copied from design-system/tokens.css (Instinct, light theme). */
+/* Pixel-art explainer. Self-contained: canvas art, browser text-to-speech voices, no build step. */
 :root {
-  --navy: #00205b; --blue: #1f79af; --blue-deep: #1f5589; --ice: #e6f1f4;
-  --surface: #f2fafc; --surface-raised: #ffffff; --surface-band: #e6f1f4;
-  --line: #dfedf0; --line-strong: #707070;
-  --ink: var(--navy); --ink-body: #262e38; --ink-muted: #5f6670;
-  --accent: var(--blue); --accent-hover: var(--blue-deep); --on-accent: #ffffff;
-  --accent-soft: #d6eaf5; --accent-mark: #b9dcef;
-  --radius-sm: 7px; --radius-pill: 999px;
-  --font-serif: "Newsreader", "Iowan Old Style", Georgia, serif;
-  --font-sans: "Instrument Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  --ease: cubic-bezier(.22, .8, .24, 1);
+  --ink: #141518; --paper: #f3f4f1; --paper-2: #e4e5e1; --muted: #6e7079;
+  --accent: #2f7fc1; --accent-soft: #cfe3f3;
+  --hud: #141518; --hud-text: #f0f0ec;
+  --px: "Silkscreen", "Courier New", monospace;
+  --body: "Pixelify Sans", "Courier New", monospace;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; background: var(--surface); color: var(--ink-body); font-family: var(--font-sans); overflow: hidden; }
-
-/* Fixed design canvas scaled to fit: 1280x720 on wide screens, 720x1280 on tall ones. */
-#stage { position: absolute; left: 50%; top: 50%; transform-origin: 0 0; background: var(--surface); overflow: hidden; }
+html, body { height: 100%; background: #2a2c31; overflow: hidden; color: var(--ink); font-family: var(--body); }
+#stage { position: absolute; left: 50%; top: 50%; transform-origin: 0 0; background: #2a2c31; overflow: hidden; }
 .land #stage { width: 1280px; height: 720px; }
 .port #stage { width: 720px; height: 1280px; }
-.no-anim, .no-anim * { transition: none !important; }
-.paused, .paused * { animation-play-state: paused !important; }
 
-/* Top band */
-.band { position: absolute; left: 0; right: 0; top: 0; height: 56px; display: flex; align-items: center; gap: 18px; padding: 0 36px; border-bottom: 1px solid var(--line); }
-.brand { font-family: var(--font-serif); font-size: 24px; color: var(--ink); }
-.steplbl { flex: 1; font-size: 16px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.steplbl b { font-weight: 500; color: var(--accent); }
-.sim { font-size: 14px; font-weight: 500; color: var(--ink-body); background: var(--surface-band); border-radius: var(--radius-pill); padding: 6px 14px; white-space: nowrap; }
-.port .band { height: 64px; padding: 0 28px; flex-wrap: wrap; align-content: center; row-gap: 2px; }
-.port .brand { font-size: 26px; }
-.port .steplbl { order: 3; flex-basis: 100%; font-size: 17px; }
-.port .band { height: 96px; }
+/* The scene: a 240x135 canvas drawn pixel by pixel, scaled up crisp */
+#scene { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; }
+.land #scene { width: 1280px; height: 720px; }
+.port #scene { width: 720px; height: 405px; }
+#ov { position: absolute; left: 0; top: 0; width: 240px; height: 135px; transform-origin: 0 0; pointer-events: none; }
+.land #ov { transform: scale(5.3333); } .port #ov { transform: scale(3); }
+.mon { position: absolute; text-align: center; font-family: var(--px); color: var(--ink); line-height: 1; }
+.mon .nm { font-size: 5px; letter-spacing: .2px; }
+.mon .st { display: inline-block; margin-top: 2px; font-size: 3.6px; padding: 1px 2px; background: var(--accent); color: #fff; }
 
-/* Scene: two character slots (L, R) and one card slot */
-.scene { position: absolute; }
-.land .scene { left: 0; right: 0; top: 56px; height: 448px; }
-.port .scene { left: 0; right: 0; top: 96px; height: 760px; }
-.floor { position: absolute; left: 0; right: 0; height: 1px; background: var(--line); }
-.land .floor { bottom: 34px; } .port .floor { top: 262px; }
+/* HUD box, like a game status panel */
+.hud { position: absolute; background: var(--hud); color: var(--hud-text); border: 4px solid #e9e9e6; outline: 4px solid var(--hud); font-family: var(--px); display: none; }
+.hud.on { display: block; }
+.land .hud { left: 40px; top: 36px; padding: 14px 22px; font-size: 22px; line-height: 34px; }
+.port .hud { left: 18px; top: 16px; padding: 8px 12px; font-size: 15px; line-height: 23px; border-width: 3px; outline-width: 3px; }
+.hud .r { display: flex; gap: 22px; }
+.hud .k { color: #a9abb2; min-width: 7.5em; }
+.hud .v { color: #fff; }
+.hud .v.ok::before { content: "✓ "; color: #7fc4f5; }
 
-.char { position: absolute; width: 260px; transition: transform 800ms var(--ease), opacity 700ms var(--ease); opacity: 0; }
-.char svg { display: block; width: 100%; height: auto; overflow: visible; }
-.char .name { text-align: center; font-size: 16px; color: var(--ink-muted); margin-top: 6px; }
-.char .name b { font-weight: 500; color: var(--ink); }
-.land .char { bottom: 2px; }
-.land .char.L { left: 40px; } .land .char.R { right: 40px; }
-.port .char { top: 14px; width: 196px; transition: transform 800ms var(--ease), opacity 700ms var(--ease), left 800ms var(--ease); }
-.port .char.L { left: 100px; } .port .char.R { right: 100px; }
-.port .scene:not(:has(#dana.on)) .char.L { left: 262px; }
-.port .char .name { font-size: 19px; }
-.char.on { opacity: 1; transform: none; }
-.char.L:not(.on) { transform: translateX(-40px); }
-.char.R:not(.on) { transform: translateX(40px); }
-.char.on.solo-port { }
-.port .char.L.center { left: 235px; }
+.tag { position: absolute; z-index: 30; font-family: var(--px); color: var(--ink); background: var(--paper); border: 3px solid var(--ink); }
+.land .tag { right: 40px; top: 36px; font-size: 15px; padding: 6px 10px; }
+.port .tag { left: 18px; right: auto; top: auto; bottom: 18px; font-size: 16px; padding: 6px 10px; position: absolute; }
 
-/* Character animation: breathing, blinking, talking */
-.body { animation: breathe 4.2s ease-in-out infinite; transform-origin: 50% 100%; transform-box: fill-box; }
-@keyframes breathe { 50% { transform: translateY(-2px) scaleY(1.005); } }
-.head { transform-origin: 120px 170px; transition: transform 500ms var(--ease); }
-.talking .head { animation: nod 1.6s ease-in-out infinite; }
-@keyframes nod { 0%,100% { transform: rotate(0); } 30% { transform: rotate(-1.6deg) translateY(-1px); } 70% { transform: rotate(1.2deg); } }
-.listening .head { transform: rotate(3deg); }
-.eye { transform-box: fill-box; transform-origin: center; animation: blink 5s infinite; }
-@keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
-.mouth { transform-box: fill-box; transform-origin: center; transform: scaleY(.18); transition: transform 200ms; }
-.talking .mouth { animation: talk .34s ease-in-out infinite alternate; }
-@keyframes talk { 0% { transform: scaleY(.25); } 40% { transform: scaleY(.85); } 70% { transform: scaleY(.45); } 100% { transform: scaleY(1); } }
-.talking .name b { color: var(--accent); }
+/* Side panel: the phone or Second Look's card */
+.panel { position: absolute; background: var(--paper); border: 6px solid var(--ink); box-shadow: 8px 8px 0 rgba(20,21,24,.25); display: none; }
+.panel.on { display: block; animation: popin .35s steps(4) both; }
+@keyframes popin { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+.land .panel { right: 40px; top: 96px; width: 430px; }
+.port .panel { left: 40px; right: 40px; top: 432px; }
+.ph { background: var(--ink); color: var(--hud-text); font-family: var(--px); font-size: 18px; padding: 10px 16px; display: flex; justify-content: space-between; }
+.ph span { color: #a9abb2; }
+.pb { padding: 16px 18px 18px; font-size: 22px; line-height: 30px; }
+.port .ph { font-size: 22px; padding: 12px 18px; } .port .pb { font-size: 28px; line-height: 38px; padding: 20px 22px 24px; }
+.bub { background: var(--paper-2); border: 3px solid var(--ink); padding: 8px 12px; margin-bottom: 10px; max-width: 92%; }
+.f { border-bottom: 3px solid var(--paper-2); padding: 4px 0; font-size: .82em; }
+.f b { font-weight: 500; color: var(--muted); }
+.q { border-left: 5px solid var(--muted); padding-left: 10px; margin-top: 10px; font-size: .9em; }
+.btn { display: inline-block; font-family: var(--px); font-size: .72em; padding: 6px 14px; border: 3px solid var(--ink); background: var(--paper); margin-top: 12px; box-shadow: 3px 3px 0 var(--ink); }
+.btn.pri { background: var(--accent); color: #fff; }
+.btn.press { transform: translate(3px, 3px); box-shadow: none; }
+.hl { padding: 0 2px; margin: 0 -2px; transition: background .2s steps(2); }
+.hl.on { background: var(--accent-soft); box-shadow: inset 0 -4px 0 var(--accent); }
+.chips { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 14px; }
+.chip { font-family: var(--px); font-size: .62em; line-height: 1.4; padding: 4px 10px; border: 3px solid var(--ink); background: var(--paper); display: none; }
+.chip.on { display: inline-block; animation: popin .3s steps(3) both; }
+.chip::before { content: "■ "; color: var(--accent); }
+.small { font-size: .78em; color: var(--muted); margin-top: 8px; }
+.next { background: var(--accent-soft); border: 3px solid var(--accent); padding: 8px 12px; margin: 8px 0; }
+.next i { display: block; font-style: normal; font-family: var(--px); font-size: .6em; color: var(--accent); }
+.badge { display: inline-block; font-family: var(--px); font-size: .6em; padding: 3px 8px; background: var(--ink); color: #fff; margin-bottom: 8px; }
+.badge.ok { background: var(--accent); }
+.big { font-size: 1.5em; line-height: 1.2; margin: 4px 0 8px; }
 
-/* Card slot */
-.cardslot { position: absolute; }
-.land .cardslot { left: 330px; right: 330px; top: 14px; bottom: 14px; }
-.port .cardslot { left: 0; right: 0; top: 284px; bottom: 6px; }
-.card { position: absolute; left: 50%; top: 50%; opacity: 0; transition: opacity 600ms var(--ease), transform 700ms var(--ease); transform: translate(-50%, -46%) scale(var(--s)); pointer-events: none; }
-.card.on { opacity: 1; transform: translate(-50%, -50%) scale(var(--s)); }
-.card.out { opacity: 0; transform: translate(-50%, -58%) scale(var(--s)); }
-.speaking-card { animation: glow 1.4s ease-in-out infinite; }
-@keyframes glow { 50% { box-shadow: 0 0 0 6px var(--accent-soft); } }
-
-/* Phone card */
-.phone { --s: .76; width: 300px; height: 570px; border: 1px solid var(--line-strong); border-radius: 38px; background: var(--surface-raised); padding: 10px; }
-.port .phone { --s: .8; }
-.screen { position: absolute; inset: 10px; border-radius: 29px; background: var(--surface); overflow: hidden; }
-.notch { position: absolute; top: 10px; left: 50%; width: 92px; height: 22px; margin-left: -46px; border-radius: 12px; background: var(--ink-body); z-index: 5; }
-.view { position: absolute; inset: 0; padding: 46px 16px 16px; opacity: 0; transform: translateX(24px); transition: opacity 500ms var(--ease), transform 600ms var(--ease); }
-.view.on { opacity: 1; transform: none; }
-.view.gone { opacity: 0; transform: translateX(-24px); }
-.apphead { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
-.apphead b { font-family: var(--font-serif); font-weight: 400; font-size: 20px; color: var(--ink); }
-.apphead span { font-size: 12px; color: var(--ink-muted); }
-.who { text-align: center; font-size: 12px; color: var(--ink-muted); margin-bottom: 4px; }
-.whoname { text-align: center; font-size: 15px; font-weight: 500; color: var(--ink); margin-bottom: 14px; }
-.bubble { max-width: 88%; background: var(--surface-band); color: var(--ink-body); font-size: 17px; line-height: 24px; padding: 10px 13px; border-radius: 18px 18px 18px 6px; margin-bottom: 8px; }
-.field { font-size: 13px; line-height: 18px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-.field span { color: var(--ink-muted); }
-.quote { margin-top: 12px; font-size: 14px; line-height: 21px; border-left: 2px solid var(--line-strong); padding-left: 10px; }
-.note { margin-top: 12px; font-size: 14px; line-height: 21px; }
-.btn { display: inline-block; font: 500 14px/18px var(--font-sans); border-radius: var(--radius-sm); padding: 9px 14px; border: 1px solid var(--line-strong); background: var(--surface-raised); color: var(--ink); transition: transform 200ms var(--ease), background 300ms var(--ease); }
-.btn.pri { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-.btn.press { transform: scale(.93); background: var(--accent-hover); }
-.sendrow { display: flex; justify-content: flex-end; margin-top: 14px; }
-.mail h3 { font-family: var(--font-serif); font-weight: 400; font-size: 18px; line-height: 23px; color: var(--ink); margin: 2px 0 10px; }
-.mail p { font-size: 15px; line-height: 22px; margin-bottom: 10px; }
-.from { font-size: 12px; color: var(--ink-muted); }
-.nextstep { background: var(--accent-soft); border-radius: 4px; padding: 10px 12px; }
-.nextstep small { display: block; font-size: 12px; font-weight: 500; color: var(--accent-hover); margin-bottom: 2px; }
-.foot { font-size: 12px !important; line-height: 17px !important; color: var(--ink-muted); }
-.amount { font-family: var(--font-serif); font-size: 40px; line-height: 46px; color: var(--ink); margin: 6px 0 4px; }
-.small { font-size: 13px; line-height: 19px; color: var(--ink-muted); }
-.hold { border-top: 3px solid var(--accent); padding-top: 12px; }
-.badge { display: inline-block; font-size: 12px; font-weight: 500; color: var(--ink); background: var(--surface-band); border-radius: var(--radius-pill); padding: 4px 10px; }
-.hold h2, .done h2 { font-family: var(--font-serif); font-weight: 400; font-size: 23px; line-height: 28px; color: var(--ink); margin: 10px 0 8px; }
-.hold p { font-size: 14px; line-height: 21px; margin-bottom: 10px; }
-.btncol { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-.btncol .btn { text-align: center; }
-
-/* Panel cards: Second Look's read and the employee console */
-.panel { --s: .92; width: 460px; background: var(--surface-raised); border: 1px solid var(--line); }
-.port .panel { --s: 1.2; }
-.panel.console { --s: .8; }
-.port .panel.console { --s: .9; }
-.phead { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 20px 12px; border-bottom: 1px solid var(--line); background: var(--surface-band); }
-.phead b { font-family: var(--font-serif); font-weight: 400; font-size: 21px; color: var(--ink); }
-.phead span { font-size: 12px; color: var(--ink-body); }
-.pbody { padding: 18px 20px 20px; }
-.lbl { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-bottom: 8px; }
-.msg { font-size: 19px; line-height: 31px; }
-.hl { border-radius: 3px; padding: 1px 2px; margin: 0 -2px; background-image: linear-gradient(var(--accent-mark), var(--accent-mark)); background-repeat: no-repeat; background-size: 0% 100%; transition: background-size 900ms var(--ease); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
-.hl.on { background-size: 100% 100%; }
-.chips { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 20px; }
-.chip { display: inline-flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 500; line-height: 20px; color: var(--ink); background: var(--surface-raised); border: 1px solid var(--accent-mark); border-radius: var(--radius-pill); padding: 7px 14px 7px 12px; white-space: nowrap; }
-.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
-.chip.fill { background: var(--accent-soft); border-color: transparent; }
-.chip.plain::before { background: var(--ink-muted); }
-.pop { opacity: 0; transform: translateY(8px) scale(.97); transition: opacity 500ms var(--ease), transform 600ms var(--ease); }
-.pop.on { opacity: 1; transform: none; }
-.caveat { margin-top: 16px; font-size: 14px; color: var(--ink-muted); }
-.case-eyebrow { font-size: 13px; color: var(--ink-muted); }
-.case-amt { font-family: var(--font-serif); font-size: 32px; line-height: 38px; color: var(--ink); }
-.case-title { font-size: 15px; line-height: 21px; margin: 2px 0 12px; }
-.row { display: flex; flex-wrap: wrap; gap: 7px; }
-.row .chip, .sec .chip { font-size: 14px; padding: 5px 12px 5px 10px; }
-.sec { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.said { font-size: 16px; line-height: 23px; font-style: italic; color: var(--ink); margin-bottom: 8px; }
-.q { font-size: 15px; line-height: 22px; padding: 6px 0 6px 20px; position: relative; }
-.q::before { content: ""; position: absolute; left: 4px; top: 15px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-body); }
-.q .badge { margin-right: 6px; background: var(--accent-soft); }
-.outcome { display: flex; align-items: center; gap: 10px; font-size: 15px; padding: 6px 0; }
-.radio { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line-strong); position: relative; flex: none; }
-.radio::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--accent); transform: scale(0); transition: transform 300ms var(--ease); }
-.outcome.sel .radio { border-color: var(--accent); }
-.outcome.sel .radio::after { transform: scale(1); }
-.status { display: inline-block; margin-left: 12px; font-size: 15px; font-weight: 500; color: var(--ink); }
-
-/* Little side note (e.g. "No alarms") */
-.tags { position: absolute; display: flex; flex-wrap: wrap; gap: 8px; }
-.land .tags { right: 40px; top: 24px; flex-direction: column; align-items: flex-end; }
-.port .tags { right: 28px; top: 28px; flex-direction: column; align-items: flex-end; }
-.port .tags .chip { font-size: 18px; }
-
-/* Captions */
-.capbar { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 0 80px; background: var(--surface-raised); border-top: 1px solid var(--line); }
-.land .capbar { top: 504px; height: 152px; }
-.port .capbar { top: 856px; height: 340px; padding: 0 40px; }
-.capin { transition: opacity 260ms var(--ease), transform 300ms var(--ease); }
-.capin.out { opacity: 0; transform: translateY(6px); }
-.speaker { display: inline-block; font-size: 16px; font-weight: 500; color: var(--accent); margin-bottom: 8px; letter-spacing: .2px; }
-.line { font-family: var(--font-serif); font-size: 38px; line-height: 46px; color: var(--ink); max-width: 1080px; }
-.port .speaker { font-size: 22px; margin-bottom: 12px; }
-.port .line { font-size: 48px; line-height: 58px; }
-.capfine { font-size: 15px; color: var(--ink-muted); margin-top: 10px; min-height: 20px; }
-.port .capfine { font-size: 19px; }
-
-/* End card */
-.endcard { position: absolute; left: 0; right: 0; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 60px; opacity: 0; pointer-events: none; transition: opacity 900ms var(--ease); z-index: 20; }
-.land .endcard { top: 56px; bottom: 64px; } .port .endcard { top: 96px; bottom: 84px; }
-.endcard.on { opacity: 1; }
-.endcard h1 { font-family: var(--font-serif); font-weight: 400; color: var(--ink); font-size: 64px; line-height: 70px; letter-spacing: -.6px; }
-.endcard p { margin-top: 18px; font-size: 22px; line-height: 32px; max-width: 760px; }
-.endcard .row { justify-content: center; margin-top: 28px; gap: 10px; }
-.endcard .row .chip { font-size: 16px; padding: 7px 14px 7px 12px; }
-.endcard .fine { margin-top: 28px; font-size: 15px; color: var(--ink-muted); }
-.port .endcard h1 { font-size: 66px; line-height: 72px; } .port .endcard p { font-size: 27px; line-height: 38px; }
-.port .endcard .row .chip { font-size: 20px; }
+/* Dialogue box */
+.dlg { position: absolute; background: var(--hud); color: #fff; border: 5px solid #e9e9e6; outline: 5px solid var(--hud); }
+.land .dlg { left: 46px; right: 46px; bottom: 34px; min-height: 132px; padding: 16px 26px 18px; }
+.port .dlg { left: 24px; right: 24px; top: 896px; min-height: 230px; padding: 22px 26px; }
+.dlg.hide { visibility: hidden; }
+.who { font-family: var(--px); font-size: 20px; color: #7fc4f5; margin-bottom: 6px; }
+.say { font-size: 34px; line-height: 44px; min-height: 44px; }
+.fine { font-size: 18px; color: #a9abb2; margin-top: 6px; }
+.port .who { font-size: 24px; } .port .say { font-size: 40px; line-height: 52px; } .port .fine { font-size: 22px; }
 
 /* Controls */
-.controls { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; display: flex; align-items: center; gap: 14px; padding: 0 36px; border-top: 1px solid var(--line); z-index: 30; background: var(--surface); }
-.port .controls { height: 84px; padding: 0 28px; }
-.cbtn { font: 500 15px/18px var(--font-sans); color: var(--ink); background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 9px 16px; cursor: pointer; min-width: 92px; }
-.port .cbtn { font-size: 20px; padding: 13px 18px; min-width: 116px; }
-.cbtn:hover { background: var(--surface-band); }
-.cbtn:focus-visible, .dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.track { flex: 1; display: flex; gap: 6px; align-items: center; }
-.dot { flex: 1; height: 28px; display: flex; align-items: center; cursor: pointer; background: none; border: 0; padding: 0; }
-.dot i { display: block; width: 100%; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; position: relative; }
-.dot i b { position: absolute; inset: 0; width: 0; background: var(--accent); }
-.time { font-size: 14px; color: var(--ink-muted); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
-.port .time { font-size: 18px; }
+.ctl { position: absolute; display: flex; gap: 10px; z-index: 30; }
+.land .ctl { right: 316px; top: 32px; display: none; }
+.land .ctl.show, .land #stage:hover .ctl { display: flex; }
+.port .ctl { right: 18px; bottom: 18px; }
+.cb { font-family: var(--px); font-size: 15px; color: var(--ink); background: var(--paper); border: 3px solid var(--ink); padding: 7px 12px; cursor: pointer; box-shadow: 3px 3px 0 var(--ink); }
+.port .cb { font-size: 18px; padding: 10px 14px; }
+.cb:active { transform: translate(3px, 3px); box-shadow: none; }
+.cb:focus-visible, .start button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
-@media (prefers-reduced-motion: reduce) {
-  .talking .head, .body, .eye { animation: none; }
-  .talking .mouth { animation-duration: .8s; }
-}
+/* Start and end screens */
+.start, .end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #fff; }
+.start { background: rgba(20,21,24,.82); z-index: 50; }
+.end { background: var(--hud); display: none; z-index: 20; padding: 0 40px; }
+.end.on { display: flex; }
+.start h1, .end h1 { font-family: var(--px); font-weight: 400; font-size: 64px; line-height: 1.1; letter-spacing: 2px; }
+.start p, .end p { font-size: 28px; line-height: 38px; margin-top: 14px; max-width: 900px; }
+.start button { font-family: var(--px); font-size: 24px; margin-top: 30px; padding: 14px 26px; background: var(--accent); color: #fff; border: 4px solid #fff; cursor: pointer; box-shadow: 5px 5px 0 #000; }
+.start .alt { background: transparent; border: 0; box-shadow: none; font-size: 16px; margin-top: 16px; text-decoration: underline; padding: 6px; }
+.start small, .end small { display: block; margin-top: 26px; font-size: 18px; color: #a9abb2; }
+.end .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 26px; }
+.end .chip { display: inline-block; background: transparent; color: #fff; border-color: #fff; font-size: 16px; }
+.port .start h1, .port .end h1 { font-size: 52px; } .port .start p, .port .end p { font-size: 30px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>
 </head>
 <body>
 <div id="stage">
-  <div class="band">
-    <div class="brand">Second Look</div>
-    <div class="steplbl" id="steplbl"></div>
-    <div class="sim">Simulated demo · fake data</div>
+  <canvas id="scene" width="240" height="135" aria-hidden="true"></canvas>
+  <div id="ov"><div class="mon" id="mon" style="left:86px;top:47px;width:36px;display:none"><div class="nm" id="monName">LINDA</div><div class="st" id="monState">ON HOLD</div></div></div>
+
+  <div class="hud" id="hud" aria-hidden="true"></div>
+  <div class="tag">Simulated demo · fake data</div>
+  <div class="panel" id="panel" aria-hidden="true"></div>
+
+  <div class="dlg hide" id="dlg" aria-live="polite"><div class="who" id="who"></div><div class="say" id="say"></div><div class="fine" id="fine"></div></div>
+
+  <div class="end" id="end">
+    <h1>SECOND LOOK</h1>
+    <p>A second look, not a wall. Members check what feels off. Risky payments pause briefly so a person can call. Everything else moves.</p>
+    <div class="row"><span class="chip">Opt-in inside the Sound app</span><span class="chip">Never moves money</span><span class="chip">The member decides</span></div>
+    <small>Simulated demo on synthetic data. Linda, Dana and Marcus are made-up characters.</small>
   </div>
 
-  <div class="scene" id="scene" aria-hidden="true">
-    <div class="floor"></div>
-    <div class="char L" id="linda"></div>
-    <div class="char L" id="marcus"></div>
-    <div class="char R" id="dana"></div>
-
-    <div class="tags" id="tags">
-      <span class="chip plain pop" data-tag>No alarms</span>
-      <span class="chip plain pop" data-tag>Nothing blocked</span>
-      <span class="chip plain pop" data-tag>Her decision</span>
-    </div>
-
-    <div class="cardslot">
-      <!-- Phone -->
-      <div class="card phone" id="phone">
-        <div class="notch"></div>
-        <div class="screen">
-          <div class="view" id="v-msg">
-            <div class="who">Text message</div>
-            <div class="whoname">(253) 555-0142</div>
-            <div class="bubble pop" id="b1">Grandma, it’s me. I’m in jail and need $8,500 for bail.</div>
-            <div class="bubble pop" id="b2">Wire it today. Please don’t tell Mom.</div>
-          </div>
-          <div class="view" id="v-fwd">
-            <div class="apphead"><b>New email</b><span>Cancel</span></div>
-            <div class="field"><span>To </span>secondlook@agentmail.to</div>
-            <div class="field"><span>Subject </span>Fwd: text from an unknown number</div>
-            <div class="note">Is this real?</div>
-            <div class="quote">Grandma, it’s me. I’m in jail and need $8,500 for bail. Wire it today. Please don’t tell Mom.</div>
-            <div class="sendrow"><span class="btn pri" id="sendbtn">Send</span></div>
-          </div>
-          <div class="view mail" id="v-reply">
-            <div class="from">From Second Look · just now</div>
-            <h3>Re: Fwd: text from an unknown number</h3>
-            <p>Thanks for checking with me.</p>
-            <p>It asks you to keep it secret, to hurry, and it’s about a family emergency.</p>
-            <p class="nextstep pop" id="r3"><small>One next step</small>Before you send anything, call your grandson on a number you already had.</p>
-            <p class="foot pop" id="r4">Second Look never asks for codes or passwords and never moves money.</p>
-          </div>
-          <div class="view" id="v-pay">
-            <div class="apphead"><b>Sound</b><span>Linda</span></div>
-            <div class="small">Send a wire</div>
-            <div class="amount">$8,500.00</div>
-            <div class="field"><span>To </span>New recipient</div>
-            <div class="field"><span>From </span>Checking</div>
-            <div class="sendrow"><span class="btn pri" id="wirebtn">Send wire</span></div>
-          </div>
-          <div class="view" id="v-hold">
-            <div class="apphead"><b>Sound</b><span>Linda</span></div>
-            <div class="hold">
-              <span class="badge">On hold · nothing has been sent</span>
-              <h2>Your $8,500 wire is paused</h2>
-              <p>A few things look different from usual, so we paused it to check with you. A Sound team member will call you. If it’s right, you can still send it.</p>
-              <p class="small">Paused for up to <b id="cd1">4h 00m</b> more.</p>
-              <div class="btncol"><span class="btn">It’s me, send it now</span><span class="btn">Cancel this payment</span></div>
-            </div>
-          </div>
-          <div class="view done" id="v-sent">
-            <div class="apphead"><b>Sound</b><span>Marcus</span></div>
-            <span class="badge">Sent</span>
-            <h2>Your $51,587 wire is on its way</h2>
-            <p class="small">Paused for 3 minutes.</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Second Look reads the message -->
-      <div class="card panel" id="sl">
-        <div class="phead"><b>Second Look</b><span>Forwarded by Linda</span></div>
-        <div class="pbody">
-          <div class="lbl">The message she forwarded</div>
-          <div class="msg"><span class="hl" data-k="fam">Grandma, it’s me. I’m in jail</span> and need $8,500 for bail. Wire it <span class="hl" data-k="urg">today</span>. <span class="hl" data-k="sec">Please don’t tell Mom.</span></div>
-          <div class="chips">
-            <span class="chip pop" data-k="sec">Asked to keep it secret</span>
-            <span class="chip pop" data-k="urg">Pressure to hurry</span>
-            <span class="chip pop" data-k="fam">Emergency involving family</span>
-          </div>
-          <p class="caveat pop" id="caveat">Signals to check, not proof.</p>
-        </div>
-      </div>
-
-      <!-- Employee console: Linda -->
-      <div class="card panel console" id="case1">
-        <div class="phead"><b>Employee console</b><span>Sound staff view</span></div>
-        <div class="pbody">
-          <div class="case-eyebrow">Case 1 · M1001 · On hold</div>
-          <div class="case-amt">$8,500 wire</div>
-          <div class="case-title">First wire in a long time, to a brand-new recipient, well above usual.</div>
-          <div class="row">
-            <span class="chip fill">Brand-new recipient</span>
-            <span class="chip fill">First wire in 2,411 days</span>
-            <span class="chip fill">4.77× her usual</span>
-          </div>
-          <div class="sec pop" id="c1said">
-            <div class="lbl">What the member told Second Look <span class="badge">Shared by Linda</span></div>
-            <div class="said">“Please don’t tell Mom.”</div>
-            <span class="chip">Asked to keep it secret</span>
-          </div>
-          <div class="sec pop" id="c1guide">
-            <div class="lbl">Call the member on the number on file</div>
-            <div class="q"><span class="badge">From the chat</span>Has anyone asked you to keep this quiet, or told you what to say to us?</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Employee console: Marcus -->
-      <div class="card panel console" id="case2">
-        <div class="phead"><b>Employee console</b><span>Sound staff view</span></div>
-        <div class="pbody">
-          <div class="case-eyebrow" id="c2state">Case 2 · M1057 · On hold</div>
-          <div class="case-amt">$51,587 wire</div>
-          <div class="case-title">Same check fires. A closing wire for a home purchase.</div>
-          <div class="row">
-            <span class="chip fill">Brand-new recipient</span>
-            <span class="chip fill">No wire in over a year</span>
-            <span class="chip fill">42.63× usual</span>
-          </div>
-          <div class="sec">
-            <div class="lbl">Record the outcome</div>
-            <div class="outcome" id="o1"><span class="radio"></span>Member confirmed by phone: legitimate</div>
-            <div class="outcome"><span class="radio"></span>Verified with a contact the member already had</div>
-            <div class="outcome"><span class="radio"></span>Member chose to cancel</div>
-            <div class="sendrow" style="justify-content:flex-start;align-items:center"><span class="btn pri" id="relbtn">Release the payment</span><span class="status pop" id="c2done">Released</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
+  <div class="ctl" id="ctl">
+    <button class="cb" id="play">Pause</button>
+    <button class="cb" id="restart">Restart</button>
+    <button class="cb" id="snd">Sound on</button>
   </div>
 
-  <div class="capbar" aria-live="polite">
-    <div class="capin" id="capin">
-      <div class="speaker" id="speaker"></div>
-      <div class="line" id="line"></div>
-      <div class="capfine" id="capfine"></div>
-    </div>
-  </div>
-
-  <div class="endcard" id="endcard">
-    <h1>A second look, not a wall.</h1>
-    <p>Members check what feels off. Risky payments pause briefly so a person can call. Everything else moves.</p>
-    <div class="row">
-      <span class="chip">Opt-in inside the Sound app</span>
-      <span class="chip">Never moves money</span>
-      <span class="chip">The member decides</span>
-    </div>
-    <p class="fine">Simulated demo on synthetic data. Linda, Dana and Marcus are made-up characters.</p>
-  </div>
-
-  <div class="controls">
-    <button class="cbtn" id="play">Pause</button>
-    <button class="cbtn" id="restart" aria-label="Restart from the beginning">Restart</button>
-    <div class="track" id="track" role="group" aria-label="Jump to a step"></div>
-    <span class="time" id="time">0:00</span>
+  <div class="start" id="start">
+    <h1>SECOND LOOK</h1>
+    <p>How Sound members get a calm second look before money moves.</p>
+    <button id="go">▶ Play with sound</button>
+    <button class="alt" id="goMuted">Play without sound (captions only)</button>
+    <small>Simulated demo · fake data · about 70 seconds, loops</small>
   </div>
 </div>
 
 <script>
 (() => {
-  const $ = id => document.getElementById(id);
-  const stage = $('stage');
+'use strict';
+const $ = id => document.getElementById(id);
+const stage = $('stage'), cv = $('scene'), ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = false;
 
-  // ---------- Characters (original, drawn in SVG) ----------
-  function person(o) {
-    const hairBack = {
-      bun:   `<circle cx="120" cy="52" r="22" fill="${o.hair}"/>`,
-      bob:   `<path d="M62 118 Q58 50 120 46 Q182 50 178 118 L178 168 Q170 176 160 168 L160 110 L80 110 L80 168 Q70 176 62 168 Z" fill="${o.hair}"/>`,
-      short: ``,
-    }[o.style];
-    const hairFront = {
-      bun:   `<path d="M66 112 Q64 62 120 58 Q176 62 174 112 Q160 84 120 82 Q80 84 66 112 Z" fill="${o.hair}"/>`,
-      bob:   `<path d="M68 106 Q72 64 120 60 Q168 64 172 106 Q150 80 104 86 Q84 90 68 106 Z" fill="${o.hair}"/>`,
-      short: `<path d="M68 104 Q66 60 120 56 Q174 60 172 104 Q164 82 120 80 Q76 82 68 104 Z" fill="${o.hair}"/>`,
-    }[o.style];
-    const beard = o.beard ? `<path d="M76 140 Q80 186 120 190 Q160 186 164 140 Q160 160 140 164 Q120 172 100 164 Q80 160 76 140 Z" fill="${o.hair}"/>` : '';
-    const glasses = o.glasses ? `<g fill="none" stroke="#3b4350" stroke-width="2.5"><circle cx="100" cy="122" r="13"/><circle cx="140" cy="122" r="13"/><path d="M113 122 H127"/></g>` : '';
-    const headset = o.headset ? `<path d="M64 120 Q64 50 120 48 Q176 50 176 120" fill="none" stroke="#262e38" stroke-width="6"/><rect x="56" y="110" width="16" height="28" rx="6" fill="#262e38"/><path d="M66 136 Q74 170 104 168" fill="none" stroke="#262e38" stroke-width="4"/><circle cx="106" cy="168" r="5" fill="#262e38"/>` : '';
-    return `<svg viewBox="0 0 240 280" role="img" aria-label="${o.label}">
-      <g class="body">
-        <path d="M18 280 Q18 206 120 200 Q222 206 222 280 Z" fill="${o.shirt}"/>
-        ${o.collar ? `<path d="M100 202 L120 232 L140 202" fill="none" stroke="${o.collar}" stroke-width="5" stroke-linejoin="round"/>` : ''}
-        <g class="head">
-          ${hairBack}
-          <rect x="104" y="158" width="32" height="46" rx="12" fill="${o.skinShade}"/>
-          <circle cx="66" cy="124" r="10" fill="${o.skinShade}"/><circle cx="174" cy="124" r="10" fill="${o.skinShade}"/>
-          <ellipse cx="120" cy="122" rx="54" ry="62" fill="${o.skin}"/>
-          ${beard}
-          ${hairFront}
-          <path d="M90 104 Q100 98 110 104" fill="none" stroke="${o.brow}" stroke-width="3.5" stroke-linecap="round"/>
-          <path d="M130 104 Q140 98 150 104" fill="none" stroke="${o.brow}" stroke-width="3.5" stroke-linecap="round"/>
-          <ellipse class="eye" cx="100" cy="122" rx="5" ry="6" fill="#1d2430"/>
-          <ellipse class="eye" cx="140" cy="122" rx="5" ry="6" fill="#1d2430"/>
-          ${glasses}
-          <path d="M118 128 Q114 142 122 144" fill="none" stroke="${o.skinShade}" stroke-width="3" stroke-linecap="round"/>
-          <ellipse class="mouth" cx="120" cy="160" rx="13" ry="9" fill="#5b2b2b"/>
-          ${headset}
-        </g>
-      </g>
-    </svg><div class="name"><b>${o.name}</b> · ${o.role}</div>`;
-  }
-  $('linda').innerHTML = person({ name: 'Linda', role: 'member', label: 'Linda', skin: '#f2d4c0', skinShade: '#ddb49c', hair: '#c9ccd1', brow: '#9aa0a8', style: 'bun', glasses: true, shirt: '#9fb7c6', collar: '#f2fafc' });
-  $('dana').innerHTML = person({ name: 'Dana', role: 'Sound employee', label: 'Dana', skin: '#c99272', skinShade: '#b07a5c', hair: '#2e2420', brow: '#2e2420', style: 'bob', headset: true, shirt: '#00205b', collar: '#71c4e8' });
-  $('marcus').innerHTML = person({ name: 'Marcus', role: 'home buyer', label: 'Marcus', skin: '#8d5d40', skinShade: '#744a31', hair: '#1f1a17', brow: '#1f1a17', style: 'short', beard: true, shirt: '#8e9c83', collar: '#e6f1f4' });
+// ---------------- Layout ----------------
+function fit() {
+  const port = innerHeight / innerWidth > 1.1;
+  document.body.className = port ? 'port' : 'land';
+  const W = port ? 720 : 1280, H = port ? 1280 : 720;
+  stage.style.transform = `scale(${Math.min(innerWidth / W, innerHeight / H)}) translate(-50%, -50%)`;
+}
+addEventListener('resize', fit); fit();
 
-  // ---------- Layout ----------
-  function fit() {
-    const port = innerHeight / innerWidth > 1.1;
-    document.body.className = port ? 'port' : 'land';
-    const W = port ? 720 : 1280, H = port ? 1280 : 720;
-    stage.style.transform = `scale(${Math.min(innerWidth / W, innerHeight / H)}) translate(-50%, -50%)`;
-  }
-  addEventListener('resize', fit); fit();
+// ---------------- Pixel drawing ----------------
+const C = {
+  wall: '#d6d6d3', wall2: '#cacac7', trim: '#b8b9be', floor: '#9a9ca3', floorLine: '#83858d', floor2: '#8d8f97',
+  frame: '#4a4d55', glass: '#eff0ee', sky: '#e4e6e3', bld: '#b7b9bf', bld2: '#a2a5ac', dot: '#70737b',
+  desk: '#44474e', deskTop: '#5b5e66', mon: '#1d1f24', screen: '#f3f4f1', plant: '#6e9a7c', plant2: '#4e7a5e', pot: '#d0d1cd',
+  ink: '#141518', white: '#fafaf7', accent: '#2f7fc1', maroon: '#6b2a39', box: '#b29a74', box2: '#9a835f', tape: '#d9c9a5',
+  chair: '#8c7a86', chair2: '#76656f', lamp: '#e8e2c8',
+};
+const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+function disc(cx, cy, r, c) { for (let dy = -r; dy <= r; dy++) { const w = Math.round(Math.sqrt(r * r - dy * dy)); R(cx - w, cy + dy, w * 2 + 1, 1, c); } }
+function line(x0, y0, x1, y1, c) { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0; for (let i = 0; i <= n; i++) R(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, 1, 1, c); }
 
-  // ---------- Script ----------
-  const STEPS = [
-    { at: 0,  title: 'A pressured message' },
-    { at: 11, title: 'She forwards it' },
-    { at: 20, title: 'Second Look names the pressure' },
-    { at: 31, title: 'A calm reply' },
-    { at: 41, title: 'If money moves anyway, it pauses' },
-    { at: 58, title: 'A real purchase gets through fast' },
-  ];
-  const END = 69, TOTAL = 75;
+function room(floorY) {
+  R(0, 0, 240, floorY, C.wall); R(0, floorY - 10, 240, 10, C.wall2); R(0, floorY - 1, 240, 1, C.trim);
+  R(0, floorY, 240, 135 - floorY, C.floor);
+  for (let y = floorY + 6, g = 6; y < 135; g += 2, y += g) R(0, y, 240, 1, C.floorLine);
+}
+function clock(x, y, t) {
+  disc(x, y, 9, C.ink); disc(x, y, 8, C.white);
+  for (const [dx, dy] of [[0, -6], [6, 0], [0, 6], [-6, 0]]) R(x + dx, y + dy, 1, 1, C.frame);
+  const a = t * 0.6, b = t * 0.05;
+  line(x, y, x + Math.round(Math.sin(a) * 6), y - Math.round(Math.cos(a) * 6), C.ink);
+  line(x, y, x + Math.round(Math.sin(b) * 4), y - Math.round(Math.cos(b) * 4), C.maroon);
+}
+function plant(x, y) {
+  R(x - 5, y - 12, 11, 12, C.pot); R(x - 6, y - 13, 13, 2, '#bfc0bc');
+  R(x - 6, y - 30, 13, 17, C.plant); R(x - 4, y - 36, 9, 7, C.plant); R(x - 2, y - 40, 5, 5, C.plant); R(x - 1, y - 28, 6, 14, C.plant2); R(x - 5, y - 22, 4, 8, C.plant2);
+}
+function cityWindow(x, y, w, h, t) {
+  R(x - 2, y - 2, w + 4, h + 4, C.frame); R(x, y, w, h, C.glass);
+  const bs = [[4, 20], [14, 30], [26, 24], [36, 34], [48, 18], [56, 28]];
+  for (const [bx, bh] of bs) if (bx + 10 <= w) { R(x + bx, y + h - bh, 10, bh, bx % 3 ? C.bld : C.bld2); for (let yy = y + h - bh + 3; yy < y + h - 2; yy += 5) for (let xx = x + bx + 2; xx < x + bx + 9; xx += 4) R(xx, yy, 1, 1, C.dot); }
+  R(x + w / 2 - 1, y, 2, h, C.frame); R(x, y + h / 2 - 1, w, 2, C.frame);
+  R(x - 4, y + h + 2, w + 8, 2, C.trim);
+  R(x + 6 + (t * 2 % 30), y + 6, 8, 2, '#ffffff'); // drifting cloud
+}
 
-  // Spoken lines: [time, speaker id, speaker label, text, small note]
-  const LINES = [
-    [0.6,  'linda', 'Linda',          'A text from a number I don’t know.'],
-    [3.2,  'phone', 'Text message',   '“Grandma, it’s me. I’m in jail and need $8,500 for bail.”'],
-    [6.4,  'phone', 'Text message',   '“Wire it today. Please don’t tell Mom.”'],
-    [9.0,  'linda', 'Linda',          'Today? Something feels off.'],
-    [11.2, 'linda', 'Linda',          'I’ll forward it to Second Look before I do anything.', 'An email to secondlook@agentmail.to. WhatsApp forwarding is planned, not built yet.'],
-    [16.2, 'sl',    'Second Look',    'Got it. Let’s take a look together.'],
-    [20.6, 'sl',    'Second Look',    'It asks you to keep it secret.'],
-    [23.4, 'sl',    'Second Look',    'It pushes you to send it today.'],
-    [26.2, 'sl',    'Second Look',    'And it’s about a family emergency.', 'Signals to check, not proof.'],
-    [31.4, 'phone', 'Second Look · email reply', 'Before you send anything, call your grandson on a number you already had.'],
-    [35.4, 'phone', 'Second Look · email reply', 'It’s your decision. I never move money.'],
-    [38.4, 'linda', 'Linda',          'Okay. No panic. Just one step.'],
-    [41.4, 'linda', 'Linda',          'But what if it really is him? I’ll send it anyway.'],
-    [44.8, 'phone', 'Sound app',      'Your $8,500 wire is paused. Nothing has been sent.', 'A wire can wait up to 4 hours. She can still send it.'],
-    [47.8, 'dana',  'Dana · Sound',   'New recipient, first wire in years, far above usual. And she shared the text.'],
-    [51.6, 'dana',  'Dana · Sound',   'Hi Linda, it’s Dana from Sound. Has anyone asked you to keep this quiet?', 'Dana calls the number on file.'],
-    [54.6, 'linda', 'Linda',          'He said not to tell my mom.'],
-    [56.4, 'dana',  'Dana · Sound',   'That’s a common pressure sign. Try his usual number first. It’s your call.'],
-    [58.6, 'dana',  'Dana · Sound',   'Same check fired on a $51,587 wire.'],
-    [61.0, 'dana',  'Dana · Sound',   'Hi Marcus, it’s Dana from Sound. Is this for your home closing?'],
-    [63.4, 'marcus','Marcus',         'Yes, we close today.'],
-    [64.8, 'dana',  'Dana · Sound',   'Thanks. It’s released and on its way.', 'Paused for 3 minutes, start to finish.'],
-    [67.0, 'marcus','Marcus',         'That was quick.'],
-    [END,  null,    '',               ''],
-  ];
+function bgLiving(t) {
+  room(68);
+  // window with trees
+  const x = 14, y = 12, w = 54, h = 40;
+  R(x - 2, y - 2, w + 4, h + 4, C.frame); R(x, y, w, h, C.sky);
+  R(x, y + h - 8, w, 8, '#b9c4b6'); for (const [tx, th] of [[6, 18], [22, 24], [40, 16]]) { R(x + tx, y + h - th, 9, th - 6, C.plant); R(x + tx + 3, y + h - 8, 2, 4, C.frame); }
+  R(x + w / 2 - 1, y, 2, h, C.frame); R(x, y + h / 2 - 1, w, 2, C.frame); R(x - 4, y + h + 2, w + 8, 2, C.trim);
+  clock(98, 20, t);
+  // picture frames
+  R(126, 14, 22, 18, C.frame); R(128, 16, 18, 14, '#c9d6dd'); R(130, 24, 14, 6, '#a7b3a2'); disc(140, 20, 2, '#f1e3b0');
+  R(152, 18, 12, 14, C.frame); R(154, 20, 8, 10, '#e2d7cf'); R(157, 22, 2, 3, '#a68f84');
+  // floor lamp
+  R(226, 30, 1, 66, C.frame); R(220, 22, 13, 9, C.lamp); R(222, 95, 9, 2, C.frame);
+  // armchair
+  R(178, 62, 36, 22, C.chair); R(178, 62, 36, 3, C.chair2); R(176, 72, 7, 20, C.chair2); R(209, 72, 7, 20, C.chair2); R(182, 80, 28, 10, C.chair); R(180, 92, 3, 4, C.ink); R(209, 92, 3, 4, C.ink);
+  // side table + tea
+  R(150, 78, 18, 3, C.desk); R(152, 81, 2, 15, C.desk); R(164, 81, 2, 15, C.desk); R(156, 73, 5, 5, C.white); R(161, 74, 2, 2, C.white);
+  plant(8, 96);
+}
+function bgOffice(t) {
+  room(66);
+  cityWindow(16, 12, 64, 44, t);
+  clock(98, 18, t);
+  // vent
+  R(150, 12, 40, 18, C.frame); R(152, 14, 36, 14, '#2a2c31'); for (let yy = 16; yy < 28; yy += 3) R(152, yy, 36, 1, '#5a5d65');
+  // shelf with binders
+  R(142, 50, 70, 3, C.desk); const bc = [C.maroon, '#6d7079', '#b9bbc1', C.maroon, '#9da0a7', '#4f525a', '#c6c8cc', C.maroon, '#7b7e86'];
+  bc.forEach((c, i) => R(146 + i * 7 + (i > 4 ? 6 : 0), 37 + (i % 3), 5, 13 - (i % 3), c));
+  // desk + monitor
+  R(58, 72, 96, 4, C.deskTop); R(62, 76, 88, 22, C.desk); R(62, 98, 88, 2, C.ink); R(110, 81, 8, 1, '#7b7e86'); R(110, 90, 8, 1, '#7b7e86'); R(90, 86, 40, 1, C.ink);
+  R(82, 42, 44, 28, C.mon); R(85, 45, 38, 21, C.screen); R(100, 70, 8, 2, C.mon); R(94, 72, 20, 1, C.mon);
+  R(68, 68, 10, 2, C.white); R(68, 70, 10, 1, '#bfc0bc'); // papers
+  R(130, 70, 18, 2, '#7b7e86'); // keyboard
+  plant(14, 100);
+}
+function bgApartment(t) {
+  room(68);
+  const x = 150, y = 12, w = 50, h = 40;
+  R(x - 2, y - 2, w + 4, h + 4, C.frame); R(x, y, w, h, C.sky); R(x, y + h - 10, w, 10, C.bld); R(x + 8, y + h - 18, 10, 8, C.bld2); R(x + w / 2 - 1, y, 2, h, C.frame); R(x - 4, y + h + 2, w + 8, 2, C.trim);
+  // moving boxes
+  const box = (bx, by, bw, bh) => { R(bx, by, bw, bh, C.box); R(bx, by, bw, 2, C.box2); R(bx + bw / 2 - 2, by, 4, bh, C.tape); R(bx, by + bh - 1, bw, 1, C.box2); };
+  box(12, 74, 30, 22); box(42, 80, 24, 16); box(18, 56, 22, 18); box(208, 78, 22, 18);
+  // leaning frame
+  R(70, 70, 18, 26, C.frame); R(72, 72, 14, 22, '#c9d6dd');
+  // keys on hook
+  R(118, 30, 6, 1, C.frame); R(119, 31, 1, 4, '#c9b25e'); R(122, 31, 1, 3, '#c9b25e');
+  clock(28, 20, t);
+}
+const BG = { living: bgLiving, office: bgOffice, apartment: bgApartment };
 
-  const cls = (id, c, on = true) => () => $(id).classList.toggle(c, on);
-  const all = (sel, c, on = true) => () => document.querySelectorAll(sel).forEach(e => e.classList.toggle(c, on));
-  const views = ['v-msg', 'v-fwd', 'v-reply', 'v-pay', 'v-hold', 'v-sent'];
-  const view = v => () => views.forEach(x => { const e = $(x), was = e.classList.contains('on'); e.classList.toggle('on', x === v); e.classList.toggle('gone', x !== v && was); });
-  const cards = ['phone', 'sl', 'case1', 'case2'];
-  const card = c => () => cards.forEach(x => { const e = $(x), was = e.classList.contains('on'); e.classList.toggle('on', x === c); e.classList.toggle('out', x !== c && was); });
-  const cast = (...who) => () => ['linda', 'dana', 'marcus'].forEach(x => $(x).classList.toggle('on', who.includes(x)));
+// ---------------- Characters ----------------
+const PAL = {
+  linda:  { skin: '#f0c8ae', skinD: '#d6a88b', hair: '#cdd0d5', hairD: '#a9adb4', shirt: '#9a6f86', shirtD: '#7f5b6f', pants: '#4a4c55', pantsD: '#3a3c43', shoe: '#1d1f24', style: 'bun', glasses: true, long: true },
+  dana:   { skin: '#c08a64', skinD: '#a5734f', hair: '#2e2520', hairD: '#201a16', shirt: '#24406f', shirtD: '#1a3058', pants: '#2c2f36', pantsD: '#22252b', shoe: '#111215', style: 'bob', headset: true },
+  marcus: { skin: '#7e5236', skinD: '#69432b', hair: '#1b1716', hairD: '#110e0d', shirt: '#7f8f73', shirtD: '#69785f', pants: '#3d4048', pantsD: '#30323a', shoe: '#1d1f24', style: 'short', beard: true },
+};
+const A = {
+  linda:  { x: 90, y: 97, face: 1, pose: 'stand', walk: false, talk: false, home: 'living' },
+  dana:   { x: 172, y: 97, face: -1, pose: 'stand', walk: false, talk: false, home: 'office' },
+  marcus: { x: 112, y: 97, face: 1, pose: 'stand', walk: false, talk: false, home: 'apartment' },
+};
+function person(id, t) {
+  const o = A[id], P = PAL[id], f = o.face, X = Math.round(o.x), Y = o.y;
+  const r = (dx, dy, w, h, c) => R(f === 1 ? X + dx : X - dx - w + 1, Y + dy, w, h, c);
+  const st = o.walk ? Math.floor(t * 7) % 2 : 0;
+  const bob = (o.talk && Math.floor(t * 5) % 2) || (o.walk && st) ? -1 : 0;
+  // legs and shoes
+  const lb = o.walk ? (st ? -2 : 1) : 0, lf = o.walk ? (st ? 1 : -2) : 0;
+  r(-3 + lb, -14, 3, 12, P.pantsD); r(-4 + lb, -2, 4, 2, P.shoe);
+  r(0 + lf, -14, 3, 12, P.pants); r(0 + lf, -2, 5, 2, P.shoe);
+  // torso
+  const th = P.long ? 19 : 16;
+  r(-5, -30 + bob, 11, th, P.shirt); r(-5, -30 + bob, 2, th, P.shirtD); r(-1, -30 + bob, 3, 1, P.skinD);
+  // neck + head
+  r(-1, -32 + bob, 4, 2, P.skinD);
+  r(-5, -42 + bob, 10, 10, P.skin); r(5, -37 + bob, 1, 2, P.skin); // nose
+  r(-1, -37 + bob, 2, 3, P.skinD); // ear
+  const blink = (t % 4.4) < 0.13;
+  r(2, -39 + bob + (blink ? 1 : 0), 1, blink ? 1 : 2, '#1b1d22');
+  const open = o.talk && (Math.floor(t * 10) % 3 !== 0);
+  r(2, -35 + bob, 3, open ? 2 : 1, open ? '#5a2630' : '#8a4b4b');
+  // hair
+  if (P.style === 'bun') { r(-5, -43 + bob, 10, 3, P.hair); r(-6, -42 + bob, 4, 8, P.hair); r(-9, -44 + bob, 4, 4, P.hairD); r(-2, -43 + bob, 4, 1, '#e6e8eb'); }
+  if (P.style === 'bob') { r(-5, -43 + bob, 11, 3, P.hair); r(-7, -42 + bob, 5, 12, P.hair); r(3, -41 + bob, 3, 2, P.hair); r(-7, -31 + bob, 4, 1, P.hairD); }
+  if (P.style === 'short') { r(-5, -43 + bob, 10, 2, P.hair); r(-6, -42 + bob, 3, 6, P.hair); r(-2, -41 + bob, 2, 1, P.hair); }
+  if (P.beard) { r(-2, -33 + bob, 8, 2, P.hair); r(-2, -36 + bob, 1, 3, P.hair); r(2, -35 + bob, 3, open ? 2 : 1, open ? '#3d1c22' : '#9c5b52'); }
+  if (P.glasses) { r(1, -40 + bob, 4, 1, '#2a2c31'); r(4, -39 + bob, 1, 2, '#2a2c31'); r(1, -39 + bob, 1, 2, '#2a2c31'); }
+  if (P.headset) { r(-2, -38 + bob, 2, 4, '#1b1d22'); r(-1, -44 + bob, 2, 1, '#1b1d22'); r(0, -34 + bob, 4, 1, '#1b1d22'); r(4, -35 + bob, 1, 2, '#1b1d22'); }
+  // arm by pose
+  const sw = o.walk ? (st ? 1 : -1) : 0;
+  if (o.pose === 'phone') { r(0, -29 + bob, 3, 7, P.shirt); r(0, -23 + bob, 7, 3, P.shirt); r(6, -25 + bob, 3, 3, P.skin); r(8, -30 + bob, 3, 6, '#1b1d22'); r(9, -29 + bob, 1, 4, '#7fc4f5'); }
+  else if (o.pose === 'ear') { r(0, -29 + bob, 3, 5, P.shirt); r(1, -35 + bob, 3, 7, P.shirt); r(0, -39 + bob, 3, 3, P.skin); r(-1, -42 + bob, 2, 6, '#1b1d22'); }
+  else if (o.pose === 'type') { r(0, -29 + bob, 3, 8, P.shirt); r(0, -22 + bob, 6, 3, P.shirt); r(5, -22 + bob + (Math.floor(t * 8) % 2), 3, 2, P.skin); }
+  else { r(0 + sw, -29 + bob, 3, 12, P.shirt); r(0 + sw, -17 + bob, 3, 3, P.skin); }
+  // ringing phone
+  if (o.ring && Math.floor(t * 4) % 2) { const rx = f === 1 ? X + 9 : X - 12; for (let i = 0; i < 3; i++) { R(rx + i * 3, Y - 50 - i, 1, 3 + i * 2, C.accent); } }
+}
 
-  const T = [
-    [0, cast('linda')], [0, card('phone')], [0, view('v-msg')],
-    [1.6, cls('b1', 'on')], [5.0, cls('b2', 'on')],
-
-    [11, view('v-fwd')],
-    [14.2, cls('sendbtn', 'press')], [14.6, cls('sendbtn', 'press', false)],
-    [15.4, card('sl')],
-
-    [20.8, all('[data-k="sec"]', 'on')],
-    [23.6, all('[data-k="urg"]', 'on')],
-    [26.4, all('[data-k="fam"]', 'on')],
-    [28.4, cls('caveat', 'on')],
-
-    [31, card('phone')], [31, view('v-reply')],
-    [31.6, cls('r3', 'on')], [35.6, cls('r4', 'on')],
-    [38.4, all('[data-tag]', 'on')],
-
-    [41, all('[data-tag]', 'on', false)], [41, view('v-pay')],
-    [43.6, cls('wirebtn', 'press')], [44.0, cls('wirebtn', 'press', false)],
-    [44.4, view('v-hold')],
-    [47.4, cast('linda', 'dana')], [47.6, card('case1')],
-    [49.6, cls('c1said', 'on')], [51.4, cls('c1guide', 'on')],
-
-    [58, cast('dana')], [58.4, card('case2')], [59.4, cast('dana', 'marcus')],
-    [63.8, cls('o1', 'sel')],
-    [64.6, cls('relbtn', 'press')], [65.0, cls('relbtn', 'press', false)],
-    [65.0, cls('c2done', 'on')], [65.0, () => { $('c2state').textContent = 'Case 2 · M1057 · Closed: Completed'; }],
-    [66.2, card('phone')], [66.2, view('v-sent')],
-
-    [END, cls('endcard', 'on')],
-    ...LINES.map((l, i) => [l[0], () => say(i)]),
-    ...STEPS.map((s, i) => [s.at, () => { $('steplbl').innerHTML = `<b>Step ${i + 1} of ${STEPS.length}</b> · ${s.title}`; }]),
-  ].sort((a, b) => a[0] - b[0]);
-
-  // Who is speaking: characters move their mouths; Second Look and the phone glow.
-  const speakers = { linda: 'linda', dana: 'dana', marcus: 'marcus', sl: 'sl', phone: 'phone' };
-  let capTimer = null;
-  function say(i) {
-    const [at, who, label, text, fine] = LINES[i];
-    const next = LINES[i + 1] ? LINES[i + 1][0] : at + 3;
-    const talkFor = Math.min(next - at - 0.3, 0.9 + text.length * 0.055);
-    Object.values(speakers).forEach(id => $(id).classList.remove('talking', 'speaking-card'));
-    ['linda', 'dana', 'marcus'].forEach(id => $(id).classList.toggle('listening', !!who && who !== id && $(id).classList.contains('on')));
-    if (who) $(speakers[who]).classList.add(['sl', 'phone'].includes(who) ? 'speaking-card' : 'talking');
-    stopAt = who ? at + talkFor : null;
-    const apply = () => {
-      $('speaker').textContent = label; $('line').textContent = text; $('capfine').textContent = fine || '';
-      $('capin').classList.remove('out');
-    };
-    clearTimeout(capTimer);
-    if (stage.classList.contains('no-anim')) return apply();
-    $('capin').classList.add('out');
-    capTimer = setTimeout(apply, 240);
-  }
-  let stopAt = null;
-  function quiet() { Object.values(speakers).forEach(id => $(id).classList.remove('talking', 'speaking-card')); stopAt = null; }
-
-  function reset() {
-    document.querySelectorAll('.on, .gone, .out, .press, .sel, .talking, .listening, .speaking-card').forEach(e => e.classList.remove('on', 'gone', 'out', 'press', 'sel', 'talking', 'listening', 'speaking-card'));
-    $('c2state').textContent = 'Case 2 · M1057 · On hold';
-    $('capin').classList.remove('out');
-    stopAt = null;
-  }
-
-  // Hold clock at 60x, like the app's demo mode.
-  const hm = ms => { const m = Math.max(0, Math.round(ms / 60000)); return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`; };
-
-  const segs = STEPS.map((s, i) => {
-    const b = document.createElement('button');
-    b.className = 'dot'; b.setAttribute('aria-label', `Go to step ${i + 1}: ${s.title}`);
-    b.innerHTML = '<i><b></b></i>';
-    b.onclick = () => seek(s.at);
-    $('track').appendChild(b);
-    return b.querySelector('b');
-  });
-
-  let t = 0, last = null, playing = true, idx = 0;
-  function seek(time) {
-    stage.classList.add('no-anim');
-    reset();
-    t = time; idx = 0;
-    while (idx < T.length && T[idx][0] <= t) T[idx++][1]();
-    if (stopAt !== null && t >= stopAt) quiet();
-    void stage.offsetWidth;
-    stage.classList.remove('no-anim');
-    last = null;
-  }
-  function frame(now) {
-    if (playing) {
-      if (last !== null) t += Math.min(0.1, (now - last) / 1000);
-      if (t >= TOTAL) seek(0);
-      while (idx < T.length && T[idx][0] <= t) T[idx++][1]();
-      if (stopAt !== null && t >= stopAt) quiet();
-      $('cd1').textContent = hm(4 * 3600e3 - Math.max(0, t - 44.4) * 60e3);
+// Flying envelope and phone buzz marks
+const fx = { env: null, buzz: false };
+function drawFx(t) {
+  if (fx.env) {
+    const p = Math.min(1, (t - fx.env.t0) / 1.4); if (p >= 1) fx.env = null; else {
+      const x = fx.env.x + (fx.env.tx - fx.env.x) * p, y = fx.env.y + (fx.env.ty - fx.env.y) * p - Math.sin(p * Math.PI) * 18;
+      R(x, y, 9, 7, C.ink); R(x + 1, y + 1, 7, 5, C.white); R(x + 2, y + 2, 1, 1, C.ink); R(x + 3, y + 3, 1, 1, C.ink); R(x + 4, y + 4, 1, 1, C.ink); R(x + 5, y + 3, 1, 1, C.ink); R(x + 6, y + 2, 1, 1, C.ink);
     }
-    last = now;
-    STEPS.forEach((s, i) => {
-      const end = i + 1 < STEPS.length ? STEPS[i + 1].at : TOTAL;
-      segs[i].style.width = Math.max(0, Math.min(1, (t - s.at) / (end - s.at))) * 100 + '%';
-    });
-    $('time').textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
-    requestAnimationFrame(frame);
   }
+  const L = A.linda;
+  if (fx.buzz && scene === 'living' && Math.floor(t * 6) % 2) { R(L.x + 13, L.y - 31, 1, 2, C.ink); R(L.x + 15, L.y - 32, 1, 4, C.ink); }
+}
 
-  function toggle() {
-    playing = !playing;
-    $('play').textContent = playing ? 'Pause' : 'Play';
-    stage.classList.toggle('paused', !playing);
-  }
-  $('play').onclick = toggle;
-  $('restart').onclick = () => { seek(0); if (!playing) toggle(); };
-  addEventListener('keydown', e => {
-    if (e.key === ' ' && e.target.tagName !== 'BUTTON') { e.preventDefault(); toggle(); }
-    if (e.key === 'r' || e.key === 'R') $('restart').click();
+let scene = 'living';
+function draw(t) {
+  BG[scene](t);
+  for (const id of Object.keys(A)) if (A[id].home === scene) person(id, t);
+  drawFx(t);
+  $('mon').style.display = scene === 'office' ? 'block' : 'none';
+}
+
+// ---------------- Side panel, HUD, monitor ----------------
+const PANELS = {
+  msg: () => `<div class="ph">MESSAGES <span>NOW</span></div><div class="pb"><div class="small" style="margin:0 0 8px">(253) 555-0142</div><div class="bub" id="b1" style="display:none">Grandma, it’s me. I’m in jail and need $8,500 for bail.</div><div class="bub" id="b2" style="display:none">Wire it today. Please don’t tell Mom.</div></div>`,
+  fwd: () => `<div class="ph">NEW EMAIL <span>FWD</span></div><div class="pb"><div class="f"><b>To</b> secondlook@agentmail.to</div><div class="f"><b>Subject</b> Fwd: text from an unknown number</div><div style="margin-top:8px">Is this real?</div><div class="q">Grandma, it’s me. I’m in jail and need $8,500 for bail. Wire it today. Please don’t tell Mom.</div><span class="btn pri" id="sendb">SEND</span></div>`,
+  sl: () => `<div class="ph">SECOND LOOK <span>FROM LINDA</span></div><div class="pb"><div><span class="hl" data-k="fam">Grandma, it’s me. I’m in jail</span> and need $8,500 for bail. Wire it <span class="hl" data-k="urg">today</span>. <span class="hl" data-k="sec">Please don’t tell Mom.</span></div><div class="chips"><span class="chip" data-k="sec">Asked to keep it secret</span><span class="chip" data-k="urg">Pressure to hurry</span><span class="chip" data-k="fam">Emergency involving family</span></div><div class="small" id="cav" style="display:none">Signals to check, not proof.</div></div>`,
+  reply: () => `<div class="ph">EMAIL <span>SECOND LOOK</span></div><div class="pb"><div>Thanks for checking with me. It asks you to keep it secret, to hurry, and it’s about a family emergency.</div><div class="next"><i>ONE NEXT STEP</i>Before you send anything, call your grandson on a number you already had.</div><div class="small">Second Look never asks for codes or passwords and never moves money.</div></div>`,
+  pay: () => `<div class="ph">SOUND <span>LINDA</span></div><div class="pb"><div class="small" style="margin:0">Send a wire</div><div class="big">$8,500.00</div><div class="f"><b>To</b> New recipient</div><div class="f"><b>From</b> Checking</div><span class="btn pri" id="wireb">SEND WIRE</span></div>`,
+  hold: () => `<div class="ph">SOUND <span>LINDA</span></div><div class="pb"><span class="badge">ON HOLD · NOTHING SENT</span><div class="big" style="font-size:1.15em">Your $8,500 wire is paused</div><div style="font-size:.85em">A few things look different from usual, so we paused it to check with you. A Sound team member will call you. If it’s right, you can still send it.</div><div><span class="btn">IT’S ME, SEND IT NOW</span> <span class="btn">CANCEL</span></div></div>`,
+  mhold: () => `<div class="ph">SOUND <span>MARCUS</span></div><div class="pb"><span class="badge">ON HOLD · NOTHING SENT</span><div class="big" style="font-size:1.15em">Your $51,587 wire is paused</div><div style="font-size:.85em">A Sound team member will call you. If it’s right, you can still send it.</div></div>`,
+  sent: () => `<div class="ph">SOUND <span>MARCUS</span></div><div class="pb"><span class="badge ok">SENT</span><div class="big" style="font-size:1.15em">Your $51,587 wire is on its way</div><div class="small">Paused for 3 minutes.</div></div>`,
+};
+function panel(name) { const p = $('panel'); if (!name) { p.className = 'panel'; p.innerHTML = ''; return; } p.innerHTML = PANELS[name](); p.className = 'panel'; void p.offsetWidth; p.className = 'panel on'; }
+let hudRows = null;
+function hud(rows) { hudRows = rows; renderHud(); }
+function renderHud() {
+  const h = $('hud'); if (!hudRows) { h.className = 'hud'; return; }
+  h.innerHTML = hudRows.map(([k, v, ok]) => `<div class="r"><span class="k">${k}</span><span class="v${ok ? ' ok' : ''}">${typeof v === 'function' ? v() : v}</span></div>`).join('');
+  h.className = 'hud on';
+}
+function monitor(name, state) { $('monName').textContent = name; $('monState').textContent = state; }
+const on = (sel) => document.querySelectorAll(sel).forEach(e => e.classList.add('on'));
+const show = id => { const e = $(id); if (e) e.style.display = 'block'; };
+const press = id => { const e = $(id); if (!e) return; e.classList.add('press'); setTimeout(() => e.classList.remove('press'), 250); };
+
+// ---------------- Voices (browser text-to-speech) ----------------
+const tts = 'speechSynthesis' in window ? window.speechSynthesis : null;
+const NOVELTY = /albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley|junior|ralph|kathy|fred/i;
+const FEM = /samantha|victoria|karen|moira|tessa|fiona|zira|aria|jenny|susan|female|serena|allison|ava|kate|libby|sonia|emma|natasha|catherine|nicky|michelle|joanna|salli|kimberly|google us english|google uk english female/i;
+const MALE = /daniel|alex|david|mark|guy|ryan|male|tom|oliver|aaron|arthur|george|thomas|james|christopher|eric|brian|matthew|google uk english male/i;
+const VOICE = {
+  linda:  { g: 'f', i: 0, pitch: 1.15, rate: .98 },
+  text:   { g: 'm', i: 1, pitch: 1.25, rate: 1.15 },
+  sl:     { g: 'f', i: 2, pitch: 1.0, rate: 1.04 },
+  app:    { g: 'f', i: 3, pitch: .95, rate: 1.08 },
+  dana:   { g: 'f', i: 1, pitch: 1.05, rate: 1.1 },
+  marcus: { g: 'm', i: 0, pitch: .85, rate: 1.06 },
+};
+function pickVoice(who) {
+  const all = tts.getVoices().filter(v => /^en/i.test(v.lang) && !NOVELTY.test(v.name));
+  const cfg = VOICE[who];
+  let list = all.filter(v => (cfg.g === 'f' ? FEM : MALE).test(v.name) && !(cfg.g === 'f' ? MALE : FEM).test(v.name.replace(/google us english/i, '')));
+  if (!list.length) list = all;
+  return list.length ? list[cfg.i % list.length] : null;
+}
+if (tts) { tts.getVoices(); tts.onvoiceschanged = () => tts.getVoices(); }
+
+// ---------------- Virtual clock, pause and restart ----------------
+let vt = 0, playing = false, soundOn = true, runId = 0, waiters = [], playWaiters = [], cancelSpeech = null;
+const sleep = (sec, id) => new Promise(res => waiters.push({ end: vt + sec, res, id }));
+const waitPlay = id => new Promise(res => playing || id !== runId ? res() : playWaiters.push(res));
+function flushPlay() { const w = playWaiters; playWaiters = []; w.forEach(f => f()); }
+function stopSpeech() { if (tts) tts.cancel(); if (cancelSpeech) cancelSpeech(); }
+
+// ---------------- Captions ----------------
+const NAMES = { linda: 'LINDA', text: 'TEXT FROM UNKNOWN NUMBER', sl: 'SECOND LOOK', app: 'SOUND APP', dana: 'DANA · SOUND', marcus: 'MARCUS' };
+let cap = null;
+function caption(who, text, fine) { cap = { text, t0: vt, est: est(text), full: false }; $('who').textContent = NAMES[who]; $('fine').textContent = fine || ''; $('say').textContent = ''; $('dlg').classList.remove('hide'); }
+const est = text => 0.4 + text.length * 0.052;
+
+function speakOnce(who, text, id) {
+  const actor = A[who];
+  if (actor) actor.talk = true;
+  const done = r => { if (actor) actor.talk = false; return r; };
+  if (!soundOn || !tts) return sleep(est(text), id).then(() => done('done'));
+  return new Promise(res => {
+    let fin = false; const finish = r => { if (fin) return; fin = true; cancelSpeech = null; res(done(r)); };
+    const u = new SpeechSynthesisUtterance(text.replace(/[“”]/g, ''));
+    const v = pickVoice(who); if (v) u.voice = v;
+    u.pitch = VOICE[who].pitch; u.rate = VOICE[who].rate; u.lang = v ? v.lang : 'en-US';
+    u.onend = () => finish('done');
+    u.onerror = e => finish(e.error === 'interrupted' || e.error === 'canceled' ? 'cancel' : 'done');
+    cancelSpeech = () => finish('cancel');
+    setTimeout(() => { if (playing) finish('done'); }, (est(text) * 2.2 + 4) * 1000); // some browsers never fire onend
+    tts.speak(u);
   });
+}
+async function say(id, who, text, fine) {
+  caption(who, text, fine);
+  for (;;) {
+    if (id !== runId) return;
+    if (!playing) { await waitPlay(id); continue; }
+    const r = await speakOnce(who, text, id);
+    if (r === 'done' || id !== runId) break;
+  }
+  if (cap) cap.full = true;
+  await sleep(0.2, id);
+}
 
-  seek(0);
+// ---------------- The script ----------------
+const L = A.linda, D = A.dana, M = A.marcus;
+const walk = (o, to, dur) => { o.walk = true; o.tw = { from: o.x, to, t0: vt, dur }; };
+const go = s => { scene = s; };
+let holdStart = null;
+const holdLeft = () => { const m = Math.max(0, 240 - Math.floor((vt - holdStart))); return `${Math.floor(m / 60)}H ${String(m % 60).padStart(2, '0')}M`; };
+
+const S = [
+  { do: () => { go('living'); L.x = -12; L.face = 1; L.pose = 'stand'; walk(L, 92, 1.8); }, wait: 1.9 },
+  { do: () => { L.pose = 'phone'; fx.buzz = true; hud([['MESSAGE', 'JUST NOW'], ['ASKS FOR', '$8,500']]); panel('msg'); }, wait: 0.3 },
+  { say: ['linda', 'A text from a number I don’t know.'] },
+  { do: () => { fx.buzz = false; show('b1'); }, say: ['text', '“Grandma, it’s me. I’m in jail and need $8,500 for bail.”'] },
+  { do: () => show('b2'), say: ['text', '“Wire it today. Please don’t tell Mom.”'] },
+  { say: ['linda', 'Today? Something feels off.'] },
+  { do: () => panel('fwd'), say: ['linda', 'I’ll forward it to Second Look before I do anything.', 'By email to secondlook@agentmail.to. WhatsApp forwarding is planned, not built yet.'] },
+  { do: () => { press('sendb'); fx.env = { x: L.x + 8, y: L.y - 30, tx: 40, ty: 20, t0: vt }; hud([['FORWARDED', 'SECOND LOOK', 1], ['MONEY SENT', '$0']]); }, wait: 1.2 },
+  { do: () => { panel('sl'); on('[data-k="sec"]'); }, say: ['sl', 'It asks you to keep it secret.'] },
+  { do: () => on('[data-k="urg"]'), say: ['sl', 'It pushes you to send it today.'] },
+  { do: () => { on('[data-k="fam"]'); show('cav'); hud([['SIGNALS', '3'], ['MONEY SENT', '$0']]); }, say: ['sl', 'And it’s about a family emergency.', 'Signals to check, not proof.'] },
+  { do: () => { panel('reply'); hud([['ALARMS', 'NONE'], ['BLOCKED', 'NOTHING']]); }, say: ['sl', 'Before you send anything, call your grandson on a number you already had.'] },
+  { say: ['sl', 'It’s your decision. I never move money.'] },
+  { say: ['linda', 'Okay. No panic. Just one step.'], wait: 0.4 },
+  { do: () => panel('pay'), say: ['linda', 'But what if it really is him? I’ll send it anyway.'] },
+  { do: () => press('wireb'), wait: 0.7 },
+  { do: () => { panel('hold'); holdStart = vt; hud([['WIRE', '$8,500'], ['STATUS', 'PAUSED'], ['HOLD LEFT', holdLeft]]); }, say: ['app', 'Your $8,500 wire is paused. Nothing has been sent.', 'A wire can wait up to 4 hours. She can still send it.'] },
+  { do: () => { go('office'); panel(null); D.x = 250; D.face = -1; D.pose = 'stand'; walk(D, 166, 1.4); monitor('LINDA', 'ON HOLD'); hud([['CASE', 'M1001 ON HOLD'], ['RECIPIENT', 'BRAND NEW'], ['FIRST WIRE IN', '2,411 DAYS'], ['AMOUNT', '4.77X USUAL']]); }, wait: 1.5 },
+  { do: () => { D.pose = 'type'; }, say: ['dana', 'New recipient, first wire in years, far above her usual.'] },
+  { do: () => hud([['CASE', 'M1001 ON HOLD'], ['RECIPIENT', 'BRAND NEW'], ['FIRST WIRE IN', '2,411 DAYS'], ['SHARED BY LINDA', '“DON’T TELL MOM”']]), wait: 1.2 },
+  { do: () => { D.pose = 'ear'; }, say: ['dana', 'Hi Linda, it’s Dana from Sound. Has anyone asked you to keep this quiet?', 'Dana calls the number on file.'] },
+  { do: () => { go('living'); L.pose = 'ear'; hud([['WIRE', '$8,500'], ['STATUS', 'PAUSED'], ['ON THE LINE', 'DANA, SOUND']]); }, say: ['linda', 'He said not to tell my mom.'] },
+  { do: () => { go('office'); hud([['CASE', 'M1001 ON HOLD'], ['RECIPIENT', 'BRAND NEW'], ['FIRST WIRE IN', '2,411 DAYS'], ['SHARED BY LINDA', '“DON’T TELL MOM”']]); }, say: ['dana', 'That’s a common pressure sign. Try his usual number first. It’s your call.'] },
+  { do: () => { go('apartment'); D.pose = 'stand'; M.x = 250; M.face = -1; M.pose = 'stand'; walk(M, 112, 1.5); panel('mhold'); hud([['WIRE', '$51,587'], ['STATUS', 'PAUSED'], ['AMOUNT', '42.63X USUAL']]); }, wait: 1.7 },
+  { do: () => { go('office'); D.pose = 'type'; monitor('MARCUS', 'ON HOLD'); panel(null); }, say: ['dana', 'Same check fired on a $51,587 wire.'] },
+  { do: () => { D.pose = 'ear'; }, say: ['dana', 'Hi Marcus, it’s Dana from Sound. Is this for your home closing?'] },
+  { do: () => { go('apartment'); M.face = 1; M.pose = 'ear'; }, say: ['marcus', 'Yes, we close today.'] },
+  { do: () => { go('office'); monitor('MARCUS', 'RELEASED'); hud([['WIRE', '$51,587'], ['STATUS', 'RELEASED', 1], ['REASON', 'CONFIRMED BY PHONE']]); }, say: ['dana', 'Thanks. It’s released and on its way.', 'Reason logged: member confirmed by phone.'] },
+  { do: () => { go('apartment'); M.pose = 'phone'; panel('sent'); hud([['WIRE', '$51,587'], ['STATUS', 'SENT', 1], ['PAUSED FOR', '3 MIN']]); }, say: ['marcus', 'That was quick.'] },
+  { do: () => { panel(null); hud(null); $('end').classList.add('on'); }, say: ['sl', 'Second Look. A second look, not a wall.'], wait: 3 },
+];
+
+function resetWorld() {
+  $('end').classList.remove('on'); panel(null); hud(null); $('dlg').classList.add('hide'); cap = null;
+  Object.assign(L, { x: 92, face: 1, pose: 'stand', walk: false, talk: false, tw: null });
+  Object.assign(D, { x: 166, face: -1, pose: 'stand', walk: false, talk: false, tw: null });
+  Object.assign(M, { x: 112, face: 1, pose: 'stand', walk: false, talk: false, tw: null });
+  fx.env = null; fx.buzz = false; scene = 'living'; holdStart = null; monitor('LINDA', 'ON HOLD');
+}
+async function run(id) {
+  resetWorld();
+  for (const b of S) {
+    if (id !== runId) return;
+    if (b.do) b.do();
+    if (b.say) await say(id, ...b.say);
+    if (id !== runId) return;
+    if (b.wait) await sleep(b.wait, id);
+  }
+  if (id === runId) { runId++; run(runId); }
+}
+
+// ---------------- Frame loop ----------------
+let last = null;
+function frame(now) {
+  if (playing && last !== null) vt += Math.min(0.1, (now - last) / 1000);
+  last = now;
+  const ready = waiters.filter(w => w.end <= vt || w.id !== runId); waiters = waiters.filter(w => !ready.includes(w)); ready.forEach(w => w.res());
+  for (const o of Object.values(A)) if (o.tw) { const p = Math.min(1, (vt - o.tw.t0) / o.tw.dur); o.x = o.tw.from + (o.tw.to - o.tw.from) * p; if (p >= 1) { o.tw = null; o.walk = false; } }
+  if (cap) { const n = cap.full ? cap.text.length : Math.min(cap.text.length, Math.ceil(cap.text.length * (vt - cap.t0) / cap.est)); const s = cap.text.slice(0, n); if ($('say').textContent !== s) $('say').textContent = s; }
+  if (hudRows && hudRows.some(r => typeof r[1] === 'function')) renderHud();
+  draw(vt);
   requestAnimationFrame(frame);
+}
+
+// ---------------- Controls ----------------
+function setPlaying(p) { playing = p; $('play').textContent = p ? 'Pause' : 'Play'; if (!p) stopSpeech(); else flushPlay(); }
+function restart() { runId++; stopSpeech(); waiters.forEach(w => w.res()); waiters = []; flushPlay(); setPlaying(true); run(runId); }
+function begin(withSound) {
+  soundOn = withSound && !!tts; $('snd').textContent = soundOn ? 'Sound on' : 'Sound off';
+  if (soundOn) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; tts.speak(u); } // unlock speech inside the tap (iOS)
+  $('start').remove(); $('ctl').classList.add('show'); setTimeout(() => $('ctl').classList.remove('show'), 3000);
+  restart();
+}
+$('go').onclick = () => begin(true);
+$('goMuted').onclick = () => begin(false);
+$('play').onclick = () => setPlaying(!playing);
+$('restart').onclick = restart;
+$('snd').onclick = () => { soundOn = !soundOn && !!tts; $('snd').textContent = soundOn ? 'Sound on' : 'Sound off'; if (!soundOn) stopSpeech(); };
+addEventListener('keydown', e => {
+  if ($('start')) return;
+  if (e.key === ' ' && e.target.tagName !== 'BUTTON') { e.preventDefault(); setPlaying(!playing); }
+  if (e.key === 'r' || e.key === 'R') restart();
+  if (e.key === 'm' || e.key === 'M') $('snd').click();
+});
+addEventListener('pagehide', stopSpeech);
+
+resetWorld();
+requestAnimationFrame(frame);
 })();
 </script>
 </body>
