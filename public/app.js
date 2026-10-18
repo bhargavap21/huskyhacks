@@ -558,6 +558,7 @@ function guardianIntro() {
   return `<div class="card guardian"><h2>Call guardian</h2>
     <p>On a call that feels off? Bring Vantis in. It listens for pressure tactics, like requests for codes, gift cards or secrecy, and warns you as the call happens.</p>
     <p class="small muted">Vantis never moves money or asks for codes. It only hears calls you bring it into, and unknown callers you’ve asked it to screen. Transcripts are used for warnings; audio isn’t kept.</p>
+    <p class="small muted">When Vantis joins or answers a call by phone, a voice AI service runs its side of the call, so it hears the call as it happens. Everything else Vantis checks has names, numbers and codes taken out before an AI model reads it. Listening on speaker stays on this server.</p>
     ${linkCard}</div>
     ${screeningCard()}
     ${ph ? `<div class="card g-way"><h3>Add Vantis to a call</h3>
