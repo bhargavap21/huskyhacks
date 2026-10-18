@@ -167,14 +167,34 @@ export const LISTEN_RULES = `Sometimes the member adds you to a call that is alr
 - Speak up only if someone asks for a code, password or PIN, asks for gift cards, crypto, a wire or cash, says to move money to a safe account, or tells the member to keep it secret. Then say one sentence, for example: "This is Vantis from Sound, listening at the member's request: Sound will never ask for a code or to move money to a safe account."
 - If the member speaks to you by name, answer briefly.`;
 
+// AgentPhone has one greeting per agent and can't tell a forwarded call from a direct one, so a greeting
+// can't depend on who's calling. With AGENTPHONE_SCREEN_AGENT_ID, forwarded calls land on their own agent
+// (the screening pool numbers are attached to it) and each side gets its own greeting and rules.
+const SCREEN_AGENT = process.env.AGENTPHONE_SCREEN_AGENT_ID || null;
+const SCREENS = SCREEN_AGENT ?? AGENT; // the agent that answers forwarded calls
+export const GREETINGS = {
+  member: 'Hi, this is Vantis from Sound. This call is transcribed. What’s going on?',
+  screen: 'Hi, you’ve reached Vantis, an AI assistant answering for a Sound member. This call is transcribed. Who’s calling, and what’s it about?',
+  shared: 'Hi, this is Vantis, an AI assistant from Sound. This call is transcribed. Who’s calling, and what’s it about?',
+};
+const VOICE = {
+  voiceMode: 'hosted', enableBackchannel: false,
+  sttMode: 'accurate', interruptionSensitivity: 0.5, // don't cut off mid-sentence at a stray "hi"; hear names right
+};
 export async function configureAgent() {
   if (!phoneEnabled) return;
+  const direct = 'If the member called you directly, ask what happened and help them check it.';
   await api('PATCH', `/v1/agents/${AGENT}`, {
-    name: 'Vantis', voiceMode: 'hosted', enableBackchannel: false,
-    systemPrompt: `${CALL_RULES}\n\n${LISTEN_RULES}\n\n${SCREEN_RULES}\n\nIf the member called you directly, ask what happened and help them check it.`,
-    beginMessage: 'Hi, this is Vantis, an AI assistant from Sound. This call is transcribed. Who’s calling, and what’s it about?',
-    sttMode: 'accurate', interruptionSensitivity: 0.5, // don't cut off mid-sentence at a stray "hi"; hear names right
+    ...VOICE, name: 'Vantis',
+    systemPrompt: SCREEN_AGENT ? `${CALL_RULES}\n\n${LISTEN_RULES}\n\n${direct}` : `${CALL_RULES}\n\n${LISTEN_RULES}\n\n${SCREEN_RULES}\n\n${direct}`,
+    beginMessage: SCREEN_AGENT ? GREETINGS.member : GREETINGS.shared,
     voicemailMessage: 'Hi, this is Vantis from Sound, the scam-protection helper. If something feels off, call me back on this number, and please don’t share any codes or passwords in the meantime.',
+    customTools: SCREEN_AGENT ? [] : [SCREEN_TOOL],
+  });
+  if (SCREEN_AGENT) await api('PATCH', `/v1/agents/${SCREEN_AGENT}`, {
+    ...VOICE, name: 'Vantis call screening',
+    systemPrompt: `You answer calls forwarded from a Sound member's phone: the caller is not the member but someone trying to reach them.\n\n${SCREEN_RULES}`,
+    beginMessage: GREETINGS.screen,
     customTools: [SCREEN_TOOL],
   });
   await syncTransfer();
@@ -207,7 +227,7 @@ export async function syncTransfer() {
   const t = connectTarget();
   // Nobody to put calls through to: clear it (AgentPhone takes "" to clear, not null), so the voice model can't
   // transfer anyone even if it skipped the decision tool.
-  await api('PATCH', `/v1/agents/${AGENT}`, { transferNumber: t?.number ?? '' }).catch(e => console.error('phone: could not set the transfer number:', e.message));
+  await api('PATCH', `/v1/agents/${SCREENS}`, { transferNumber: t?.number ?? '' }).catch(e => console.error('phone: could not set the transfer number:', e.message));
 }
 
 const screening = new Map<string, { sid: string; from: string; started: number }>(); // live screened calls

@@ -46,7 +46,7 @@ The payment demo needs no keys. Each optional channel turns on when its keys are
 | How incoming messages are checked: `gate` (default), `hybrid`, `rules` or `classifier` (see [docs/classifier-schema.md](docs/classifier-schema.md)) | `DETECTION_MODE` |
 | Vantis's email inbox | `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`; `FRAUD_TEAM_EMAIL` also emails filed cases to the fraud team |
 | Connect Gmail (read-only) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_BASE_URL` |
-| Vantis's phone number | `AGENTPHONE_API_KEY`, `AGENTPHONE_AGENT_ID`, `AGENTPHONE_NUMBER`, `AGENTPHONE_NUMBER_ID`; `AGENTPHONE_ALLOWED_TO` lists the phones "Call my phone" may ring; `AGENTPHONE_SCREENING_POOL` lists spare numbers (attached to the same agent) so each member who screens calls gets their own |
+| Vantis's phone number | `AGENTPHONE_API_KEY`, `AGENTPHONE_AGENT_ID`, `AGENTPHONE_NUMBER`, `AGENTPHONE_NUMBER_ID`; `AGENTPHONE_ALLOWED_TO` lists the phones "Call my phone" may ring; `AGENTPHONE_SCREENING_POOL` lists spare numbers so each member who screens calls gets their own; `AGENTPHONE_SCREEN_AGENT_ID` (optional) is a second agent those pool numbers are attached to, so forwarded callers hear a screening greeting and members calling Vantis hear their own |
 | WhatsApp forwarding (setup below) | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_NUMBER` |
 | Push alerts | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY_PEM` (base64 PEM), optional `VAPID_MAILTO` |
 | Kit data somewhere other than `data/` | `KIT_EVENTS_PATH` |
