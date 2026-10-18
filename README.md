@@ -2,7 +2,7 @@
 
 Concept demo for "Stop the Scam Before the Money Moves" (Sound Credit Union challenge). Vantis is protection members turn on inside a **simulated** Sound app. It flags risky payments from the kit's transaction signals, helps members check calls, texts and emails that feel off, and, when the member agrees, files a structured fraud case with Sound. Sound employees can hold, talk, escalate, or (for verified takeover only) stop a payment before money moves. Payments and members are the kit's synthetic data.
 
-- Live demo: https://second-look-demo.vercel.app (forwards to the presenter's laptop; see `deploy/vercel-proxy/README.md`)
+- Live demo: https://vantis-huskyhack.vercel.app (also https://second-look-demo.vercel.app) (forwards to the presenter's laptop; see `deploy/vercel-proxy/README.md`)
 - Design and requirements: [HANDOFF.md](HANDOFF.md) · Build history: [PLAN.md](PLAN.md) · Decisions: [DECISIONS.md](DECISIONS.md) · Demo script: [DEMO.md](DEMO.md) · One-pager: `/about`
 
 ## What's built

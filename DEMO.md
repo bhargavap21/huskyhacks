@@ -1,6 +1,6 @@
 # Demo script
 
-Link: **https://second-look-demo.vercel.app** (forwards to the laptop; see `deploy/vercel-proxy/README.md`).
+Link: **https://vantis-huskyhack.vercel.app** (the old https://second-look-demo.vercel.app still works) (forwards to the laptop; see `deploy/vercel-proxy/README.md`).
 
 - **Demo controls** bar: pick a scene, press **Play**. When a payment needs people, the replay stops and the hold clock runs at 60x (4 hours ≈ 4 minutes).
 - **Page list** (left; collapse with ☰): **Home**, **Vantis** and **Console** show one page at a time; **Side by side** shows member and employee together (best on a laptop); **App setup** opens the member's setup steps; **Kit timeline**; **About this concept**.
