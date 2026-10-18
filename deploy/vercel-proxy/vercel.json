@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "https://eddie-surgical-beta-particularly.trycloudflare.com/$1" }
+    { "source": "/(.*)", "destination": "https://polymer-anything-approach-spelling.trycloudflare.com/$1" }
   ]
 }
