@@ -14,6 +14,8 @@ import { join } from 'node:path';
 type Identity = { name: string; contact: string; on_file_since?: string; changed_to: string };
 const IDENTITIES: Record<string, Partial<Identity>> = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'demo-members.json'), 'utf8'));
 const identity = (member: string) => ({ ...IDENTITIES.default, ...IDENTITIES[member] }) as Identity;
+/** Every member name we hold, for the redaction before model calls (src/redact.ts). Labels like "Home buyer" are skipped there. */
+export const memberNames = () => Object.values(IDENTITIES).flatMap(i => (typeof i?.name === 'string' ? [i.name] : []));
 
 export type Mode = 'as_is' | 'second_look';
 export type Scene = { id: string; member: string; mode: Mode; start: string; title: string; blurb: string };

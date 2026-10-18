@@ -10,6 +10,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { db } from './db.ts';
 import { chat, GENERAL } from './chat.ts';
 import { prepare, AttachmentError, type Attachment } from './media.ts';
+import { maskSecrets } from './redact.ts';
 import { settings, assess, record, type Detection } from './monitor.ts';
 import { linkedMember, verifyPhone, e164 } from './phone.ts';
 import { sendEmail } from './email.ts';
@@ -128,8 +129,9 @@ export async function handle(m: WaMessage) {
     await reply(m.from, m.id, e instanceof AttachmentError ? `${e.message}. Could you send a screenshot instead, or tell me what it says?` : 'I couldn’t open that file. Could you send a screenshot instead, or tell me what it says?');
     return;
   }
-  const heard = att.flatMap(a => (a.kind === 'audio' && a.transcript ? [a.transcript] : []));
-  const files = att.map(a => ({ kind: a.kind === 'audio' ? 'voice note' : a.kind === 'pdf' ? 'PDF' : 'screenshot', name: a.name, note: a.kind === 'audio' ? `transcript: ${a.transcript.slice(0, 280)}` : '' }));
+  // Text in screenshots and PDFs (read on this server) is checked like the message itself.
+  const heard = att.flatMap(a => { const t = a.kind === 'audio' ? a.transcript : a.text; return t ? [t] : []; });
+  const files = att.map(a => ({ kind: a.kind === 'audio' ? 'voice note' : a.kind === 'pdf' ? 'PDF' : 'screenshot', name: a.name, note: maskSecrets(a.kind === 'audio' ? `transcript: ${a.transcript.slice(0, 280)}` : a.text ? `text: ${a.text.slice(0, 280)}` : '') }));
 
   // Same checks as every connected channel (signals/v1). Kept in the app; the member is reading our reply already.
   const body = [m.text, ...heard].filter(Boolean).join('\n');

@@ -5,8 +5,9 @@
 // Identity comes back as written (names, numbers, addresses: the member and Sound's fraud team need them).
 // Secrets come back masked (•••• 4821, ••••••), so no code or card number is repeated, here or anywhere.
 // Detection is by pattern: anything with a shape (numbers, emails, addresses), and names in context
-// ("this is", "Dear", "Officer", "my grandson", sign-offs, From: lines) or already known (the member's name).
-// It can miss a name with no context, and it can't read images or PDFs (DECISIONS.md #14).
+// ("this is", "Dear", "Officer", "my grandson", sign-offs, From: lines) or already known: every member name we
+// hold is redacted wherever it appears, context or not. A stranger's name with no context can still be missed.
+// Photos and PDFs are read into text on this server first (src/media.ts), so they are covered too.
 
 export type Kind = 'NAME' | 'PHONE' | 'EMAIL' | 'ADDRESS' | 'CARD' | 'ACCOUNT' | 'SSN' | 'CODE' | 'PASSWORD';
 const KINDS: Kind[] = ['NAME', 'PHONE', 'EMAIL', 'ADDRESS', 'CARD', 'ACCOUNT', 'SSN', 'CODE', 'PASSWORD'];
@@ -62,6 +63,8 @@ const WORD = String.raw`[A-Z][a-z]+(?:-[A-Z][a-z]+)?`;
 // Words that open a name, matched without case. The name itself must be capitalized.
 const LEAD = /\b(?:my name is|my name's|name is|name:|this is|it's|it’s|i am|i'm|i’m|signed|regards|sincerely|thanks|thank you|cheers|best|love|dear|hi|hello|hey|attn|attention|from:|grandson|granddaughter|grandchild|son|daughter|nephew|niece|cousin|brother|sister|husband|wife|boyfriend|girlfriend|fianc[ée]e?|uncle|aunt|named|called)[,:]?[ \t]*(?:\r?\n[ \t]*)?/gi;
 const FOLLOW = new RegExp(String.raw`["“]?(?:(?:${TITLES})\.?\s+)?(${WORD}(?:[ \t]+(?:[A-Z]\.[ \t]+)?${WORD}){0,3})`, 'y');
+// "from" is usually an organization ("from Amazon"), so after it only a first-and-last-name pair counts ("Invoice from Rosalind Okafor").
+const FROM_PAIR = new RegExp(String.raw`\bfrom[ \t]+(${WORD}[ \t]+${WORD})(?![ \t]+[A-Z])`, 'g');
 const TITLED = new RegExp(String.raw`\b(?:${TITLES})\.?\s+(${WORD}(?:[ \t]+${WORD})?)`, 'g');
 // Capitalized words that are not names: organizations, places, products, and words that start a sentence.
 const NOT_NAMES = new Set(`sound vantis credit union bank irs fbi ssa dea police sheriff government federal department fraud security
@@ -75,7 +78,7 @@ that it here there please sorry not just calling from with about good morning af
 mum grandma grandpa grandmother grandfather honey dear friend again so ok okay yes no hello hi hey thanks thank regards best sincerely
 cheers love mr mrs ms dr urgent important notice alert final warning re fwd fw subject today tomorrow tonight monday tuesday wednesday
 thursday friday saturday sunday january february march april june july august september october november december inc llc ltd co corp
-company group agency insurance online digital global`.split(/\s+/));
+company group agency insurance online digital global new york san los las north south east west united states puget king`.split(/\s+/));
 const ORG_WORDS = /^(?:Bank|Police|Department|Services?|Support|Inc|Llc|Ltd|Company|Corp|Team|Office|Pharmacy|Clinic|Credit|Union|Insurance|Agency|Group|Center|Centre|Energy|Mobile|Wireless|Security|Fraud|Systems|Solutions|Financial|Federal|County|City|State)$/;
 
 function candidate(raw: string): string | null {
@@ -97,9 +100,12 @@ export function namesIn(text: string): string[] {
     if (n) out.add(n);
   }
   for (const m of text.matchAll(TITLED)) { const n = candidate(m[1]); if (n) out.add(n); }
+  for (const m of text.matchAll(FROM_PAIR)) { const n = candidate(m[1]); if (n?.includes(' ')) out.add(n); }
   return [...out];
 }
 
+// A known name is used only if it reads as one ("Linda", "Sarah Chen"), not a label ("Home buyer", "Member").
+const LOOKS_LIKE_NAME = new RegExp(String.raw`^${WORD}(?:\s+(?:[A-Z]\.\s+)?${WORD}){0,2}$`);
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** One mapping for one model call: redact the request, restore the answer. */
@@ -109,7 +115,7 @@ export class Redactor {
   private counts = new Map<Kind, number>();
   private names = new Set<string>();
 
-  constructor(known: string[] = []) { for (const n of known) this.addName(n.replace(/\(.*?\)/g, '')); }
+  constructor(known: string[] = []) { for (const n of known) if (LOOKS_LIKE_NAME.test(n.replace(/\(.*?\)/g, '').trim())) this.addName(n.replace(/\(.*?\)/g, '')); }
 
   private addName(name: string) {
     const n = name.replace(/\s+/g, ' ').trim();
@@ -196,14 +202,15 @@ const GUARDED = Symbol('redacted');
 
 /**
  * Wrap a model client so every messages.create call is redacted on the way out and restored on the way back.
- * Pass known names (the member's) as the request option `redact: { names }`. Images and PDFs pass unchanged.
+ * `known` lists names we already hold (members); a request can add more with the option `redact: { names }`.
+ * File blocks pass unchanged, but none are sent: attachments go as text read on this server (src/media.ts).
  */
-export function guard<T>(c: T): T {
+export function guard<T>(c: T, known: () => string[] = () => []): T {
   const x = c as any;
   if (!x || x[GUARDED]) return c;
   const wrap = (target: any) => async (params: any, options: any = {}) => {
     const { redact, ...rest } = (options ?? {}) as { redact?: RedactOptions };
-    const r = new Redactor(redact?.names);
+    const r = new Redactor([...known(), ...(redact?.names ?? [])]);
     walk([params.system, params.messages], s => { r.learn(s); return s; }); // names anywhere count everywhere
     const safe = { ...params, messages: walk(params.messages, s => r.redact(s)) };
     if (params.system !== undefined) safe.system = walk(params.system, s => r.redact(s));

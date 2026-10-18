@@ -51,9 +51,26 @@ test('names are found from context, not from every capitalized word', () => {
   assert.deepEqual(namesIn('This is Mark from the Sound fraud department'), ['Mark']);
   assert.deepEqual(namesIn('Dear Linda,\nThanks,\nSarah Chen\nSound Credit Union'), ['Linda', 'Sarah Chen']);
   assert.deepEqual(namesIn('my grandson Jake and Special Agent Ray Moss'), ['Jake', 'Ray Moss']);
+  assert.deepEqual(namesIn('Invoice from Rosalind Okafor. A note from Amazon, from New York, from Puget Sound Energy.'), ['Rosalind Okafor']);
   assert.deepEqual(namesIn('This is Sound. This is Comcast billing. Hello Everyone. Dear Valued Customer. Best Buy order.'), []);
   // Known names (the member's) are redacted even without context.
   assert.equal(new Redactor(['Theodora Quinn (demo member)']).redact('Theodora asked about Quinn.'), '[NAME_1] asked about [NAME_2].');
+});
+
+test('member names we hold are redacted anywhere; labels that are not names are skipped', async () => {
+  const { c, seen } = recorder(() => [{ type: 'text', text: 'ok' }]);
+  await guard(c, () => ['Linda', 'Home buyer', 'Member', 'Sarah Chen']).messages.create({ messages: [{ role: 'user', content: 'Linda and Chen met a Home buyer, a Member.' }] });
+  assert.equal(seen[0].req.messages[0].content, '[NAME_1] and [NAME_2] met a Home buyer, a Member.');
+});
+
+test('photos and PDFs are read on this server; anything else gives no text', async () => {
+  const { readImage, readPdf, stopOcr } = await import('../src/media.ts');
+  const read = (f: string) => readFileSync(join(import.meta.dirname, 'fixtures', f)).toString('base64');
+  assert.match(await readImage(read('scam-text.png')), /This is Officer Davis/);
+  assert.match(await readPdf(read('invoice.pdf')), /Invoice from Rosalind Okafor/);
+  assert.equal(await readImage(Buffer.from('not an image').toString('base64')), '');
+  assert.equal(await readPdf(Buffer.from('not a pdf').toString('base64')), '');
+  await stopOcr();
 });
 
 test('scrub, for listeners nothing comes back from, says what was there', () => {

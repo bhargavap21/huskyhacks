@@ -1,7 +1,9 @@
 // End to end: every real model call site, with the real SDK and a fake network. What leaves the server is
 // checked for raw PII, and so is everything logged while it runs (issue #11 acceptance criteria).
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 process.env.DB_PATH = ':memory:';
 process.env.ANTHROPIC_API_KEY = 'test-key';
 process.env.DETECTION_MODE = 'hybrid';
@@ -35,6 +37,9 @@ const { extractIntake } = await import('../src/reports.ts');
 const { draftReply } = await import('../src/email.ts');
 const { startCall, addText, stopCall } = await import('../src/guardian.ts');
 const { decide } = await import('../src/screening.ts');
+const { prepare, stopOcr } = await import('../src/media.ts');
+after(stopOcr);
+const fixture = (f: string) => readFileSync(join(import.meta.dirname, 'fixtures', f)).toString('base64');
 
 test('connected-channel detection (classifier): no raw PII sent; quotes come back masked', async () => {
   const n = sent.length;
@@ -52,6 +57,28 @@ test('member chat: history and reply', async () => {
   assert.equal(sent.length, n + 2);
   for (const s of sent.slice(n)) assert.deepEqual(leaks(s), []);
   assert.equal(out.reply, 'I hear you. Please keep •••••• to yourself and don’t call (206) 555-0142.');
+});
+
+test('chat photos and PDFs: read on this server, sent only as redacted text, never as files', async () => {
+  const png = fixture('scam-text.png'), pdf = fixture('invoice.pdf');
+  const att = await prepare([{ kind: 'image', name: 'screenshot.png', media_type: 'image/png', data: png }, { kind: 'pdf', name: 'invoice.pdf', data: pdf }]);
+  assert.match((att[0] as any).text, /read me\s+the code 482913/, 'OCR read the screenshot');
+  assert.match((att[1] as any).text, /gift cards today/, 'the PDF text layer was read');
+  assert.ok(!('data' in att[1]), 'the PDF file itself is not kept');
+  const n = sent.length;
+  await chat('s2:chat', GENERAL, 'Is this real?', att);
+  const body = sent.at(-1)!;
+  assert.equal(sent.length, n + 1);
+  assert.deepEqual(leaks(body), []);
+  assert.ok(!body.includes(png.slice(0, 200)) && !body.includes(pdf.slice(0, 200)), 'no file data sent');
+  assert.doesNotMatch(body, /"type":"(image|document)"/);
+  assert.match(body, /Text read on Vantis's server from a photo/);
+  assert.match(body, /the code \[CODE_1\] within the hour/);
+});
+
+test('a member name is redacted even with no context around it', async () => {
+  await chat('s3:chat', GENERAL, 'Linda says the money is for rent.'); // "Linda" is a demo member (fixtures/demo-members.json)
+  assert.ok(!sent.at(-1)!.includes('Linda'));
 });
 
 test('fraud-case intake reader', async () => {

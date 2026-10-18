@@ -25,7 +25,7 @@ before(async () => {
   });
   delete process.env.ANTHROPIC_API_KEY; delete process.env.LLM_API_KEY; delete process.env.AGENTMAIL_API_KEY;
 });
-after(() => srv.close());
+after(async () => { srv.close(); await (await import('../src/media.ts')).stopOcr(); }); // screenshots start the OCR worker
 
 const wa = () => import('../src/whatsapp.ts');
 const payload = (msg: any, from = '12065550100') => ({ object: 'whatsapp_business_account', entry: [{ changes: [{ field: 'messages', value: { contacts: [{ wa_id: from, profile: { name: 'Pat' } }], messages: [{ from, timestamp: '1760700000', ...msg }] } }] }] });

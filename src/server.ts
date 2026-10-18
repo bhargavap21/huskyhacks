@@ -11,7 +11,7 @@ import { tickAll, useWorld, loadScene, control, member, employee, snapshot, requ
 import { TransitionError } from './payments.ts';
 import { USING_STANDIN } from './kit.ts';
 import { chat, chatHistory, GENERAL } from './chat.ts';
-import { prepare, loadAsr, AttachmentError } from './media.ts';
+import { prepare, loadAsr, loadOcr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
@@ -246,6 +246,7 @@ const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port }, () => console.log(`Vantis demo on http://localhost:${port}${USING_STANDIN ? ' (kit data: synthetic stand-in, see README)' : ''}`));
 if (process.env.NODE_ENV !== 'test') {
   loadAsr(); // warm up on-device voice-note transcription
+  loadOcr(); // and on-device text reading for photos
   watchCalls(sid => { useWorld(sid); return `${sid}:${snapshot().scene.id}`; }); // Vantis's phone line
   watchInbox(sid => sid); // Vantis's inbox
   watchGmail(); // Connected Gmail accounts (if Google sign-in is configured)
