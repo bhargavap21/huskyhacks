@@ -18,17 +18,41 @@ npm run replay -- --member M1001  # print a member's kit timeline with rule find
 npm run lookalikes                # catch counts per rule (reads the Member Key for measurement only)
 ```
 
-Optional: put `ANTHROPIC_API_KEY=...` in `.env` to use Claude for the "Talk to Second Look" chat. Without it, the chat uses scripted replies labeled "offline reply".
+The payment demo needs no keys. Each optional channel turns on when its keys are in `.env`, and stays off (hidden in the app) without them:
+
+| Turns on | Variables |
+|---|---|
+| Claude for chat, email replies, channel checks and call summaries (otherwise scripted replies labeled "offline reply") | `ANTHROPIC_API_KEY` (or `LLM_API_KEY`), optional `ANTHROPIC_MODEL` |
+| Second Look's email inbox | `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`; `FRAUD_TEAM_EMAIL` also emails filed cases to the fraud team |
+| Connect Gmail (read-only) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_BASE_URL` |
+| Second Look's phone number | `AGENTPHONE_API_KEY`, `AGENTPHONE_AGENT_ID`, `AGENTPHONE_NUMBER`, `AGENTPHONE_NUMBER_ID`; `AGENTPHONE_ALLOWED_TO` lists the phones "Call my phone" may ring |
+| Push alerts | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY_PEM` (base64 PEM), optional `VAPID_MAILTO` |
+| Server | `PORT` (8787), `DB_PATH`, `SESSION_SECRET`, `ALLOWED_ORIGIN_HOSTS` (a proxy in front, e.g. Vercel), `WHISPER_MODEL` |
 
 ## Layout
 
+This list is the record of what exists; PLAN.md is the historical build plan.
+
+Payment demo (no keys needed):
 - `src/kit.ts` loads the events CSV (never the Member Key) with canonical label checks.
 - `src/rules.ts` has rules R1-R4 plus the standard new-recipient banner; each returns field evidence.
 - `src/payments.ts` is the payment state machine (4-hour holds, P2P pre-submit only, stop only after verified takeover, expiry never auto-sends).
 - `src/sim.ts` is the replay engine: one simulation per browser session, one case per situation.
-- `src/chat.ts` is the case-grounded chat with hard no-action limits.
+- `src/alerts.ts` is the alert policy: T0/T1/T2 tiers, interruption budget, cooldowns, quiet hours.
+- `src/chat.ts` is the case-grounded "Talk to Second Look" chat with hard no-action limits; `src/media.ts` handles its photos, PDFs and voice notes (transcribed on this machine with Whisper).
 - `public/` holds the member app, employee console and `/about` (plain HTML/JS).
-- `src/email/` is reserved for the optional email module (not built).
+
+Channels (each off without its keys, and only for members who turn it on):
+- `src/email.ts` is Second Look's email inbox (AgentMail): members forward mail from an address they linked and get a reply, and can have it reported to Sound.
+- `src/gmail.ts` is "Connect Gmail": read-only sign-in, new inbox mail checked every minute.
+- `src/phone.ts` is Second Look's phone number (AgentPhone): call it, add it to a call, have it call you, screen missed calls, forward texts.
+- `src/guardian.ts` is the call guardian: listens on speaker or to a phone call and names pressure tactics as they happen.
+- `src/monitor.ts` holds the channel settings, the shared check for incoming messages (`assess`), and alerts (push, in-app, email).
+- `src/tactics.ts` names pressure tactics (secrecy, urgency, codes...) in text; `src/reports.ts` files a fraud case from any channel.
+
+Data and scripts:
+- `scripts/replay.ts`, `scripts/lookalikes.ts` (see Run), and `scripts/synthetic-kit.ts` (see Data).
+- `fixtures/emails.json` holds scripted emails with expected outcomes.
 
 ## Data
 
