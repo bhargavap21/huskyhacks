@@ -8,6 +8,8 @@ Concept in one line: Second Look is a setting members turn on inside a **simulat
 
 ## 1. Current state (Saturday Oct 17, about 1:20 PM)
 
+> Historical snapshot from before the build. For what exists now, see the Layout section of [README.md](README.md).
+
 | Item | State | Plan |
 |---|---|---|
 | `data/` kit files, git repo | Present | Keep |
@@ -76,7 +78,7 @@ The demo must be clickable at the end of every step. No finish times are promise
 | 5 | Demo scenes: Linda as-is vs with Second Look; M1037 restraint; M1057 fast release; missed-scam beat; `npm run lookalikes`; `/about` one-pager; role switch "View as: Member / Employee" | A2, A8 | Done (13:17): six scenes in the demo bar, `/about` written |
 | 6 | Alert policy T0/T1/T2: dedupe one case per situation, budget (1 T2/day, 3 T1/week), cooldown + material-change re-alert, quiet hours that never suppress checkpoints/queue/expiry; "why did I get this?"; banner copy snapshot test | A11 | Done (core): `src/alerts.ts` + 8 tests; wired into the sim (content-safe notification, why-did-I-get-this, settings for alert level and quiet hours) |
 | 7 | Polish: accessibility pass (VoiceOver, scaling, AA, 44 px), README, DECISIONS, demo script | A9 | Partial: README, DEMO.md, focus/live-region fixes done; VoiceOver on a real iPhone still to do |
-| 8 | Stretch: optional email module (HANDOFF section 10) | A10 | Done, as Second Look's own AgentMail inbox (`src/email.ts`) instead of watching a fixed inbox |
+| 8 | Stretch: optional email module (HANDOFF section 10) behind a flag | A10 | Done, differently from section 5: Second Look's own AgentMail inbox (members forward from a linked address), Connect Gmail (read-only), plus phone, call guardian and push alerts. Each is off without its keys. See README Layout |
 | 9 | Chat attachments (screenshots, PDFs, voice notes) | | Done |
 | 10 | Call guardian and Second Look's phone line (AgentPhone) | | Done |
 | 11 | Fraud cases filed for the member from any channel | | Done |
@@ -93,4 +95,11 @@ The current feature list lives in the README ("What's built"); this table is the
 
 ## 5. Email module notes (superseded)
 
-The original plan watched a fixed inbox with a sender allowlist. What shipped instead: Second Look has its own address (secondlook@agentmail.to); it reads only mail from verified member addresses (or mail their Gmail forwards once they turn on watching), replies only to the member, and treats forwarded content as data. See README, "What's built".
+> **Superseded.** The module was built on Second Look's own AgentMail inbox, which reads only mail forwarded from an address the member linked (`src/email.ts`), instead of a watched Gmail inbox with a sender allowlist. Kept for the record.
+
+These carry over from the email-first plan (DECISIONS #1-3):
+- Watched inbox `bhargava.perumalla1@gmail.com`.
+- Sender `bhargavap740@gmail.com`.
+- **Sender allowlist on ingest**: non-allowlisted mail is never fetched, stored, or sent to the LLM.
+- SendGrid can send fixture subjects and bodies from the verified sender only, with no spoofed names; phishing-style fixtures carry a "[Second Look demo]" prefix.
+- Push is T2 transport only, per HANDOFF section 8.

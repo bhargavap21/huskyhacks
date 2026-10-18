@@ -1,10 +1,14 @@
 // Loads the kit's synthetic EVENTS file only. The Member Key is the answer key
 // and must never be read by the app (HANDOFF section 6; test/leakage.test.ts).
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// The official kit files aren't in the repo (hackathon materials, not for public release). See README, "Getting the kit data".
-export const EVENTS_PATH = process.env.KIT_EVENTS_PATH ?? join(import.meta.dirname, '..', 'data', 'HuskyHack_Synthetic_Events_v2.csv');
+// The official kit file is not for public release, so it isn't in git (README, "Data").
+// Without it, use the committed synthetic stand-in (scripts/synthetic-kit.ts), which reproduces the anchor
+// members the demo and tests use. KIT_EVENTS_PATH points somewhere else explicitly.
+const OFFICIAL_EVENTS = join(import.meta.dirname, '..', 'data', 'HuskyHack_Synthetic_Events_v2.csv');
+export const USING_STANDIN = !process.env.KIT_EVENTS_PATH && !existsSync(OFFICIAL_EVENTS);
+export const EVENTS_PATH = process.env.KIT_EVENTS_PATH ?? (USING_STANDIN ? join(import.meta.dirname, '..', 'fixtures', 'synthetic-kit', 'events.csv') : OFFICIAL_EVENTS);
 export const kitAvailable = () => existsSync(EVENTS_PATH);
 
 // Canonical, case-sensitive labels from the data dictionary (HANDOFF section 9).
@@ -115,7 +119,7 @@ let cache: Map<string, KitEvent[]> | null = null;
 /** All events grouped by member, in kit order (event_sequence). */
 export function loadEvents(path = EVENTS_PATH): Map<string, KitEvent[]> {
   if (cache && path === EVENTS_PATH) return cache;
-  if (!existsSync(path)) throw new Error(`Kit data not found at ${path}. The hackathon files aren't in the repo; see README, "Getting the kit data" (or set KIT_EVENTS_PATH).`);
+  if (!existsSync(path)) throw new Error(`Kit data not found at ${path}. The hackathon files aren't in the repo; see README, "Data" (or set KIT_EVENTS_PATH).`);
   const [h, ...rows] = parseCsv(readFileSync(path, 'utf8'));
   const by = new Map<string, KitEvent[]>();
   for (const r of rows) {

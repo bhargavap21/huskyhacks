@@ -372,6 +372,7 @@ const SL_NUMBER = () => fmtPhone(S.phone?.number || '');
 const STRENGTH = x => (x >= 0.7 ? 'Clear' : x >= 0.5 ? 'Likely' : 'Faint');
 const signalList = sigs => `<ul class="sig-list">${sigs.map(s => `<li><div class="sig-head"><b>${esc(s.label)}</b><span class="small muted">${STRENGTH(s.score)} · ${Number(s.score).toFixed(2)}${s.source === 'rules' ? ' · pattern match' : ''}</span></div><blockquote class="small">“${esc(s.span)}”</blockquote></li>`).join('')}</ul>`;
 const RISK_BADGE = { high: ['risk', 'Worth a look now'], medium: ['review', 'Worth a look'], low: ['neutral', 'Low concern'] };
+const SCREEN_NUMBER = () => S.phone?.screening_number || S.phone?.number || ''; // the member's own screening number, if they have one
 function detCard(d) {
   return `<li class="em-report">
     <div class="g-head"><span class="in-badge in-badge--${(RISK_BADGE[d.risk] || RISK_BADGE.medium)[0]}">${(RISK_BADGE[d.risk] || RISK_BADGE.medium)[1]}</span><span class="small muted">${esc({ email: 'Forwarded email', gmail: 'Gmail', 'call screening': 'Screened call', text: 'Forwarded text', whatsapp: 'WhatsApp' }[d.channel] || d.channel)} · ${emAgo(d.ts)}</span></div>
@@ -398,8 +399,8 @@ function channelsView() {
     ${emailWatchCard('Email')}
     <div class="card g-way"><h3>Calls</h3>
       ${sw('screening', ch.screening, 'Screen calls I don’t answer')}${needPhone}
-      <p class="small">Second Look answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${SL_NUMBER()}</b>:</p>
-      <ul class="em-links"><li>AT&amp;T or T-Mobile: dial <code>**61*1${esc((S.phone?.number || '').replace(/\D/g, '').slice(-10))}#</code> and press call. To stop: <code>##61#</code>.</li><li>Verizon: dial <code>*71${esc((S.phone?.number || '').replace(/\D/g, '').slice(-10))}</code>. To stop: <code>*73</code>.</li></ul></div>
+      <p class="small">Second Look answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${fmtPhone(SCREEN_NUMBER())}</b>:</p>
+      <ul class="em-links"><li>AT&amp;T or T-Mobile: dial <code>**61*1${esc(SCREEN_NUMBER().replace(/\D/g, '').slice(-10))}#</code> and press call. To stop: <code>##61#</code>.</li><li>Verizon: dial <code>*71${esc(SCREEN_NUMBER().replace(/\D/g, '').slice(-10))}</code>. To stop: <code>*73</code>.</li></ul></div>
     <div class="card g-way"><h3>Texts</h3>
       ${sw('texts', ch.texts, 'Check texts I forward')}${needPhone}
       <p class="small">iPhones don’t let apps read your texts, so forward the ones that feel off to <b>${SL_NUMBER()}</b> from your linked phone. Second Look checks them and alerts you here.</p></div>
@@ -765,7 +766,7 @@ function caseHead(c) {
 }
 
 // Chat the member chose to share: their words, with the pressure tactics they mention (prompts for the call, not proof).
-const PROMOTE = { secrecy: /quiet|what to say|not to tell/i, coached: /phone with you|what to say/i, family: /own words|number you already/i, authority: /number you already|unsafe|investigation|not to tell/i, urgency: /own words/i, payment: /cash for|withdraw/i, code: /one-time code/i, online: /met|video|withdraw/i };
+const PROMOTE = { secrecy: /quiet|what to say|not to tell/i, coaching: /phone with you|what to say/i, impersonation: /own words|number you already|unsafe|investigation|not to tell/i, threats: /investigation|own words/i, urgency: /own words/i, payment_pressure: /cash for|withdraw/i, credential_request: /one-time code/i, remote_access: /one-time code|phone with you/i, online_relationship: /met|video|withdraw/i };
 const sharedTactics = id => new Set((S.shared?.[id]?.messages || []).flatMap(m => m.tactics.map(t => t.key)));
 function sharedCard(id) {
   const sh = S.shared?.[id]; if (!sh) return '';
@@ -784,7 +785,7 @@ function caseDetail(c) {
   const state = !open ? `Closed: ${p.status}` : p.status === 'Held' ? 'On hold' : p.gate === 'presubmit_review' ? 'Waiting before submit' : p.gate === 'branch_conversation' ? 'Branch conversation' : p.gate === 'banner_confirm' ? 'Member is confirming' : p.status;
   const memberView = c.member_label === 'looks_fine' ? `Member marked it fine${c.label_seconds != null ? ` in ${c.label_seconds}s` : ''}` : c.member_label === 'reported' ? 'Member reported a scam' : c.callback_requested ? 'Member asked to talk' : '';
   // Questions matching what the member shared move up; secrecy and coaching first (they block checking with others).
-  const W = { secrecy: 3, coached: 3, authority: 2, code: 2 };
+  const W = { secrecy: 3, coaching: 3, impersonation: 2, credential_request: 2 };
   const tk = sharedTactics(String(c.id)), score = x => [...tk].reduce((n, k) => n + (PROMOTE[k]?.test(x) ? (W[k] || 1) : 0), 0), hit = x => score(x) > 0;
   const q = [...(GUIDE[c.rule] || GUIDE.STD)].sort((a, b) => score(b) - score(a));
   const qli = x => `<li>${hit(x) ? '<span class="in-badge in-badge--neutral">From the chat</span> ' : ''}${esc(x)}</li>`;
@@ -994,6 +995,7 @@ $('#invite').addEventListener('click', async () => {
   const j = await post('room'); if (!j || !j.code) return;
   const url = `${location.origin}/join/${j.code}`;
   $('#invite-url').textContent = url.replace(/^https?:\/\//, '');
+  if (S) $('#invite-member').textContent = S.member.name;
   $('#invite-qr').innerHTML = '';
   $('#invite-dlg').showModal();
   try { const qr = (await loadQr())(0, 'M'); qr.addData(url); qr.make(); $('#invite-qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); }
@@ -1008,7 +1010,7 @@ $('#invite-close').addEventListener('click', () => $('#invite-dlg').close());
   if (v === 'member') page = 'home'; else if (v === 'employee') page = 'console'; else if (v === 'both') page = 'split';
   if (['home', 'inbox', 'settings', 'profile', 'onboarding', 'console', 'split', 'timeline', 'guardian', 'email', 'channels'].includes(pg)) page = pg;
   if (q.get('gmail')) { const g = q.get('gmail'); setTimeout(() => toast(g === 'connected' ? 'Gmail connected. Second Look checks new mail every minute.' : 'Gmail: ' + g), 800); history.replaceState(null, '', '/?page=channels'); }
-  if (q.get('joined') === '1') { joined = true; sessSet('sl-joined', '1'); page = 'home'; copilotOpen = false; setTimeout(() => toast('You’re on Linda’s phone in the presenter’s demo.'), 600); history.replaceState(null, '', '/'); }
+  if (q.get('joined') === '1') { joined = true; sessSet('sl-joined', '1'); page = 'home'; copilotOpen = false; setTimeout(() => toast(`You’re on ${S?.member?.name ?? 'the demo member'}’s phone in the presenter’s demo.`), 600); history.replaceState(null, '', '/'); }
   if (q.get('chat') === 'general') { chatAuto = false; chatCase = 'general'; copilotOpen = true; }
   await poll();
   if (q.get('scene') && S.scenes.some(x => x.id === q.get('scene'))) { await post('scene/' + q.get('scene')); if (q.get('jump') === '1') for (let i = 0; i < 60 && !S.awaiting && !S.ended; i++) await post('control/next');

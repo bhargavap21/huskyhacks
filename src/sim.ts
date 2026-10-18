@@ -7,21 +7,28 @@ import { score, primary, type Finding, HOLDABLE } from './rules.ts';
 import { newPayment, transition, TERMINAL, TransitionError, type Payment, type Gate } from './payments.ts';
 import { audit, db } from './db.ts';
 import { newPolicy, decide, dismiss, type PolicyState, type Decision, type Sensitivity } from './alerts.ts';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+// Fictional demo identities (name and contact on file) live in seed data, not code: fixtures/demo-members.json.
+type Identity = { name: string; contact: string; on_file_since?: string; changed_to: string };
+const IDENTITIES: Record<string, Partial<Identity>> = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'demo-members.json'), 'utf8'));
+const identity = (member: string) => ({ ...IDENTITIES.default, ...IDENTITIES[member] }) as Identity;
 
 export type Mode = 'as_is' | 'second_look';
-export type Scene = { id: string; member: string; name: string; mode: Mode; start: string; title: string; blurb: string };
+export type Scene = { id: string; member: string; mode: Mode; start: string; title: string; blurb: string };
 
 const KIT_DAY_SECONDS = 20; // 1 kit-day = 20 s (HANDOFF section 12)
 export const NORMAL_SPEED = 86_400 / KIT_DAY_SECONDS;
 export const HOLD_SPEED = 60; // while a payment waits on people: 4 h hold = 4 real minutes
 
 export const SCENES: Scene[] = [
-  { id: 'linda-asis', member: 'M1001', name: 'Linda', mode: 'as_is', start: '10/20/2026 13:58', title: 'Linda (M1001): what happened in the kit', blurb: 'Kit rows only. The wire was held at 14:21, outreach at 15:42, Linda confirmed, it released at 17:04.' },
-  { id: 'linda-sl', member: 'M1001', name: 'Linda', mode: 'second_look', start: '10/20/2026 13:58', title: 'Linda (M1001): with Second Look (proposed alternative)', blurb: 'Same kit signals. R1 fires at initiation and the hold lands with evidence and a conversation guide. A design hypothesis, not a historical claim.' },
-  { id: 'm1037', member: 'M1037', name: 'Grandparent helping with housing', mode: 'second_look', start: '10/6/2026 9:33', title: 'M1037: restraint (legitimate look-alike)', blurb: 'Urgent $1,188.37 P2P to a grandchild’s new account. Typical amount. R1 does not fire: one standard banner, one tap, done.' },
-  { id: 'm1057', member: 'M1057', name: 'Home buyer', mode: 'second_look', start: '10/19/2026 9:38', title: 'M1057: same trigger, legitimate (false positive)', blurb: 'Closing wire of $51,586.52. R1 fires exactly as for Linda. The answer is a fast confirm-and-release, in minutes.' },
-  { id: 'm1003', member: 'M1003', name: 'Sarah', mode: 'second_look', start: '10/15/2026 22:18', title: 'Sarah (M1003): takeover pattern (scripted premise)', blurb: 'Password reset + contact change + new recipient. P2P waits before submit for verification to pre-change contact details.' },
-  { id: 'm1102', member: 'M1102', name: 'Member', mode: 'second_look', start: '10/19/2026 13:40', title: 'M1102: a scam we miss', blurb: 'A $5,000 wire for a “federal agent”. Not unusual enough for R1, and R4 covers cash only. Only the standard banner shows.' },
+  { id: 'linda-asis', member: 'M1001', mode: 'as_is', start: '10/20/2026 13:58', title: 'Linda (M1001): what happened in the kit', blurb: 'Kit rows only. The wire was held at 14:21, outreach at 15:42, Linda confirmed, it released at 17:04.' },
+  { id: 'linda-sl', member: 'M1001', mode: 'second_look', start: '10/20/2026 13:58', title: 'Linda (M1001): with Second Look (proposed alternative)', blurb: 'Same kit signals. R1 fires at initiation and the hold lands with evidence and a conversation guide. A design hypothesis, not a historical claim.' },
+  { id: 'm1037', member: 'M1037', mode: 'second_look', start: '10/6/2026 9:33', title: 'M1037: restraint (legitimate look-alike)', blurb: 'Urgent $1,188.37 P2P to a grandchild’s new account. Typical amount. R1 does not fire: one standard banner, one tap, done.' },
+  { id: 'm1057', member: 'M1057', mode: 'second_look', start: '10/19/2026 9:38', title: 'M1057: same trigger, legitimate (false positive)', blurb: 'Closing wire of $51,586.52. R1 fires exactly as for Linda. The answer is a fast confirm-and-release, in minutes.' },
+  { id: 'm1003', member: 'M1003', mode: 'second_look', start: '10/15/2026 22:18', title: 'Sarah (M1003): takeover pattern (scripted premise)', blurb: 'Password reset + contact change + new recipient. P2P waits before submit for verification to pre-change contact details.' },
+  { id: 'm1102', member: 'M1102', mode: 'second_look', start: '10/19/2026 13:40', title: 'M1102: a scam we miss', blurb: 'A $5,000 wire for a “federal agent”. Not unusual enough for R1, and R4 covers cash only. Only the standard banner shows.' },
 ];
 
 export type CaseRec = {
@@ -81,11 +88,11 @@ export function tickAll(realMs: number) {
 
 function blank(scene: Scene): World {
   const events = memberEvents(scene.member);
-  const start = toMs(scene.start);
+  const start = toMs(scene.start), who = identity(scene.member);
   const w0: World = {
     scene, mode: scene.mode, sim: start, speed: NORMAL_SPEED, running: false, cursor: 0, events, timeline: [],
     payments: new Map(), cases: [], awaiting: null, ended: false, confirm_code: null, next_case: 1, seen: Date.now(), policy: newPolicy(), notifications: [], callbacks: [],
-    member: { id: scene.member, name: scene.name, enrolled: scene.mode === 'second_look', trusted_contact: null, contact_changed_sim: null, pre_change_contact: 'phone ending 4471 (on file since 2019)', current_contact: 'phone ending 4471' },
+    member: { id: scene.member, name: who.name, enrolled: scene.mode === 'second_look', trusted_contact: null, contact_changed_sim: null, pre_change_contact: who.contact + (who.on_file_since ? ` (on file since ${who.on_file_since})` : ''), current_contact: who.contact },
   };
   // Fast-forward silently to the scene start so balances, recipients and flags are in place.
   while (w0.cursor < events.length && events[w0.cursor].ts < start) applyRow(w0, events[w0.cursor++], true);
@@ -115,7 +122,7 @@ function act(c: CaseRec, actor: string, action: string, detail = '') {
 
 /** Apply one kit row. In second_look mode, rows for a payment Second Look took over are suppressed. */
 function applyRow(W: World, e: KitEvent, silent = false) {
-  if (['Email Change', 'Phone Change'].includes(e.event_type)) { W.member.contact_changed_sim = e.ts; W.member.current_contact = 'phone ending 0932 (changed ' + e.ts_text + ')'; }
+  if (['Email Change', 'Phone Change'].includes(e.event_type)) { W.member.contact_changed_sim = e.ts; W.member.current_contact = `${identity(W.member.id).changed_to} (changed ${e.ts_text})`; }
   if (e.event_type === 'Trusted Contact Enrolled') W.member.trusted_contact = { name: 'Enrolled contact', relation: 'from kit', when: 'any hold' };
   const owned = e.payment_id && W.payments.get(e.payment_id)?.case_id != null && W.mode === 'second_look';
   if (owned && e.event_type !== 'Payment Initiated') {

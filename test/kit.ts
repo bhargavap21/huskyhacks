@@ -2,5 +2,5 @@
 import { test } from 'node:test';
 import { kitAvailable } from '../src/kit.ts';
 
-const REASON = 'kit data not in this checkout: see README, "Getting the kit data"';
+const REASON = 'kit data not in this checkout: see README, "Data"';
 export const kitTest: typeof test = (kitAvailable() ? test : ((name: string, fn: any) => test(name, { skip: REASON }, fn))) as typeof test;

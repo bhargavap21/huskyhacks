@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Second Look video</title>
+<link rel="stylesheet" href="../design-system/tokens.css">
+<link rel="stylesheet" href="../design-system/components.css">
+<style>
+  html, body { width: 1280px; height: 720px; overflow: hidden; }
+  body { position: relative; }
+  .band { position: absolute; inset: 0 0 auto 0; height: 56px; display: flex; align-items: center; justify-content: flex-end; padding: 0 var(--space-6); background: var(--surface-band); }
+  .band__title { position: absolute; left: 50%; transform: translateX(-50%); margin: 0; font-family: var(--font-serif); font-size: 24px; line-height: 32px; color: var(--ink); }
+  .band__meta { font-family: var(--font-serif); font-size: 16px; line-height: 24px; color: var(--ink-body); }
+  .scene { position: absolute; inset: 56px 0 0 0; padding: var(--space-7) 96px; box-sizing: border-box; opacity: 0; }
+  .scene h2 { margin: 0 0 var(--space-4); font-family: var(--font-serif); font-weight: 400; font-size: 40px; line-height: 48px; letter-spacing: -0.3px; color: var(--ink); }
+  .scene .lead { margin: 0; color: var(--ink-body); max-width: 520px; }
+  .center { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+  .hero { font-family: var(--font-serif); font-size: 88px; line-height: 96px; letter-spacing: -1px; color: var(--ink); margin: 0; }
+  .rule-gold { width: 64px; height: 4px; background: var(--highlight); margin: var(--space-5) auto; }
+  .split { display: grid; grid-template-columns: 1fr 340px; gap: var(--space-7); align-items: center; height: 100%; }
+  .split--wide { grid-template-columns: 1fr 1fr; align-items: start; }
+  .muted { color: var(--ink-muted); }
+
+  .phone { width: 340px; height: 560px; box-sizing: border-box; background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); overflow: hidden; display: flex; flex-direction: column; }
+  .phone__bar { padding: var(--space-3) var(--space-4); background: var(--surface-band); font-family: var(--font-serif); font-size: 20px; line-height: 28px; color: var(--ink); }
+  .phone__body { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); flex: 1; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+  .toggle { width: 52px; height: 30px; border-radius: var(--radius-pill); background: var(--line-strong); position: relative; flex: none; }
+  .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--surface-raised); transform: translateX(var(--knob, 0px)); }
+  .note { padding: var(--space-3) var(--space-4); background: var(--surface-band); border-left: 3px solid var(--accent); }
+  .note--risk { background: var(--risk-soft); border-left-color: var(--risk); }
+  .amount { font-family: var(--font-serif); font-size: 40px; line-height: 48px; color: var(--ink); }
+  .ev { display: flex; gap: var(--space-2); align-items: baseline; }
+  .ev::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--risk); flex: none; transform: translateY(-2px); }
+  .clock { font-variant-numeric: tabular-nums; }
+  .btn-full { justify-content: center; width: 100%; box-sizing: border-box; }
+  .pressed { background: var(--accent-hover) !important; }
+
+  .console { background: var(--surface-raised); border: 1px solid var(--line-strong); padding: var(--space-5); }
+  .eyebrow { color: var(--ink-muted); }
+  .q { padding: var(--space-3) var(--space-4); border-left: 3px solid var(--line); }
+  .q--on { border-left-color: var(--highlight); background: var(--surface-band); color: var(--ink); }
+  .bubble { max-width: 85%; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); }
+  .bubble--me { align-self: flex-end; background: var(--accent); color: var(--on-accent); }
+  .bubble--bot { align-self: flex-start; background: var(--surface-band); color: var(--ink-body); }
+
+  .cases { list-style: none; margin: var(--space-6) 0 0; padding: 0; max-width: 1000px; }
+  .cases li { display: grid; grid-template-columns: 300px 150px 1fr; gap: var(--space-5); align-items: center; padding: var(--space-5) 0; border-bottom: 1px solid var(--line); }
+  .cases li:last-child { border-bottom: 0; }
+  .case-name { font-family: var(--font-serif); font-size: 22px; line-height: 30px; color: var(--ink); }
+  .scene .in-ol { max-width: 900px; margin-top: var(--space-6); }
+  .scene .in-ol > li { font-size: 21px; line-height: 32px; }
+</style>
+</head>
+<body>
+  <header class="band"><p class="band__title">Second Look</p><span class="band__meta">Concept demo on synthetic data</span></header>
+
+  <!-- 1. Title -->
+  <section class="scene center" data-start="0" data-end="7">
+    <p class="hero" data-in="0.3">Second Look</p>
+    <div class="rule-gold" data-in="1.0"></div>
+    <p class="lead" data-in="1.4" style="max-width:none;font-size:26px;line-height:36px">A pause before the money moves.</p>
+    <p class="small muted" data-in="2.4" style="margin-top:var(--space-5)">HuskyHack 2026 · Sound Credit Union challenge</p>
+  </section>
+
+  <!-- 2. Problem -->
+  <section class="scene" data-start="7" data-end="17">
+    <h2 data-in="0.2">The scam that looks like a normal payment</h2>
+    <ol class="in-ol">
+      <li data-in="0.9">Linda gets a call. Her grandson is in jail and needs bail money.</li>
+      <li data-in="2.4">She is told to keep it quiet and send a wire today.</li>
+      <li data-in="3.9">She sends $8,500 herself, so the payment is authorized.</li>
+      <li data-in="5.4">In the kit’s data, it was held, she confirmed, and it went out. Recovery failed.</li>
+    </ol>
+  </section>
+
+  <!-- 3. Opt in -->
+  <section class="scene" data-start="17" data-end="26">
+    <div class="split">
+      <div>
+        <h2 data-in="0.2">One setting in the Sound app</h2>
+        <p class="lead" data-in="0.8">No new app to install. It stays off unless the member turns it on, and turns off with one tap.</p>
+      </div>
+      <div class="phone" data-in="0.4">
+        <div class="phone__bar">Settings</div>
+        <div class="phone__body">
+          <div class="row"><span class="label">Second Look</span><span class="toggle" id="toggle"></span></div>
+          <p class="small" id="toggle-copy" style="margin:0">We watch for signs someone may be manipulating you, and a Sound employee can step in before money moves.</p>
+          <p class="small muted" id="toggle-never" style="margin:0">We never read your texts, calls or email, and never make a decision about your own payment for you.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Detection -->
+  <section class="scene" data-start="26" data-end="38">
+    <div class="split">
+      <div>
+        <h2 data-in="0.2">A clear rule, with its evidence</h2>
+        <p class="lead" data-in="0.8">The moment Linda starts the wire, a plain rule fires on data Sound already has. Rules decide when to pause, not AI.</p>
+        <p class="small muted" data-in="7.5" style="margin-top:var(--space-5);max-width:520px">Wires, ACH and external transfers can be paused for up to 4 hours. P2P gets a check before sending.</p>
+      </div>
+      <div class="phone" data-in="0.4">
+        <div class="phone__bar">Send a wire</div>
+        <div class="phone__body">
+          <span class="small muted">To a new recipient</span>
+          <span class="amount">$8,500.00</span>
+          <div class="note note--risk" data-in="2.2">
+            <span class="in-badge in-badge--risk">Paused</span>
+            <p class="body" style="margin:var(--space-2) 0 0;color:var(--ink)">Worth a second look before this goes out.</p>
+          </div>
+          <div class="ev small" data-in="3.4">First wire in 2,411 days</div>
+          <div class="ev small" data-in="4.2">Brand-new recipient</div>
+          <div class="ev small" data-in="5.0">4.77 times her usual amount</div>
+          <div class="row" data-in="6.0" style="border-bottom:0;border-top:1px solid var(--line);margin-top:auto"><span class="small">Hold time left</span><span class="label clock" id="clock">4:00:00</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. People -->
+  <section class="scene" data-start="38" data-end="51">
+    <h2 data-in="0.2">A person steps in while the money waits</h2>
+    <div class="split split--wide" style="height:auto;margin-top:var(--space-5)">
+      <div class="console" data-in="0.8">
+        <p class="small eyebrow" style="margin:0">Case · M1001 · held</p>
+        <p class="amount" style="margin:var(--space-1) 0 var(--space-3)">$8,500 wire</p>
+        <p class="label" style="margin:0 0 var(--space-3)">Call the member on the number on file</p>
+        <p class="small q" style="margin:0 0 var(--space-2)">Can you tell me who asked you to make this payment?</p>
+        <p class="small q" style="margin:0 0 var(--space-2)">How did they first contact you?</p>
+        <p class="small q" id="q3" style="margin:0">Has anyone asked you to keep this quiet?</p>
+      </div>
+      <div class="console" data-in="1.4" style="display:flex;flex-direction:column;gap:var(--space-3);min-height:330px">
+        <p class="small eyebrow" style="margin:0">Talk it through · a chat that can’t move money</p>
+        <div class="bubble bubble--me body" data-in="4.6"><span id="typed" data-text="He said not to tell mom."></span></div>
+        <div class="bubble bubble--bot small" data-in="7.2">Being asked to keep a payment secret is one of the things we look for. It doesn’t prove anything by itself. Would you talk to someone you trust who isn’t involved before this goes out? You decide.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Decision -->
+  <section class="scene" data-start="51" data-end="59">
+    <div class="split">
+      <div>
+        <h2 data-in="0.2">The member decides</h2>
+        <p class="lead" data-in="0.8">For the member’s own payment, Sound can delay and advise. The override is always one tap away.</p>
+      </div>
+      <div class="phone" data-in="0.4">
+        <div class="phone__bar" id="dec-bar">Your wire is paused</div>
+        <div class="phone__body">
+          <span class="amount">$8,500.00</span>
+          <span id="status-held" class="in-badge in-badge--risk" style="align-self:flex-start">Paused</span>
+          <span id="status-done" class="in-badge in-badge--safe" style="align-self:flex-start;display:none">Cancelled by you</span>
+          <p class="small" id="dec-note" style="margin:0">Nothing has been sent. A Sound employee is reaching out.</p>
+          <div style="margin-top:auto;display:flex;flex-direction:column;gap:var(--space-3)">
+            <button class="in-btn in-btn--primary btn-full" id="cancel-btn">Cancel this payment</button>
+            <button class="in-btn in-btn--secondary btn-full">It’s me, send it now</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Honesty -->
+  <section class="scene" data-start="59" data-end="69">
+    <h2 data-in="0.2">Showing what it gets wrong, too</h2>
+    <p class="lead" data-in="0.7" style="max-width:none">Synthetic data, so no real fraud rates. We show the edge cases instead of hiding them.</p>
+    <ul class="cases">
+      <li data-in="1.6"><span class="case-name">$51,586.52 home closing wire</span><span class="in-badge in-badge--safe">Released</span><span class="body">The rule that paused Linda’s wire fires too. The answer is a release in minutes, not a looser rule.</span></li>
+      <li data-in="3.6"><span class="case-name">An everyday P2P payment</span><span class="in-badge in-badge--neutral">No flag</span><span class="body">Typical amount. Nothing fires, and we didn’t force it to.</span></li>
+      <li data-in="5.6"><span class="case-name">$5,000 to a fake federal agent</span><span class="in-badge in-badge--risk">Missed</span><span class="body">No rule catches it. We say so.</span></li>
+    </ul>
+  </section>
+
+  <!-- 8. Close -->
+  <section class="scene center" data-start="69" data-end="78">
+    <p class="hero" data-in="0.3" style="font-size:64px;line-height:72px">Second Look</p>
+    <div class="rule-gold" data-in="0.8"></div>
+    <ol class="in-ol" style="text-align:left;margin-top:0;width:640px">
+      <li data-in="1.2">Rules decide when to step in.</li>
+      <li data-in="2.0">Conversation helps the member think.</li>
+      <li data-in="2.8">People at Sound step in, and the member decides.</li>
+    </ol>
+    <p class="small muted" data-in="4.0" style="margin-top:var(--space-6)">Concept demo on Sound’s synthetic data. The pause touches no real money or Sound system.</p>
+  </section>
+
+<script>
+const DURATION = 78;
+const clamp = x => Math.max(0, Math.min(1, x));
+const ease = x => 1 - Math.pow(1 - x, 3);
+const prog = (t, a, d) => ease(clamp((t - a) / d));
+const scenes = [...document.querySelectorAll('.scene')];
+const $ = id => document.getElementById(id);
+
+function render(t) {
+  for (const s of scenes) {
+    const a = +s.dataset.start, b = +s.dataset.end, L = t - a;
+    const alpha = prog(t, a, 0.5) * (1 - prog(t, b - 0.5, 0.5));
+    s.style.opacity = alpha;
+    s.style.visibility = alpha > 0 ? 'visible' : 'hidden';
+    for (const el of s.querySelectorAll('[data-in]')) {
+      const k = prog(L, +el.dataset.in, 0.6);
+      el.style.opacity = k;
+      el.style.transform = `translateY(${(1 - k) * 14}px)`;
+    }
+  }
+  // Toggle flips on at 17 + 3.0
+  const on = prog(t, 20.0, 0.25);
+  $('toggle').style.setProperty('--knob', `${on * 22}px`);
+  $('toggle').style.background = on > 0.5 ? 'var(--accent)' : 'var(--line-strong)';
+  $('toggle-copy').style.opacity = 0.35 + 0.65 * prog(t, 20.2, 0.5);
+  $('toggle-never').style.opacity = prog(t, 21.2, 0.6);
+  // Hold clock counts down at 60x from 26 + 6.0
+  const secs = Math.max(0, 4 * 3600 - Math.max(0, t - 32.0) * 60);
+  const h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60), sec = Math.floor(secs % 60);
+  $('clock').textContent = `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  // Employee highlights the secrecy question at 38 + 3.0; member types at 38 + 4.8
+  $('q3').classList.toggle('q--on', t >= 41.0);
+  const full = $('typed').dataset.text;
+  $('typed').textContent = full.slice(0, Math.floor(clamp((t - 43.0) / 1.6) * full.length)) || '​';
+  // Member cancels at 51 + 4.0
+  $('cancel-btn').classList.toggle('pressed', t >= 55.0 && t < 55.4);
+  const done = t >= 55.4;
+  $('status-held').style.display = done ? 'none' : '';
+  $('status-done').style.display = done ? '' : 'none';
+  $('dec-bar').textContent = done ? 'Your wire was cancelled' : 'Your wire is paused';
+  $('dec-note').textContent = done ? 'Nothing was sent. You can report a scam or talk to someone at Sound anytime.' : 'Nothing has been sent. A Sound employee is reaching out.';
+}
+window.DURATION = DURATION;
+window.render = render;
+render(+(new URLSearchParams(location.search).get('t') ?? 0));
+if (!new URLSearchParams(location.search).has('t') && !navigator.webdriver) {
+  const t0 = performance.now();
+  const loop = () => { render(((performance.now() - t0) / 1000) % DURATION); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

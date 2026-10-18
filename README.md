@@ -34,24 +34,22 @@ npm test                          # state machine, rules, leakage, sessions, cop
 npm run replay -- --member M1001  # print a member's kit timeline with rule findings
 npm run lookalikes                # catch counts per rule (reads the Member Key for measurement only)
 npm run calibrate                 # risk tiers on the labeled email fixtures (add -- --rules for the free rules-only run)
+npm run eval                      # message-detection precision/recall on eval/conversations.jsonl -> eval/report.md
 ```
 
-The payment simulator needs the kit data (next section). Without it, the server explains what's missing and `npm test` skips the 16 kit-replay tests with a reason.
+The payment demo needs no keys. Each optional channel turns on when its keys are in `.env`, and stays off (hidden in the app) without them:
 
-### Configuration (`.env`, never committed)
-
-| Variable | Turns on |
+| Turns on | Variables |
 |---|---|
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude for chat, summaries and case filing (otherwise scripted replies labeled "offline") |
-| `AGENTPHONE_API_KEY`, `AGENTPHONE_AGENT_ID`, `AGENTPHONE_NUMBER_ID`, `AGENTPHONE_NUMBER` | Second Look's phone line |
-| `AGENTPHONE_ALLOWED_TO` | Team phones Second Look may call from "Have Second Look call me" (trusted without a verification call) |
-| `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID` | Second Look's inbox |
-| `FRAUD_TEAM_EMAIL` | Where fraud cases are emailed (stand-in for Sound's fraud team) |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY_PEM`, `VAPID_MAILTO` | Web push alerts |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_BASE_URL` | "Connect Gmail" (read-only) |
-| `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_NUMBER` | WhatsApp forwarding (setup below) |
-| `ALLOWED_ORIGIN_HOSTS` | Extra hosts allowed through the CSRF origin check (the Vercel front door) |
-| `KIT_EVENTS_PATH` | Read the kit events CSV from somewhere other than `data/` |
+| Claude for chat, email replies, channel checks and call summaries (otherwise scripted replies labeled "offline reply") | `ANTHROPIC_API_KEY` (or `LLM_API_KEY`), optional `ANTHROPIC_MODEL` |
+| How incoming messages are checked: `gate` (default), `rules` or `classifier` (see [docs/classifier-schema.md](docs/classifier-schema.md)) | `DETECTION_MODE` |
+| Second Look's email inbox | `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`; `FRAUD_TEAM_EMAIL` also emails filed cases to the fraud team |
+| Connect Gmail (read-only) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PUBLIC_BASE_URL` |
+| Second Look's phone number | `AGENTPHONE_API_KEY`, `AGENTPHONE_AGENT_ID`, `AGENTPHONE_NUMBER`, `AGENTPHONE_NUMBER_ID`; `AGENTPHONE_ALLOWED_TO` lists the phones "Call my phone" may ring; `AGENTPHONE_SCREENING_POOL` lists spare numbers (attached to the same agent) so each member who screens calls gets their own |
+| WhatsApp forwarding (setup below) | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_NUMBER` |
+| Push alerts | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY_PEM` (base64 PEM), optional `VAPID_MAILTO` |
+| Kit data somewhere other than `data/` | `KIT_EVENTS_PATH` |
+| Server | `PORT` (8787), `DB_PATH`, `SESSION_SECRET`, `ALLOWED_ORIGIN_HOSTS` (a proxy in front, e.g. Vercel), `WHISPER_MODEL` |
 
 ### WhatsApp setup (Meta WhatsApp Cloud API)
 
@@ -61,21 +59,35 @@ The payment simulator needs the kit data (next section). Without it, the server 
 4. Pick any random string for `WHATSAPP_VERIFY_TOKEN`. In WhatsApp → Configuration → Webhook, set the callback URL to `https://<your public host>/webhooks/whatsapp` with that verify token, then subscribe to the **messages** field.
 5. Restart the server. In the app: link your phone on Call guardian, turn on WhatsApp under Connected channels, then message the number. Your first WhatsApp message confirms the linked phone.
 
-## Getting the kit data
-
-The official HuskyHack files are hackathon materials, not for public release, and this repo is public, so `data/` is gitignored. **Never commit them.**
-
-1. Get the kit from the HuskyHack 2026 challenge materials (or from a teammate).
-2. Put the files in `data/` with their original names: `HuskyHack_Synthetic_Events_v2.csv` (the app reads only this), `HuskyHack_Member_Key_v2.csv`, plus the docs.
-3. Run `npm test`: the kit-replay tests run instead of being skipped.
-
-`HuskyHack_Member_Key_v2.csv` is the answer key. Only `scripts/lookalikes.ts` reads it, and a test fails if anything in `src/` or `public/` references it.
 
 ## Layout
 
+This list is the record of what exists; PLAN.md is the historical build plan.
+
+Payment demo (no keys needed):
 - `src/kit.ts` loads the events CSV (never the Member Key) with canonical label checks.
-- `src/rules.ts`, `src/payments.ts`, `src/sim.ts`, `src/alerts.ts`: payment rules, state machine, replay engine, alert policy.
-- `src/chat.ts`, `src/media.ts`: chat and attachments. `src/tactics.ts`: pressure-tactic patterns shared by every channel.
-- `src/guardian.ts`, `src/phone.ts`, `src/email.ts`, `src/monitor.ts`, `src/gmail.ts`: call guardian, phone line, inbox, connected channels.
-- `src/reports.ts`: fraud cases. `src/server.ts`: routes, sessions, CSRF.
-- `public/`: member app, employee console, `/about`, push service worker (plain HTML/JS, Instinct design system in `design-system/`).
+- `src/rules.ts` has rules R1-R4 plus the standard new-recipient banner; each returns field evidence.
+- `src/payments.ts` is the payment state machine (4-hour holds, P2P pre-submit only, stop only after verified takeover, expiry never auto-sends).
+- `src/sim.ts` is the replay engine: one simulation per browser session, one case per situation.
+- `src/alerts.ts` is the alert policy: T0/T1/T2 tiers, interruption budget, cooldowns, quiet hours.
+- `src/chat.ts` is the case-grounded "Talk to Second Look" chat with hard no-action limits; `src/media.ts` handles its photos, PDFs and voice notes (transcribed on this machine with Whisper).
+- `public/` holds the member app, employee console and `/about` (plain HTML/JS).
+
+Channels (each off without its keys, and only for members who turn it on):
+- `src/email.ts` is Second Look's email inbox (AgentMail): members forward mail from an address they linked and get a reply, and can have it reported to Sound.
+- `src/gmail.ts` is "Connect Gmail": read-only sign-in, new inbox mail checked every minute.
+- `src/phone.ts` is Second Look's phone number (AgentPhone): call it, add it to a call, have it call you, screen missed calls, forward texts.
+- `src/guardian.ts` is the call guardian: listens on speaker or to a phone call and names pressure tactics as they happen.
+- `src/monitor.ts` holds the channel settings, the shared check for incoming messages (`assess`), and alerts (push, in-app, email).
+- `src/whatsapp.ts` is WhatsApp forwarding (Cloud API webhook): members forward from their linked phone and get the chat's reply in the thread.
+- `src/tactics.ts` names pressure tactics in text, keyed by signal, with the words that matched; `src/classifier.ts` scores the same signals with Claude, keeping only quoted evidence; `src/signals.ts` merges both and computes the risk tier from the evidence (ADR 10, [docs/signals.md](docs/signals.md)); `src/reports.ts` files a fraud case from any channel.
+
+Data and scripts:
+- `scripts/replay.ts`, `scripts/lookalikes.ts` (see Run), and `scripts/synthetic-kit.ts` (see Data).
+- `fixtures/emails.json` holds scripted emails with expected outcomes (`npm run calibrate` checks the risk tiers against them); `eval/` holds the message-detection eval set (`npm run eval`).
+
+## Data
+
+`data/` holds the official kit files. They are not for public release, so they are gitignored; ask the team for them. The app reads only `HuskyHack_Synthetic_Events_v2.csv`. `HuskyHack_Member_Key_v2.csv` is the answer key: it is read only by `scripts/lookalikes.ts`, and a test fails if anything in `src/` or `public/` references it.
+
+Without `data/`, everything runs on a **synthetic stand-in** in `fixtures/synthetic-kit/` (the server says so when it starts). It reproduces the anchor members the scenes and tests use (M1001, M1002, M1003, M1004, M1037, M1057, M1102), using only kit facts this repo already states, plus invented routine members. Its rule catch counts say nothing about the real kit. The files come from `scripts/synthetic-kit.ts`; after editing the generator, run `npm run kit:synthetic` (a test fails if the committed files are stale). **Never commit the official files.** `KIT_EVENTS_PATH` points the app at the events file somewhere else.

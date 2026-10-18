@@ -9,10 +9,9 @@
 // - Forwarded content is data, never instructions. Links are never opened.
 import { db } from './db.ts';
 import { client, MODEL } from './chat.ts';
-import { tacticsIn } from './tactics.ts';
 import { ruleSignals, type Signal } from './signals.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
-import { settings, saveSettings, assess, record, detections, reportDetection } from './monitor.ts';
+import { settings, saveSettings, assess, record, detections, reportDetection, inspect } from './monitor.ts';
 
 const KEY = process.env.AGENTMAIL_API_KEY;
 export const INBOX = process.env.AGENTMAIL_INBOX_ID ?? null;
@@ -24,6 +23,7 @@ db.exec(`
 CREATE TABLE IF NOT EXISTS email_links (address TEXT PRIMARY KEY, sid TEXT NOT NULL, share INTEGER NOT NULL DEFAULT 0, ts INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS email_seen (message_id TEXT PRIMARY KEY, ts INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS email_reports (id INTEGER PRIMARY KEY, sid TEXT NOT NULL, ts INTEGER NOT NULL, subject TEXT, report TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS email_replies (address TEXT NOT NULL, ts INTEGER NOT NULL);
 `);
 // A link only counts once the member enters the 6-digit code we email to that address.
 for (const col of ['verified INTEGER NOT NULL DEFAULT 0', 'code TEXT', 'code_ts INTEGER']) { try { db.exec(`ALTER TABLE email_links ADD COLUMN ${col}`); } catch { /* already there */ } }
@@ -85,23 +85,6 @@ async function api(method: string, path: string, body?: unknown) {
   return j;
 }
 
-// ---- What we can say without a model: links, look-alike domains, phone numbers, pressure tactics ----
-function inspect(text: string) {
-  const domains = new Set<string>();
-  for (const m of text.matchAll(/https?:\/\/([^\s/<>"')\]]+)/gi)) domains.add(m[1].toLowerCase().replace(/^www\./, '').replace(/[.,;:]+$/, ''));
-  for (const m of text.matchAll(/\b((?:[a-z0-9-]+\.)+(?:com|net|org|info|xyz|top|co|io|us|biz|online|site|app|link|support))\b/gi)) {
-    const d = m[1].toLowerCase().replace(/^www\./, '');
-    if (!d.endsWith('agentmail.to') && !/^(gmail|outlook|yahoo|icloud|hotmail)\.com$/.test(d)) domains.add(d);
-  }
-  const links = [...domains].slice(0, 8).map(domain => ({
-    domain,
-    note: domain === OFFICIAL_DOMAIN || domain.endsWith('.' + OFFICIAL_DOMAIN) ? 'This is Sound’s real website.'
-      : /sound|credit.?union|scu/.test(domain) ? `Uses Sound’s name, but it isn’t ${OFFICIAL_DOMAIN}.`
-      : null,
-  }));
-  const numbers = [...new Set([...text.matchAll(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g)].map(m => m[0].trim()))].slice(0, 5);
-  return { links, numbers, tactics: tacticsIn(text), signals: ruleSignals(text) };
-}
 
 const SYSTEM = `You are Second Look, the scam-protection helper from Sound Credit Union (a hackathon concept demo), answering by email.
 The member either forwarded an email or text that felt off, or asked a question. Write the reply email body.
@@ -213,7 +196,13 @@ export async function reportEmailById(sid: string, id: number) {
   db.prepare('UPDATE email_reports SET report = ? WHERE id = ?').run(JSON.stringify(r), id);
 }
 
-const recent = new Map<string, number[]>(); // per-sender replies in the last hour (abuse guard)
+// Abuse guard: at most 10 replies per sender per hour. Kept in SQLite so a restart doesn't reset it.
+export function underReplyLimit(from: string) {
+  db.prepare('DELETE FROM email_replies WHERE ts < ?').run(Date.now() - 3600_000);
+  if ((db.prepare('SELECT COUNT(*) AS n FROM email_replies WHERE address = ?').get(from) as { n: number }).n >= 10) return false;
+  db.prepare('INSERT INTO email_replies (address, ts) VALUES (?, ?)').run(from, Date.now());
+  return true;
+}
 
 async function handle(m: any, keyFor: (sid: string) => string) {
   const from = addr(m.from ?? '');
@@ -227,9 +216,7 @@ async function handle(m: any, keyFor: (sid: string) => string) {
     console.log(`email: ignored mail from an unlinked address (${mask(from)}), left unread`); return;
   }
   if ((m.labels ?? []).includes('unauthenticated')) { console.log(`email: skipped unauthenticated mail claiming ${mask(from)}`); return; }
-  const hits = (recent.get(from) ?? []).filter(t => Date.now() - t < 3600_000);
-  if (hits.length >= 10) { console.log('email: hourly limit reached for', mask(from)); return; }
-  recent.set(from, [...hits, Date.now()]);
+  if (!underReplyLimit(from)) { console.log('email: hourly limit reached for', mask(from)); return; }
 
   const full = await api('GET', `/inboxes/${encodeURIComponent(INBOX!)}/messages/${encodeURIComponent(m.message_id)}`);
   const own = String(full.extracted_text ?? '').trim(); // the member's own new words, without quoted or forwarded text
@@ -273,7 +260,7 @@ async function handle(m: any, keyFor: (sid: string) => string) {
   let sent = false;
   try { await send(reply + extra); sent = true; } catch (e) { console.error('email: reply failed:', (e as Error).message); }
 
-  const report: Report = { from: mask(from), subject, received: Date.parse(m.timestamp) || Date.now(), kind: forwarded ? 'forwarded' : 'question', tactics: found.tactics, signals: found.signals, links: found.links, numbers: found.numbers, reply, reply_source: source, sent };
+  const report: Report = { from: mask(from), subject, received: Date.parse(m.timestamp) || Date.now(), kind: forwarded ? 'forwarded' : 'question', tactics: found.tactics, signals: ruleSignals(`${subject}\n${body}`), links: found.links, numbers: found.numbers, reply, reply_source: source, sent };
   report.thread_id = full.thread_id;
   report.excerpt = body.slice(0, 4000);
   if (askedToReport) { await reportEmail(link.sid, report, own); report.reported = true; }

@@ -9,12 +9,13 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { tickAll, useWorld, loadScene, control, member, employee, snapshot, requestCallback, callbackDone } from './sim.ts';
 import { TransitionError } from './payments.ts';
+import { USING_STANDIN } from './kit.ts';
 import { chat, chatHistory, GENERAL } from './chat.ts';
 import { prepare, loadAsr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
-import { phoneState, link, unlink, callMe, watchCalls, PhoneError, phoneVerified } from './phone.ts';
+import { phoneState, link, unlink, callMe, watchCalls, PhoneError, phoneVerified, assignScreeningNumber } from './phone.ts';
 import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError, reportEmailById, sendLinkCode, verifyLinkCode } from './email.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
 import { settings, saveSettings, detections, pushKey, addPushSub, removePushSubs, reportDetection, record } from './monitor.ts';
@@ -143,9 +144,9 @@ app.post('/api/channels', async c => {
   if (patch.email_watch && !emailState(sid)?.verified) return c.json({ error: 'Confirm your email first on Email check' }, 400);
   if (patch.screening && !phoneVerified(sid)) return c.json({ error: 'Confirm your phone first: link it on Call guardian and call Second Look once from it' }, 400);
   if (patch.whatsapp && !(whatsappEnabled && phoneState(sid)?.linked)) return c.json({ error: whatsappEnabled ? 'Link your phone first on Call guardian' : 'WhatsApp isn’t set up on this server' }, 400);
-  if (patch.screening) patch.screening_since = Date.now();
   if (b.dismiss_confirm) patch.forward_confirm = null;
   saveSettings(sid, patch);
+  if (patch.screening) assignScreeningNumber(sid);
   return c.json({ ok: true });
 });
 app.post('/api/push/subscribe', async c => { const b = await c.req.json().catch(() => ({})); addPushSub(c.get('sid'), b.sub); return c.json({ ok: true }); });
@@ -216,7 +217,7 @@ let last = Date.now();
 setInterval(() => { const now = Date.now(); tickAll(now - last); last = now; }, 250);
 
 const port = Number(process.env.PORT ?? 8787);
-serve({ fetch: app.fetch, port }, () => console.log(`Second Look demo on http://localhost:${port}`));
+serve({ fetch: app.fetch, port }, () => console.log(`Second Look demo on http://localhost:${port}${USING_STANDIN ? ' (kit data: synthetic stand-in, see README)' : ''}`));
 if (process.env.NODE_ENV !== 'test') {
   loadAsr(); // warm up on-device voice-note transcription
   watchCalls(sid => { useWorld(sid); return `${sid}:${snapshot().scene.id}`; }); // Second Look's phone line

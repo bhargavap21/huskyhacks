@@ -45,11 +45,11 @@
     <button data-page="timeline"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/></svg></span><span class="lbl">Kit timeline</span></button>
     <a class="side-link" href="/about"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></span><span class="lbl">About this concept</span></a>
     <div class="side-foot">
-      <button class="acct-btn" id="acct-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu"><span class="avatar-sm" id="acct-initial" aria-hidden="true">L</span><span class="lbl" id="acct-label">Linda</span><span class="lbl acct-chev" aria-hidden="true">⌃</span></button>
+      <button class="acct-btn" id="acct-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="acct-menu"><span class="avatar-sm" id="acct-initial" aria-hidden="true"></span><span class="lbl" id="acct-label"></span><span class="lbl acct-chev" aria-hidden="true">⌃</span></button>
     </div>
   </nav>
   <div class="acct-menu" id="acct-menu" role="menu" aria-label="Account" hidden>
-    <div class="acct-head"><span class="acct-kicker">Account</span><span id="acct-name">Linda · M1001</span></div>
+    <div class="acct-head"><span class="acct-kicker">Account</span><span id="acct-name"></span></div>
     <button role="menuitem" data-page="profile"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Profile</button>
     <button role="menuitem" data-page="settings"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></span>Settings</button>
     <button role="menuitem" id="theme" aria-pressed="false"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></svg></span>Appearance<span class="acct-pill" id="theme-state">Light</span></button>
@@ -64,7 +64,7 @@
 </div>
 <dialog class="invite-dlg" id="invite-dlg" aria-labelledby="invite-title">
   <h2 id="invite-title">Join on your phone</h2>
-  <p class="small">Scan to open Linda’s member app on your phone, linked to this demo. Everything stays synthetic: no real money, no sign-in.</p>
+  <p class="small">Scan to open <span id="invite-member">the demo member</span>’s app on your phone, linked to this demo. Everything stays synthetic: no real money, no sign-in.</p>
   <div class="invite-qr" id="invite-qr" aria-hidden="true"></div>
   <p class="invite-url" id="invite-url"></p>
   <button class="primary" id="invite-close">Done</button>

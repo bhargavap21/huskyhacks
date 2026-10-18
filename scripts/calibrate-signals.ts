@@ -22,7 +22,7 @@ const OK: Record<string, (r: string) => boolean> = {
 let fails = 0;
 console.log(`Mode: ${rulesOnly ? 'rules only' : 'Claude + rules'}\n`);
 for (const f of fixtures) {
-  const d = await assess('email', f.from_header, f.subject, f.body_text);
+  const d = await assess('email', f.from_header, f.subject, f.body_text, [], { mode: 'gate' });
   const risk = d?.risk ?? 'none';
   const ok = OK[f.expected.verdict]?.(risk) ?? true;
   // Safety-relevant: a scam that doesn't alert, or a benign message that interrupts the member. A weak case left
