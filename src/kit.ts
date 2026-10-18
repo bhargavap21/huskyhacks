@@ -1,9 +1,13 @@
 // Loads the kit's synthetic EVENTS file only. The Member Key is the answer key
 // and must never be read by the app (HANDOFF section 6; test/leakage.test.ts).
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const EVENTS_PATH = join(import.meta.dirname, '..', 'data', 'HuskyHack_Synthetic_Events_v2.csv');
+// The official kit file is not for public release, so it isn't in git. Without it, use the committed
+// synthetic stand-in (scripts/synthetic-kit.ts), which reproduces the anchor members the demo and tests use.
+const OFFICIAL_EVENTS = join(import.meta.dirname, '..', 'data', 'HuskyHack_Synthetic_Events_v2.csv');
+export const USING_STANDIN = !existsSync(OFFICIAL_EVENTS);
+export const EVENTS_PATH = USING_STANDIN ? join(import.meta.dirname, '..', 'fixtures', 'synthetic-kit', 'events.csv') : OFFICIAL_EVENTS;
 
 // Canonical, case-sensitive labels from the data dictionary (HANDOFF section 9).
 export const CANON = {

@@ -9,6 +9,7 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { tickAll, useWorld, loadScene, control, member, employee, snapshot, requestCallback, callbackDone } from './sim.ts';
 import { TransitionError } from './payments.ts';
+import { USING_STANDIN } from './kit.ts';
 import { chat, chatHistory, GENERAL } from './chat.ts';
 import { prepare, loadAsr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
@@ -192,7 +193,7 @@ let last = Date.now();
 setInterval(() => { const now = Date.now(); tickAll(now - last); last = now; }, 250);
 
 const port = Number(process.env.PORT ?? 8787);
-serve({ fetch: app.fetch, port }, () => console.log(`Second Look demo on http://localhost:${port}`));
+serve({ fetch: app.fetch, port }, () => console.log(`Second Look demo on http://localhost:${port}${USING_STANDIN ? ' (kit data: synthetic stand-in, see README)' : ''}`));
 if (process.env.NODE_ENV !== 'test') {
   loadAsr(); // warm up on-device voice-note transcription
   watchCalls(sid => { useWorld(sid); return `${sid}:${snapshot().scene.id}`; }); // Second Look's phone line

@@ -1,0 +1,24 @@
+synthetic_member_id,scenario_type,is_legitimate_lookalike,journey_outcome,net_member_loss
+M1001,Family Emergency,No,"Wire held, member confirmed, released; next-day cash cancelled; recall unsuccessful",8500.00
+M1002,Romance,No,"Growing P2P payments, then a first wire",7850.00
+M1003,Account Takeover,No,Two P2P payments after a password reset and phone change; reported next morning,2350.00
+M1004,Government Impersonation,No,Branch cash withdrawal after asking about limits,9000.00
+M1037,Normal Activity,Yes,Urgent P2P to a grandchild; generic banner; confirmed and completed,0.00
+M1057,Normal Activity,Yes,Closing wire held by an amount rule; released after a callback,0.00
+M1102,Government Impersonation,No,"Wire to a ""federal agent"" after asking about limits; generic banner only",5000.00
+M1010,Normal Activity,No,No incident,0.00
+M1011,Normal Activity,No,No incident,0.00
+M1012,Normal Activity,No,No incident,0.00
+M1013,Normal Activity,No,No incident,0.00
+M1014,Normal Activity,No,No incident,0.00
+M1015,Normal Activity,No,No incident,0.00
+M1016,Normal Activity,No,No incident,0.00
+M1017,Normal Activity,No,No incident,0.00
+M1018,Normal Activity,No,No incident,0.00
+M1019,Normal Activity,No,No incident,0.00
+M1020,Normal Activity,No,No incident,0.00
+M1021,Normal Activity,No,No incident,0.00
+M1022,Normal Activity,No,No incident,0.00
+M1023,Normal Activity,No,No incident,0.00
+M1024,Normal Activity,No,No incident,0.00
+M1025,Normal Activity,No,No incident,0.00

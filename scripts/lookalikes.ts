@@ -1,10 +1,13 @@
 // Measurement only (HANDOFF section 9): the Member Key is read HERE, never by src/.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { loadEvents, parseCsv, historyUpTo } from '../src/kit.ts';
+import { loadEvents, parseCsv, historyUpTo, USING_STANDIN } from '../src/kit.ts';
 import { score } from '../src/rules.ts';
 
-const [h, ...rows] = parseCsv(readFileSync(join(import.meta.dirname, '..', 'data', 'HuskyHack_Member_Key_v2.csv'), 'utf8'));
+// The key must match the events: the synthetic stand-in's own key, or the official one next to the official events.
+const KEY_PATH = USING_STANDIN ? join(import.meta.dirname, '..', 'fixtures', 'synthetic-kit', 'member-key.csv') : join(import.meta.dirname, '..', 'data', 'HuskyHack_Member_Key_v2.csv');
+if (USING_STANDIN) console.log('Synthetic stand-in data (fixtures/synthetic-kit/), not the official kit: these counts say nothing about the real rules.\n');
+const [h, ...rows] = parseCsv(readFileSync(KEY_PATH, 'utf8'));
 const key = new Map(rows.filter(r => r.length >= h.length).map(r => [r[0], Object.fromEntries(h.map((k, i) => [k, r[i]]))]));
 const group = (m: string) => { const k = key.get(m)!; return k.is_legitimate_lookalike === 'Yes' ? 'Legitimate look-alike' : k.scenario_type === 'Normal Activity' ? 'Routine' : k.scenario_type; };
 

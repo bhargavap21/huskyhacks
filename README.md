@@ -32,4 +32,6 @@ Optional: put `ANTHROPIC_API_KEY=...` in `.env` to use Claude for the "Talk to S
 
 ## Data
 
-`data/` holds the official kit files. The app reads only `HuskyHack_Synthetic_Events_v2.csv`. `HuskyHack_Member_Key_v2.csv` is the answer key: it is read only by `scripts/lookalikes.ts`, and a test fails if anything in `src/` or `public/` references it.
+`data/` holds the official kit files. They are not for public release, so they are gitignored; ask the team for them. The app reads only `HuskyHack_Synthetic_Events_v2.csv`. `HuskyHack_Member_Key_v2.csv` is the answer key: it is read only by `scripts/lookalikes.ts`, and a test fails if anything in `src/` or `public/` references it.
+
+Without `data/`, everything runs on a **synthetic stand-in** in `fixtures/synthetic-kit/` (the server says so when it starts). It reproduces the anchor members the scenes and tests use (M1001, M1002, M1003, M1004, M1037, M1057, M1102), using only kit facts this repo already states, plus invented routine members. Its rule catch counts say nothing about the real kit. The files come from `scripts/synthetic-kit.ts`; after editing the generator, run `npm run kit:synthetic` (a test fails if the committed files are stale). Never commit the official files.
