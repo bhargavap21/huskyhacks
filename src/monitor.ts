@@ -12,6 +12,7 @@ import { tacticsIn } from './tactics.ts';
 import { classify, type Classification } from './classifier.ts';
 import { ruleSignals, merge, tier, SIGNALS_VERSION, type Signal, type Risk } from './signals.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
+import { demoKey } from './sim.ts';
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS channels (sid TEXT PRIMARY KEY, json TEXT NOT NULL);
@@ -45,6 +46,7 @@ export type Detection = {
   why: string[]; // flat list for email alerts and reports; derived from signals + other
   from: string; subject?: string; links?: { domain: string; note: string | null }[]; numbers?: string[];
   excerpt?: string; reported?: boolean; alerted_by?: string[];
+  demo?: boolean; // a sample sent from the demo walkthrough: hidden from the live product, reported into the demo
   files?: { kind: string; name: string; note: string }[]; // what the member sent along (names and transcripts only)
 };
 export function detections(sid: string) {
@@ -236,7 +238,7 @@ export async function reportDetection(sid: string, id: number) {
   const base = { summary: `${d.title}. ${d.summary}`, contact_method: d.channel === 'call screening' ? 'phone call (screened by Vantis)' : d.channel === 'text' ? 'text message' : d.channel === 'whatsapp' ? 'WhatsApp message' : 'email', scammer_phone: d.channel === 'call screening' ? d.from : d.numbers?.[0] ?? '', scammer_email: /@/.test(d.from) ? d.from.replace(/^.*<([^>]+)>.*$/, '$1') : '', scammer_website: d.links?.find(l => l.note && !l.note.startsWith('This is'))?.domain ?? d.links?.[0]?.domain ?? '', tactics: d.signals ? d.signals.map(s => s.label) : d.why };
   const x = await extractIntake('You read something Vantis flagged on a credit union member’s connected channel (an email, text, or a call it screened). The member has not acted on it. Fill the fraud case: the threat details come from the message; the member did not send money or share anything unless the content says so.', `From: ${d.from}\nSubject: ${d.subject ?? ''}\n\n${d.excerpt ?? d.summary}`).catch(() => null);
   const tactics = d.signals ? d.signals.map(s => s.label) : d.why;
-  const out = await fileReport(sid, normalize({ ...base, ...(x ?? {}), tactics: [...new Set([...tactics, ...(x?.tactics ?? [])])].slice(0, 8), signals: d.signals ?? [] }, d.channel === 'whatsapp' ? 'whatsapp' : 'app', { linked: true }));
+  const out = await fileReport(d.demo ? demoKey(sid) : sid, normalize({ ...base, ...(x ?? {}), tactics: [...new Set([...tactics, ...(x?.tactics ?? [])])].slice(0, 8), signals: d.signals ?? [] }, d.channel === 'whatsapp' ? 'whatsapp' : 'app', { linked: true }));
   d.reported = true; updateDetection(sid, id, d);
   return out;
 }

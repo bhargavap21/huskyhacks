@@ -9,6 +9,7 @@ import { db } from './db.ts';
 import { startCall, addText, stopCall, callState } from './guardian.ts';
 import { client, MODEL } from './chat.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
+import { demoKey } from './sim.ts';
 import { sidsWhere, settings, assess, record, notifyMember, onCritical, detection, updateDetection, type Detection } from './monitor.ts';
 import { decide, input as screenInput, logScreened, finishScreened, TOOL_SECRET, NEVER_CONNECT } from './screening.ts';
 import { timingSafeEqual } from 'node:crypto';
@@ -423,7 +424,7 @@ export async function reportIfAgreed(sid: string | null, member: string, turns: 
     // A call about a Level 4 threat: the case carries what Vantis saw, with its quotes.
     const p = sid ? pendingThreat.get(sid) : undefined, det = p && Date.now() - p.at < 30 * 60_000 ? detection(sid!, p.id) : null;
     if (det) Object.assign(d, { signals: det.signals ?? [], tactics: [...new Set([...(d.tactics ?? []), ...(det.signals ?? []).map(x => x.label)])], contact_method: d.contact_method || CHANNEL_NAME[det.channel], scammer_phone: d.scammer_phone || det.numbers?.[0] || '' });
-    const out = await fileReport(sid, normalize(d, 'phone', { phone: member, linked: !!sid }));
+    const out = await fileReport(det?.demo && sid ? demoKey(sid) : sid, normalize(d, 'phone', { phone: member, linked: !!sid })); // a demo sample's call reports into the demo
     if (det && p) { det.reported = true; updateDetection(sid!, p.id, det); pendingThreat.delete(sid!); }
     console.log(`phone: case ${out.case_id} filed (queue: ${out.queued}, emailed: ${out.emailed})`);
   } catch (e) { console.error('phone: could not check for a report:', (e as Error).message); }

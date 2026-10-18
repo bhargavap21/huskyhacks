@@ -3,11 +3,11 @@ import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Hono } from 'hono';
-import { db } from './db.ts';
+import { db, auditLog } from './db.ts';
 import { getCookie, setCookie } from 'hono/cookie';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { tickAll, useWorld, loadScene, control, member, employee, snapshot, requestCallback, callbackDone } from './sim.ts';
+import { tickAll, useWorld, useLive, demoKey, loadScene, control, member, employee, snapshot, requestCallback, callbackDone } from './sim.ts';
 import { TransitionError } from './payments.ts';
 import { USING_STANDIN } from './kit.ts';
 import { chat, chatHistory, GENERAL } from './chat.ts';
@@ -29,7 +29,7 @@ const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
 const csrfFor = (sid: string) => createHmac('sha256', SECRET).update(sid).digest('hex');
 
-const app = new Hono<{ Variables: { sid: string } }>();
+const app = new Hono<{ Variables: { sid: string; wk: string; demo: boolean } }>();
 
 // Demo session cookie (role switch is a labeled demo control, not real auth; HANDOFF section 13).
 app.use('*', async (c, next) => {
@@ -55,8 +55,14 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
-// Every API call acts on this browser's own simulation.
-app.use('/api/*', async (c, next) => { useWorld(c.get('sid')); await next(); });
+// Every API call acts on this browser's own world: the live console, or (header x-world: demo) the demo walkthrough.
+// Scene loads and replay controls only exist in the demo, so they always act there.
+app.use('/api/*', async (c, next) => {
+  const sid = c.get('sid'), demo = c.req.header('x-world') === 'demo' || /^\/api\/(scene|control)\//.test(c.req.path);
+  c.set('demo', demo); c.set('wk', demo ? demoKey(sid) : sid);
+  if (demo) useWorld(demoKey(sid)); else useLive(sid);
+  await next();
+});
 
 app.onError((err, c) => {
   if (err instanceof TransitionError) return c.json({ error: err.message }, 409);
@@ -78,7 +84,7 @@ app.get('/join/:code', c => {
   const sid = rooms.get(c.req.param('code').toLowerCase());
   if (!sid) return c.text('That join link has expired. Ask the presenter for a new one.', 404);
   setCookie(c, 'sl_sid', sid, { httpOnly: true, sameSite: 'Lax', secure: PROD, path: '/' });
-  return c.redirect('/?page=home&joined=1');
+  return c.redirect('/?page=home&joined=1&demo=1'); // the phone joins the presenter's demo walkthrough
 });
 
 // Chats the member chose to share with Sound staff (off unless the member turns it on).
@@ -100,13 +106,15 @@ function sharedChats(c: any) {
 
 app.get('/api/state', c => {
   const ids = Object.fromEntries([...shared].filter(([k, v]) => v && k.startsWith(chatKey(c) + ':')).map(([k]) => [k.slice(chatKey(c).length + 1), true]));
-  return c.json({ ...snapshot(), shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), email: emailState(c.get('sid')), channels: channelState(c.get('sid')), csrf: csrfFor(c.get('sid')) });
+  return c.json({ ...snapshot(), world: c.get('demo') ? 'demo' : 'live', shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), email: emailState(c.get('sid')), channels: channelState(c.get('sid'), c.get('demo')), csrf: csrfFor(c.get('sid')) });
 });
-app.post('/api/scene/:id', c => { loadScene(c.req.param('id'), c.get('sid')); return c.json({ ok: true }); });
-app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('sid')); return c.json({ ok: true }); });
+// The audit log for the console in view: live and demo rows are kept apart.
+app.get('/api/audit', c => c.json(auditLog(c.get('demo') ? 'demo' : 'live')));
+app.post('/api/scene/:id', c => { loadScene(c.req.param('id'), c.get('wk')); return c.json({ ok: true }); });
+app.post('/api/control/:cmd', c => { control(c.req.param('cmd'), c.get('wk')); return c.json({ ok: true }); });
 app.post('/api/member/:action', async c => { member(c.req.param('action'), await c.req.json().catch(() => ({}))); return c.json({ ok: true }); });
 app.post('/api/employee/:action', async c => { employee(c.req.param('action'), await c.req.json().catch(() => ({}))); return c.json({ ok: true }); });
-const chatKey = (c: any) => `${c.get('sid')}:${snapshot().scene.id}`;
+const chatKey = (c: any) => `${c.get('wk')}:${snapshot().scene.id}`;
 app.post('/api/callback', async c => { const b = await c.req.json().catch(() => ({})); return c.json({ ok: true, id: requestCallback(String(b.kind), Number(b.caseId) || 0) }); });
 app.post('/api/callback/:id/done', async c => { const b = await c.req.json().catch(() => ({})); callbackDone(Number(c.req.param('id')), String(b.note ?? '')); return c.json({ ok: true }); });
 // Call guardian: ~4 s audio chunks from the member's browser, transcribed here; audio is not kept.
@@ -131,13 +139,14 @@ app.post('/api/report', async c => {
   if (!g || !g.lines.length) return c.json({ error: 'Nothing to report yet' }, 400);
   const base = { summary: g.summary ?? 'The member used Call guardian on a call with warning signs.', contact_method: 'phone call (Call guardian listened)', tactics: g.alerts.map(a => a.label), quotes: g.alerts.map(a => a.quote).slice(0, 3) };
   const d = await extractIntake('You read the automatic transcript of a phone call a credit union member let Vantis listen to. The other voice is the caller who contacted the member. Fill the fraud case: the threat details come from what the caller said.', g.lines.map(l => (l.who === 'second-look' ? 'Vantis: ' : '') + l.text).join('\n')).catch(() => null);
-  await fileReport(sid, normalize({ ...base, ...(d ?? {}), tactics: [...new Set([...(d?.tactics ?? []), ...base.tactics])] }, 'call guardian', { linked: true }));
+  await fileReport(c.get('wk'), normalize({ ...base, ...(d ?? {}), tactics: [...new Set([...(d?.tactics ?? []), ...base.tactics])] }, 'call guardian', { linked: true }));
   return c.json({ ok: true });
 });
 // Connected channels: what the member turned on, recent alerts, and how alerts reach them.
-function channelState(sid: string) {
+// Samples sent from the demo show only in the demo.
+function channelState(sid: string, demo = false) {
   const s = settings(sid);
-  return { email_watch: s.email_watch, screening: s.screening, texts: s.texts, screen_connect: s.screen_connect, screened_calls: screenedCalls(sid), whatsapp: s.whatsapp, whatsapp_number: whatsappEnabled ? WA_NUMBER : null, push: s.push, forward_confirm: s.forward_confirm, gmail: s.gmail ? { address: s.gmail.address } : null, gmail_available: gmailEnabled, push_key: pushKey(), detections: detections(sid) };
+  return { email_watch: s.email_watch, screening: s.screening, texts: s.texts, screen_connect: s.screen_connect, screened_calls: screenedCalls(sid), whatsapp: s.whatsapp, whatsapp_number: whatsappEnabled ? WA_NUMBER : null, push: s.push, forward_confirm: s.forward_confirm, gmail: s.gmail ? { address: s.gmail.address } : null, gmail_available: gmailEnabled, push_key: pushKey(), detections: detections(sid).filter(d => demo || !d.demo) };
 }
 app.post('/api/channels', async c => {
   const b = await c.req.json().catch(() => ({})), sid = c.get('sid'), patch: any = {};
@@ -147,7 +156,7 @@ app.post('/api/channels', async c => {
   if (patch.screen_connect) {
     if (!phoneEnabled || !phoneVerified(sid)) return c.json({ error: 'Confirm your phone first: link it on Call guardian and call Vantis once from it' }, 400);
     const other = connectTarget();
-    if (other && other.sid !== sid) return c.json({ error: 'Another member is using “put calls through” on this demo number. Vantis will take messages for you instead.' }, 409);
+    if (other && other.sid !== sid) return c.json({ error: 'Another member is using “put calls through” on this Vantis number. Vantis will take messages for you instead.' }, 409);
     patch.screening = true;
   }
   if (patch.screening === false) patch.screen_connect = false;
@@ -161,9 +170,10 @@ app.post('/api/channels', async c => {
 app.post('/api/push/subscribe', async c => { const b = await c.req.json().catch(() => ({})); addPushSub(c.get('sid'), b.sub); return c.json({ ok: true }); });
 app.post('/api/push/unsubscribe', c => { removePushSubs(c.get('sid')); return c.json({ ok: true }); });
 // A sample alert, so the member (and judges) can see what one looks like before anything real arrives.
+// Samples are demo-only: marked demo, so the live product never lists them and reporting one files into the demo.
 app.post('/api/push/test', async c => {
   const sid = c.get('sid'), em = (emailState(sid)?.linked ? (db.prepare('SELECT address FROM email_links WHERE sid = ? AND verified = 1').get(sid) as any)?.address : null) ?? null;
-  await record(sid, { channel: 'email', risk: 'high', title: 'Sample alert: an email from “Sound Security” asks you to confirm a code', summary: 'This is a sample of what a Vantis alert looks like. Nothing real happened.', signals_version: SIGNALS_VERSION,
+  await record(sid, { demo: true, channel: 'email', risk: 'high', title: 'Sample alert: an email from “Sound Security” asks you to confirm a code', summary: 'This is a sample of what a Vantis alert looks like. Nothing real happened.', signals_version: SIGNALS_VERSION,
     signals: [{ key: 'credential_request', label: SIGNAL_LABELS.credential_request, score: 0.9, span: 'reply with the 6-digit code we just texted you', source: 'model' }, { key: 'urgency', label: SIGNAL_LABELS.urgency, score: 0.8, span: 'or your account will be locked within 1 hour', source: 'model' }, { key: 'impersonation', label: SIGNAL_LABELS.impersonation, score: 0.6, span: 'Sound Security Team', source: 'model' }],
     other: ['sound-secure-login.com: Uses Sound’s name, but it isn’t soundcu.com.'], why: ['Asks for a code or password: “reply with the 6-digit code we just texted you”', 'Pressure to hurry: “or your account will be locked within 1 hour”'], advice: 'Don’t click links or share codes. Check by typing soundcu.com yourself.', from: 'Sample', subject: 'Sample alert' }, em, sendEmail);
   return c.json({ ok: true });
@@ -172,7 +182,7 @@ app.post('/api/push/test', async c => {
 app.post('/api/push/test-critical', async c => {
   const sid = c.get('sid'), em = (db.prepare('SELECT address FROM email_links WHERE sid = ? AND verified = 1').get(sid) as any)?.address ?? null;
   const sig = (key: keyof typeof SIGNAL_LABELS, score: number, span: string) => ({ key, label: SIGNAL_LABELS[key], score, span, source: 'model' as const });
-  await record(sid, { channel: 'whatsapp', risk: 'critical', from: 'WhatsApp from +1 (206) 555-0148, not in your contacts', subject: 'Sample Level 4 threat',
+  await record(sid, { demo: true, channel: 'whatsapp', risk: 'critical', from: 'WhatsApp from +1 (206) 555-0148, not in your contacts', subject: 'Sample Level 4 threat',
     title: 'Sample: a WhatsApp from “Sound Fraud Team” asks for the code we just texted you', summary: 'This is a sample Level 4 threat for the demo. Nothing real happened.', signals_version: SIGNALS_VERSION,
     signals: [sig('credential_request', 0.95, 'reply with the 6-digit code we just texted you'), sig('impersonation', 0.9, 'This is the Sound Credit Union fraud team'), sig('threats', 0.85, 'your account will be frozen'), sig('urgency', 0.8, 'in the next 30 minutes')],
     other: [], why: ['Asked for a code or password: “reply with the 6-digit code we just texted you”', 'Claims to be someone you trust: “This is the Sound Credit Union fraud team”'],
@@ -247,7 +257,7 @@ serve({ fetch: app.fetch, port }, () => console.log(`Vantis demo on http://local
 if (process.env.NODE_ENV !== 'test') {
   loadAsr(); // warm up on-device voice-note transcription
   loadOcr(); // and on-device text reading for photos
-  watchCalls(sid => { useWorld(sid); return `${sid}:${snapshot().scene.id}`; }); // Vantis's phone line
+  watchCalls(sid => { useLive(sid); return `${sid}:${snapshot().scene.id}`; }); // Vantis's phone line: real calls show in the live app
   watchInbox(sid => sid); // Vantis's inbox
   watchGmail(); // Connected Gmail accounts (if Google sign-in is configured)
 }

@@ -6,7 +6,7 @@
 // The case lands in the employee work queue and, if FRAUD_TEAM_EMAIL is set, is emailed to the fraud team.
 // Never collected: full card or account numbers, SSNs, PINs, passwords or one-time codes.
 import { strength, SIGNAL_KEYS, SIGNAL_LABELS, type Signal } from './signals.ts';
-import { useWorld, fraudReport, snapshot } from './sim.ts';
+import { useWorld, useLive, isDemoKey, DEMO_SUFFIX, fraudReport, snapshot } from './sim.ts';
 import { db, audit } from './db.ts';
 import { client, MODEL } from './chat.ts';
 
@@ -199,10 +199,10 @@ function emailHtml(c: FraudCase) {
   <p style="margin:24px 0 0;font-size:12px;color:#777">These are the member’s account and automatic checks, not proof. Call back on the number on file, never a number from the scam. Vantis never collects full card or account numbers, SSNs, PINs, passwords or codes.<br>— Vantis (HuskyHack 2026 concept demo)</p></div>`;
 }
 
-async function emailTeam(c: FraudCase) {
+async function emailTeam(c: FraudCase, demo = false) {
   if (!FRAUD_TEAM || !INBOX || !KEY) return false;
   const who = c.member.name || (c.member.phone ? `caller …${c.member.phone.replace(/\D/g, '').slice(-4)}` : 'member');
-  const subject = `[${PRI[c.priority]}] Fraud case ${c.case_id}: ${c.threat.type || 'possible scam'}, ${who} (via ${c.channel})`;
+  const subject = `${demo ? '[Demo] ' : ''}[${PRI[c.priority]}] Fraud case ${c.case_id}: ${c.threat.type || 'possible scam'}, ${who} (via ${c.channel})`;
   try {
     const res = await fetch(`https://api.agentmail.to/v0/inboxes/${INBOX_PATH}/messages/send`, {
       method: 'POST', headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15_000),
@@ -212,20 +212,26 @@ async function emailTeam(c: FraudCase) {
   } catch { return false; }
 }
 
-/** File for a member's simulation (sid), or with no sid (an unlinked caller): then only the fraud-team email goes out. */
-export async function fileReport(sid: string | null, c: FraudCase) {
+/** File for a member's live console (sid) or their demo walkthrough (demoKey(sid)), or with no sid (an unlinked
+ *  caller): then only the fraud-team email goes out. */
+export async function fileReport(key: string | null, c: FraudCase) {
+  const demo = !!key && isDemoKey(key), sid = demo ? key!.slice(0, -DEMO_SUFFIX.length) : key;
   const id = Number(db.prepare('INSERT INTO fraud_cases (ts, sid, channel, json) VALUES (?, ?, ?, ?)').run(Date.now(), sid, c.channel, '{}').lastInsertRowid);
   const d = new Date(); c.case_id = `SL-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(id).padStart(4, '0')}`;
   let queued = false;
   if (sid) {
-    useWorld(sid); // synchronous from here to fraudReport: no await between choosing the world and writing
-    const m = snapshot().member;
-    if (!c.member.member_id) c.member.member_id = m.id;
-    if (!c.member.name) { c.member.name = `${m.name} (demo member)`; c.missing = c.missing.filter(x => x !== 'member’s name'); }
+    if (demo) useWorld(key!); else useLive(sid); // synchronous from here to fraudReport: no await between choosing the world and writing
+    // Demo: the report belongs to the scene's member. Live: the session's member is a sample, so a real caller's
+    // report keeps only what they told Vantis (name, callback number); anything missing stays on the ask-list.
+    if (demo) {
+      const m = snapshot().member;
+      if (!c.member.member_id) c.member.member_id = m.id;
+      if (!c.member.name) { c.member.name = `${m.name} (demo member)`; c.missing = c.missing.filter(x => x !== 'member’s name'); }
+    }
     c.member.linked = true;
     fraudReport(c); queued = true;
   } else audit('second-look', 'fraud_report_unlinked', `${c.channel}: ${c.summary.slice(0, 200)}`);
   db.prepare('UPDATE fraud_cases SET json = ? WHERE id = ?').run(JSON.stringify(c), id);
-  const emailed = await emailTeam(c);
+  const emailed = await emailTeam(c, demo);
   return { queued, emailed, case_id: c.case_id };
 }
