@@ -15,7 +15,7 @@ import { prepare, loadAsr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
-import { phoneState, link, unlink, callMe, watchCalls, PhoneError } from './phone.ts';
+import { phoneState, link, unlink, callMe, watchCalls, PhoneError, assignScreeningNumber } from './phone.ts';
 import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError, reportEmailById } from './email.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
 import { settings, saveSettings, detections, pushKey, addPushSub, removePushSubs, reportDetection, record } from './monitor.ts';
@@ -139,6 +139,7 @@ app.post('/api/channels', async c => {
   for (const k of ['email_watch', 'screening', 'texts'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
   if (b.dismiss_confirm) patch.forward_confirm = null;
   saveSettings(sid, patch);
+  if (patch.screening) assignScreeningNumber(sid);
   return c.json({ ok: true });
 });
 app.post('/api/push/subscribe', async c => { const b = await c.req.json().catch(() => ({})); addPushSub(c.get('sid'), b.sub); return c.json({ ok: true }); });

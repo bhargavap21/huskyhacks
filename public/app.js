@@ -348,6 +348,7 @@ function fraudDetail(r) {
 /* ---------------- Connected channels ---------------- */
 // Second Look watches the channels the member turns on and alerts them before they act.
 const SL_NUMBER = () => fmtPhone(S.phone?.number || '');
+const SCREEN_NUMBER = () => S.phone?.screening_number || S.phone?.number || ''; // the member's own screening number, if they have one
 function detCard(d) {
   return `<li class="em-report">
     <div class="g-head"><span class="in-badge in-badge--${d.risk === 'high' ? 'risk' : 'review'}">${d.risk === 'high' ? 'Worth a look now' : 'Worth a look'}</span><span class="small muted">${esc({ email: 'Forwarded email', gmail: 'Gmail', 'call screening': 'Screened call', text: 'Forwarded text' }[d.channel] || d.channel)} · ${emAgo(d.ts)}</span></div>
@@ -381,8 +382,8 @@ function channelsView() {
       ${fc ? `<div class="fwd-code" role="status"><p class="small">Gmail asked to confirm forwarding for <b>${esc(fc.from)}</b>.</p><p>Confirmation code: <b class="code">${esc(fc.code || 'see link')}</b></p>${fc.link ? `<p class="small"><a href="${esc(fc.link)}" target="_blank" rel="noopener noreferrer">Or confirm in Gmail</a></p>` : ''}<button class="quiet" data-act="fwd_dismiss">Done</button></div>` : ''}</div>
     <div class="card g-way"><h3>Calls</h3>
       ${sw('screening', ch.screening, 'Screen calls I don’t answer')}
-      <p class="small">Second Look answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${SL_NUMBER()}</b>:</p>
-      <ul class="em-links"><li>AT&amp;T or T-Mobile: dial <code>**61*1${esc((S.phone?.number || '').replace(/\D/g, '').slice(-10))}#</code> and press call. To stop: <code>##61#</code>.</li><li>Verizon: dial <code>*71${esc((S.phone?.number || '').replace(/\D/g, '').slice(-10))}</code>. To stop: <code>*73</code>.</li></ul></div>
+      <p class="small">Second Look answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${fmtPhone(SCREEN_NUMBER())}</b>:</p>
+      <ul class="em-links"><li>AT&amp;T or T-Mobile: dial <code>**61*1${esc(SCREEN_NUMBER().replace(/\D/g, '').slice(-10))}#</code> and press call. To stop: <code>##61#</code>.</li><li>Verizon: dial <code>*71${esc(SCREEN_NUMBER().replace(/\D/g, '').slice(-10))}</code>. To stop: <code>*73</code>.</li></ul></div>
     <div class="card g-way"><h3>Texts</h3>
       ${sw('texts', ch.texts, 'Check texts I forward')}${needPhone}
       <p class="small">iPhones don’t let apps read your texts, so forward the ones that feel off to <b>${SL_NUMBER()}</b> from your linked phone. Second Look checks them and alerts you here.</p></div>

@@ -47,7 +47,7 @@ const sidFor = (number: string) => (db.prepare('SELECT sid, share FROM phone_lin
 export function phoneState(sid: string) {
   if (!phoneEnabled) return null;
   const l = linkFor(sid);
-  return { number: NUMBER, linked: l ? `•••-•••-${l.number.slice(-4)}` : null, share: !!l?.share, can_call_me: !!l && ALLOWED_TO.has(l.number) };
+  return { number: NUMBER, screening_number: screeningNumber(sid), linked: l ? `•••-•••-${l.number.slice(-4)}` : null, share: !!l?.share, can_call_me: !!l && ALLOWED_TO.has(l.number) };
 }
 
 async function api(method: string, path: string, body?: unknown) {
@@ -121,11 +121,34 @@ export async function configureAgent() {
 
 // ---- Watching live calls ----
 // Call screening: an unknown caller on an inbound call is someone trying to reach a member who forwarded
-// unanswered calls here. Every forwarded call arrives on the same Second Look number, and the caller's
-// number says nothing about which member forwarded it, so route only when that's unambiguous: exactly one
-// member has screening on. Otherwise drop it rather than show one member another member's call.
-export function screeningTarget(): string | 'ambiguous' | null {
-  const on = sidsWhere(s => s.screening);
+// unanswered calls here. AgentPhone doesn't say which number forwarded a call, and the caller's number says
+// nothing about the member, so the number dialed is the only reliable link.
+// With AGENTPHONE_SCREENING_POOL (spare numbers bought in the AgentPhone console and attached to the same
+// agent), each member who turns screening on gets their own number, and a call to it is theirs. A number
+// stays with its member even if they turn screening off: their phone may still forward to it, so handing it
+// to someone else would show them the first member's callers. Without a pool (or once it runs out), members
+// share Second Look's main number, and a call there is routed only when exactly one of them has screening on.
+const POOL = (process.env.AGENTPHONE_SCREENING_POOL ?? '').split(',').map(e164).filter((n): n is string => !!n);
+db.exec(`CREATE TABLE IF NOT EXISTS screening_numbers (number TEXT PRIMARY KEY, sid TEXT UNIQUE NOT NULL, ts INTEGER NOT NULL)`);
+
+export function screeningNumber(sid: string) {
+  return (db.prepare('SELECT number FROM screening_numbers WHERE sid = ?').get(sid) as { number: string } | undefined)?.number ?? null;
+}
+/** Give the member their own screening number from the pool, if one is free. Returns it, or null (shared number). */
+export function assignScreeningNumber(sid: string) {
+  const mine = screeningNumber(sid);
+  if (mine) return mine;
+  const taken = new Set((db.prepare('SELECT number FROM screening_numbers').all() as { number: string }[]).map(r => r.number));
+  const free = POOL.find(n => !taken.has(n));
+  if (free) db.prepare('INSERT INTO screening_numbers (number, sid, ts) VALUES (?, ?, ?)').run(free, sid, Date.now());
+  return free ?? null;
+}
+export function screeningTarget(dialed?: string): string | 'ambiguous' | null {
+  const n = dialed ? e164(dialed) : null;
+  const owner = n ? (db.prepare('SELECT sid FROM screening_numbers WHERE number = ?').get(n) as { sid: string } | undefined)?.sid : undefined;
+  if (owner) return settings(owner).screening ? owner : null;
+  if (n && POOL.includes(n)) return null; // a pool number nobody has yet
+  const on = sidsWhere(s => s.screening).filter(x => !screeningNumber(x.sid)); // members with their own number forward there
   return on.length === 1 ? on[0].sid : on.length > 1 ? 'ambiguous' : null;
 }
 const tracked = new Set<string>();
@@ -138,7 +161,7 @@ export async function follow(call: any, keyFor: KeyFor) {
   const key = who ? keyFor(who.sid) : '';
   if (who) startCall(key, !!who.share, call.direction === 'outbound' ? 'phone-out' : 'phone-in');
   const turns: { role: string; content: string }[] = [];
-  const screenFor = !who && call.direction === 'inbound' ? screeningTarget() : null;
+  const screenFor = !who && call.direction === 'inbound' ? screeningTarget(call.toNumber) : null;
   const done = async () => {
     if (who && callState(key)?.live) await stopCall(key);
     if (screenFor === 'ambiguous') console.log('phone: screened call, but more than one member has screening on; not routed');
