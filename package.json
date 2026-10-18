@@ -7,7 +7,6 @@
     "start": "tsx src/server.ts",
     "test": "tsx --test test/*.test.ts",
     "vapid": "web-push generate-vapid-keys",
-    "trigger": "python3 -I scripts/payment_trigger.py",
     "replay": "tsx scripts/replay.ts",
     "lookalikes": "tsx scripts/lookalikes.ts"
   },
