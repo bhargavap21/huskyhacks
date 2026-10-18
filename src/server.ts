@@ -20,6 +20,7 @@ import { fileReport, normalize, extractIntake } from './reports.ts';
 import { settings, saveSettings, detections, pushKey, addPushSub, removePushSubs, reportDetection, record } from './monitor.ts';
 import { gmailEnabled, authUrl, callback as gmailCallback, disconnect as gmailDisconnect, watchGmail } from './gmail.ts';
 import { sendEmail } from './email.ts';
+import { SIGNALS_VERSION, SIGNAL_LABELS } from './signals.ts';
 
 const SECRET = process.env.SESSION_SECRET ?? randomBytes(32).toString('hex');
 const PROD = process.env.NODE_ENV === 'production';
@@ -150,7 +151,9 @@ app.post('/api/push/unsubscribe', c => { removePushSubs(c.get('sid')); return c.
 // A sample alert, so the member (and judges) can see what one looks like before anything real arrives.
 app.post('/api/push/test', async c => {
   const sid = c.get('sid'), em = (emailState(sid)?.linked ? (db.prepare('SELECT address FROM email_links WHERE sid = ? AND verified = 1').get(sid) as any)?.address : null) ?? null;
-  await record(sid, { channel: 'email', risk: 'high', title: 'Sample alert: an email from “Sound Security” asks you to confirm a code', summary: 'This is a sample of what a Second Look alert looks like. Nothing real happened.', why: ['Claims to be Sound', 'Asks for a one-time code', '“within 1 hour”'], advice: 'Don’t click links or share codes. Check by typing soundcu.com yourself.', from: 'Sample', subject: 'Sample alert' }, em, sendEmail);
+  await record(sid, { channel: 'email', risk: 'high', title: 'Sample alert: an email from “Sound Security” asks you to confirm a code', summary: 'This is a sample of what a Second Look alert looks like. Nothing real happened.', signals_version: SIGNALS_VERSION,
+    signals: [{ key: 'credential_request', label: SIGNAL_LABELS.credential_request, score: 0.9, span: 'reply with the 6-digit code we just texted you', source: 'model' }, { key: 'urgency', label: SIGNAL_LABELS.urgency, score: 0.8, span: 'or your account will be locked within 1 hour', source: 'model' }, { key: 'impersonation', label: SIGNAL_LABELS.impersonation, score: 0.6, span: 'Sound Security Team', source: 'model' }],
+    other: ['sound-secure-login.com: Uses Sound’s name, but it isn’t soundcu.com.'], why: ['Asks for a code or password: “reply with the 6-digit code we just texted you”', 'Pressure to hurry: “or your account will be locked within 1 hour”'], advice: 'Don’t click links or share codes. Check by typing soundcu.com yourself.', from: 'Sample', subject: 'Sample alert' }, em, sendEmail);
   return c.json({ ok: true });
 });
 app.post('/api/detections/:id/report', async c => { const out = await reportDetection(c.get('sid'), Number(c.req.param('id'))); return c.json({ ok: true, case_id: out.case_id }); });

@@ -8,7 +8,8 @@
     "test": "tsx --test test/*.test.ts",
     "vapid": "web-push generate-vapid-keys",
     "replay": "tsx scripts/replay.ts",
-    "lookalikes": "tsx scripts/lookalikes.ts"
+    "lookalikes": "tsx scripts/lookalikes.ts",
+    "calibrate": "tsx scripts/calibrate-signals.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

@@ -440,6 +440,10 @@ body.joined .shell.copilot-closed .copilot { display: none; }
 .feels-ways button.quiet { min-height: 36px; padding: 0 var(--space-1); }
 
 /* Fraud reports Second Look filed for the member, in the console queue. */
+.sig-list { list-style: none; margin: var(--space-2) 0; padding: 0; }
+.sig-list li { padding: var(--space-2) 0; border-top: 1px solid var(--line); }
+.sig-list .sig-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
+.sig-list blockquote { margin: var(--space-1) 0 0; color: var(--ink-body); font-style: italic; }
 .fraud-report { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-left: 3px solid var(--risk); background: var(--surface-band); }
 .fraud-report p { margin: 0 0 var(--space-2); }
 .fraud-report blockquote { margin: 0 0 var(--space-1); font-size: 14px; color: var(--ink-muted); font-style: italic; }

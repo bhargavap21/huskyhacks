@@ -5,6 +5,7 @@
 // a priority, suggested next steps, and what is still unknown (to ask on the callback).
 // The case lands in the employee work queue and, if FRAUD_TEAM_EMAIL is set, is emailed to the fraud team.
 // Never collected: full card or account numbers, SSNs, PINs, passwords or one-time codes.
+import { strength, SIGNAL_KEYS, SIGNAL_LABELS, type Signal } from './signals.ts';
 import { useWorld, fraudReport, snapshot } from './sim.ts';
 import { db, audit } from './db.ts';
 import { client, MODEL } from './chat.ts';
@@ -15,7 +16,7 @@ const KEY = process.env.AGENTMAIL_API_KEY;
 
 db.exec(`CREATE TABLE IF NOT EXISTS fraud_cases (id INTEGER PRIMARY KEY, ts INTEGER NOT NULL, sid TEXT, channel TEXT NOT NULL, json TEXT NOT NULL)`);
 
-export type Channel = 'chat' | 'phone' | 'email' | 'call guardian' | 'app';
+export type Channel = 'chat' | 'phone' | 'email' | 'call guardian' | 'app' | 'whatsapp';
 export type Priority = 'critical' | 'high' | 'standard';
 export type FraudCase = {
   case_id: string; filed_at: number; channel: Channel; priority: Priority; priority_reason: string;
@@ -23,6 +24,7 @@ export type FraudCase = {
   threat: { type: string; claimed_identity: string; contact_method: string; first_contact: string; scammer_phone: string; scammer_email: string; scammer_website: string; scammer_name: string; asked_for: string; amount_requested: string; payment_method: string; deadline: string; tactics: string[] };
   exposure: { money_sent: boolean | null; amount_sent: string; sent_method: string; sent_when: string; sent_to: string; info_shared: string[]; shared_nothing: boolean; remote_access: boolean | null; still_in_contact: boolean | null };
   summary: string; quotes: string[]; next_steps: string[]; missing: string[];
+  signals: Signal[]; // per-signal evidence from a connected-channel alert (signals/v1), each with its quoted span
   // Flat fields the console list already reads.
   asked_for: string; money_sent: boolean; tactics: string[]; contact: string;
 };
@@ -120,6 +122,8 @@ export function normalize(raw: any, channel: Channel, known: Partial<FraudCase['
     summary: t(raw.summary, 700) || 'The member asked Second Look to report a possible scam.',
     quotes: list(raw.quotes, 3, 220).filter(q => q.split(' ').length >= 3), // "Yeah." is not evidence
     next_steps: [], missing: [], asked_for: '', money_sent: false, tactics: [], contact: '',
+    signals: (Array.isArray(raw.signals) ? raw.signals : []).filter((x: any) => SIGNAL_KEYS.includes(x?.key) && typeof x.span === 'string' && x.span.trim() && Number.isFinite(Number(x.score)))
+      .slice(0, 7).map((x: any) => ({ key: x.key, label: SIGNAL_LABELS[x.key as Signal['key']], score: Math.min(1, Math.max(0, Number(x.score))), span: t(x.span, 220), source: x.source === 'model' ? 'model' : 'rules' })),
   };
   [c.priority, c.priority_reason] = priorityOf(c);
   c.next_steps = nextSteps(c); c.missing = missingOf(c);
@@ -166,6 +170,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt
 function emailText(c: FraudCase) {
   const out = [`SECOND LOOK FRAUD CASE ${c.case_id}`, `Priority: ${PRI[c.priority]}: ${c.priority_reason}`, `Filed ${when(c.filed_at)} via ${c.channel}, at the member’s request.`, '', 'WHAT HAPPENED', c.summary, ''];
   for (const [h, rows] of sections(c)) { out.push(h.toUpperCase()); for (const [k, v] of rows) out.push(`  ${k}: ${v}`); out.push(''); }
+  if (c.signals.length) out.push('WARNING SIGNS, WITH THE WORDS THAT SHOW THEM', ...c.signals.map(x => `  ${x.label} (${strength(x.score)}, ${x.score.toFixed(2)}): “${x.span}”`), '');
   if (c.quotes.length) out.push('IN THE MEMBER’S WORDS', ...c.quotes.map(q => `  “${q}”`), '');
   out.push('SUGGESTED NEXT STEPS', ...c.next_steps.map((s, i) => `  ${i + 1}. ${s}`), '');
   if (c.missing.length) out.push('STILL UNKNOWN: ASK ON THE CALLBACK', ...c.missing.map(s => `  - ${s}`), '');
@@ -182,6 +187,7 @@ function emailHtml(c: FraudCase) {
   <p style="margin:0;font-size:13px;color:#555">Filed ${esc(when(c.filed_at))} via ${esc(c.channel)}, at the member’s request.</p>
   ${h('What happened')}<p style="margin:0;font-size:15px">${esc(c.summary)}</p>
   ${sections(c).map(([title, rows]) => h(title) + table(rows)).join('')}
+  ${c.signals.length ? h('Warning signs, with the words that show them') + table(c.signals.map(x => [`${x.label} · ${strength(x.score)} ${x.score.toFixed(2)}`, `“${x.span}”`])) : ''}
   ${c.quotes.length ? h('In the member’s words') + c.quotes.map(q => `<p style="margin:4px 0;padding-left:10px;border-left:3px solid #ccc;font-style:italic">“${esc(q)}”</p>`).join('') : ''}
   ${h('Suggested next steps')}<ol style="margin:0;padding-left:20px;font-size:14px">${c.next_steps.map(s => `<li style="margin:3px 0">${esc(s)}</li>`).join('')}</ol>
   ${c.missing.length ? h('Still unknown: ask on the callback') + `<ul style="margin:0;padding-left:20px;font-size:14px;color:#555">${c.missing.map(s => `<li>${esc(s)}</li>`).join('')}</ul>` : ''}

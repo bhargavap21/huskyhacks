@@ -10,6 +10,7 @@
 import { db } from './db.ts';
 import { client, MODEL } from './chat.ts';
 import { tacticsIn } from './tactics.ts';
+import { ruleSignals, type Signal } from './signals.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
 import { settings, saveSettings, assess, record, detections, reportDetection } from './monitor.ts';
 
@@ -63,7 +64,7 @@ export function unlinkEmail(sid: string) { db.prepare('DELETE FROM email_links W
 
 export type Report = {
   from: string; subject: string; received: number; kind: 'forwarded' | 'question';
-  tactics: { key: string; label: string }[]; links: { domain: string; note: string | null }[]; numbers: string[];
+  tactics: { key: string; label: string }[]; signals?: Signal[]; links: { domain: string; note: string | null }[]; numbers: string[];
   reply: string; reply_source: 'claude' | 'offline'; sent: boolean;
   thread_id?: string; reported?: boolean;
   excerpt?: string; // the forwarded text, kept only for filing a case (never shown)
@@ -99,7 +100,7 @@ function inspect(text: string) {
       : null,
   }));
   const numbers = [...new Set([...text.matchAll(/(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g)].map(m => m[0].trim()))].slice(0, 5);
-  return { links, numbers, tactics: tacticsIn(text) };
+  return { links, numbers, tactics: tacticsIn(text), signals: ruleSignals(text) };
 }
 
 const SYSTEM = `You are Second Look, the scam-protection helper from Sound Credit Union (a hackathon concept demo), answering by email.
@@ -199,6 +200,7 @@ export async function reportEmail(sid: string, r: Report, memberNote = '') {
   ).catch(e => { console.error('email: could not read the case details:', e.message); return null; });
   const raw = { ...base, ...(d ?? {}) };
   raw.tactics = [...new Set([...(d?.tactics ?? []), ...base.tactics])];
+  raw.signals = r.signals ?? [];
   return fileReport(sid, normalize(raw, 'email', { email: linked, linked: true }));
 }
 
@@ -271,7 +273,7 @@ async function handle(m: any, keyFor: (sid: string) => string) {
   let sent = false;
   try { await send(reply + extra); sent = true; } catch (e) { console.error('email: reply failed:', (e as Error).message); }
 
-  const report: Report = { from: mask(from), subject, received: Date.parse(m.timestamp) || Date.now(), kind: forwarded ? 'forwarded' : 'question', tactics: found.tactics, links: found.links, numbers: found.numbers, reply, reply_source: source, sent };
+  const report: Report = { from: mask(from), subject, received: Date.parse(m.timestamp) || Date.now(), kind: forwarded ? 'forwarded' : 'question', tactics: found.tactics, signals: found.signals, links: found.links, numbers: found.numbers, reply, reply_source: source, sent };
   report.thread_id = full.thread_id;
   report.excerpt = body.slice(0, 4000);
   if (askedToReport) { await reportEmail(link.sid, report, own); report.reported = true; }

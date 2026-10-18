@@ -339,7 +339,7 @@ function fraudDetail(r) {
     <div class="row"><span class="in-badge in-badge--${tone}">${{ critical: 'Critical', high: 'High', standard: 'Standard' }[r.priority]}</span><span class="small muted">${esc(r.case_id)} · ${esc(r.priority_reason)}</span></div>
     <p>${esc(r.summary)}</p>
     <dl class="kv fr-kv">${row('Member', [m.name, m.phone, m.email].filter(Boolean).join(' · ') || 'On file')}${row('Safe to call', m.safe_to_call)}${row('Threat', [th.type, th.claimed_identity && `claims to be ${th.claimed_identity}`].filter(Boolean).join(', '))}${row('Contacted by', [th.contact_method, th.first_contact].filter(Boolean).join(', '))}${row('Contact used', theirs)}${row('Asked for', r.asked_for)}${row('Deadline', th.deadline)}${row('Money sent', sent)}${row('Shared', e.info_shared.join(', '))}${row('Remote access', e.remote_access === true ? 'Yes' : '')}${row('Still in contact', e.still_in_contact === true ? 'Yes' : '')}</dl>
-    ${th.tactics.length ? `<div class="row">${th.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${r.signals?.length ? `<p class="small"><b>Warning signs, with the words that show them</b></p>${signalList(r.signals)}` : th.tactics.length ? `<div class="row">${th.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t)}</span>`).join('')}</div>` : ''}
     ${r.quotes.map(q => `<blockquote>“${esc(q)}”</blockquote>`).join('')}
     ${det('fr-steps-' + r.case_id, 'Suggested next steps', `<ol class="fr-steps">${r.next_steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`)}
     ${r.missing.length ? `<p class="small muted"><b>Ask on the callback:</b> ${esc(r.missing.join(', '))}.</p>` : ''}</div>`;
@@ -368,11 +368,16 @@ function emailWatchCard(title) {
 /* ---------------- Connected channels ---------------- */
 // Second Look watches the channels the member turns on and alerts them before they act.
 const SL_NUMBER = () => fmtPhone(S.phone?.number || '');
+// Per-signal evidence (signals/v1): every sign comes with the words that show it, never a bare score.
+const STRENGTH = x => (x >= 0.7 ? 'Clear' : x >= 0.5 ? 'Likely' : 'Faint');
+const signalList = sigs => `<ul class="sig-list">${sigs.map(s => `<li><div class="sig-head"><b>${esc(s.label)}</b><span class="small muted">${STRENGTH(s.score)} · ${Number(s.score).toFixed(2)}${s.source === 'rules' ? ' · pattern match' : ''}</span></div><blockquote class="small">“${esc(s.span)}”</blockquote></li>`).join('')}</ul>`;
+const RISK_BADGE = { high: ['risk', 'Worth a look now'], medium: ['review', 'Worth a look'], low: ['neutral', 'Low concern'] };
 function detCard(d) {
   return `<li class="em-report">
-    <div class="g-head"><span class="in-badge in-badge--${d.risk === 'high' ? 'risk' : 'review'}">${d.risk === 'high' ? 'Worth a look now' : 'Worth a look'}</span><span class="small muted">${esc({ email: 'Forwarded email', gmail: 'Gmail', 'call screening': 'Screened call', text: 'Forwarded text' }[d.channel] || d.channel)} · ${emAgo(d.ts)}</span></div>
+    <div class="g-head"><span class="in-badge in-badge--${(RISK_BADGE[d.risk] || RISK_BADGE.medium)[0]}">${(RISK_BADGE[d.risk] || RISK_BADGE.medium)[1]}</span><span class="small muted">${esc({ email: 'Forwarded email', gmail: 'Gmail', 'call screening': 'Screened call', text: 'Forwarded text', whatsapp: 'WhatsApp' }[d.channel] || d.channel)} · ${emAgo(d.ts)}</span></div>
     <b>${esc(d.title)}</b>${d.summary ? `<p class="small">${esc(d.summary)}</p>` : ''}
-    ${d.why?.length ? `<ul class="em-links">${d.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
+    ${d.signals ? `${d.signals.length ? signalList(d.signals) : ''}${d.other?.length ? `<ul class="em-links">${d.other.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}${d.risk === 'low' ? '<p class="small muted">Only faint signs, so Second Look didn’t send a notification.</p>' : ''}`
+      : d.why?.length ? `<ul class="em-links">${d.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
     <p class="small"><b>What to do:</b> ${esc(d.advice)}</p>
     <div class="row">${d.reported ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : `<button data-act="det_report" data-id="${d.id}">Report to Sound</button>`}${d.alerted_by?.length ? `<span class="small muted">Told you by ${esc(d.alerted_by.join(', '))}</span>` : ''}</div></li>`;
 }
@@ -423,7 +428,7 @@ function emailReport(r, staff = false) {
   const flagged = r.links.filter(l => l.note && !l.note.startsWith('This is'));
   return `<li class="em-report">
     <div class="g-head"><b>${esc(r.subject || '(no subject)')}</b><span class="small muted">${r.kind === 'forwarded' ? 'Forwarded' : 'Question'} · ${emAgo(r.received)}</span></div>
-    ${r.tactics.length ? `<div class="row">${r.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t.label)}</span>`).join('')}</div>` : ''}
+    ${r.signals?.length ? signalList(r.signals) : r.tactics.length ? `<div class="row">${r.tactics.map(t => `<span class="in-badge in-badge--risk">${esc(t.label)}</span>`).join('')}</div>` : ''}
     ${flagged.length ? `<ul class="em-links">${flagged.map(l => `<li><b>${esc(l.domain)}</b>: ${esc(l.note)}</li>`).join('')}</ul>` : ''}
     ${staff ? '' : r.reported ? '<span class="in-badge in-badge--safe">Reported to Sound</span>' : `<div class="row"><button data-act="em_report" data-id="${r.id}">Report to Sound</button></div>`}
     ${staff ? '' : det('em-' + r.id, r.sent ? 'Second Look’s reply (also in your email)' : 'Second Look’s reply', `<div class="msg assistant">${fmtReply(r.reply)}</div>`)}
