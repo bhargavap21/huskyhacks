@@ -2,7 +2,9 @@
 
 `conversations.jsonl` is a labeled test set for message-level detection: texts, emails, calls and chats a member might bring to Second Look. `npm run eval` runs every detector over it and writes `report.md` (precision, recall, per-signal breakdown, every miss and false alarm). CI runs it on every pull request and puts the report on the run's summary page.
 
-The set is the answer key. Detectors get only the conversation text, never the labels, and a test fails if anything in `src/` or `public/` references this folder.
+`holdout.jsonl` is a second set of 20, written before any pattern was tuned and never used to choose one. Tune on `conversations.jsonl` only (`npm run eval -- --tuning-only` keeps the held-out numbers out of sight); the held-out numbers are the honest ones. Don't move cases between the files.
+
+Both sets are the answer key. Detectors get only the conversation text, never the labels, and a test fails if anything in `src/` or `public/` references this folder.
 
 ## Format
 
