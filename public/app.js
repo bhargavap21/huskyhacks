@@ -946,6 +946,7 @@ $('#invite').addEventListener('click', async () => {
   const j = await post('room'); if (!j || !j.code) return;
   const url = `${location.origin}/join/${j.code}`;
   $('#invite-url').textContent = url.replace(/^https?:\/\//, '');
+  if (S) $('#invite-member').textContent = S.member.name;
   $('#invite-qr').innerHTML = '';
   $('#invite-dlg').showModal();
   try { const qr = (await loadQr())(0, 'M'); qr.addData(url); qr.make(); $('#invite-qr').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }); }
@@ -960,7 +961,7 @@ $('#invite-close').addEventListener('click', () => $('#invite-dlg').close());
   if (v === 'member') page = 'home'; else if (v === 'employee') page = 'console'; else if (v === 'both') page = 'split';
   if (['home', 'inbox', 'settings', 'profile', 'onboarding', 'console', 'split', 'timeline', 'guardian', 'email', 'channels'].includes(pg)) page = pg;
   if (q.get('gmail')) { const g = q.get('gmail'); setTimeout(() => toast(g === 'connected' ? 'Gmail connected. Second Look checks new mail every minute.' : 'Gmail: ' + g), 800); history.replaceState(null, '', '/?page=channels'); }
-  if (q.get('joined') === '1') { joined = true; sessSet('sl-joined', '1'); page = 'home'; copilotOpen = false; setTimeout(() => toast('You’re on Linda’s phone in the presenter’s demo.'), 600); history.replaceState(null, '', '/'); }
+  if (q.get('joined') === '1') { joined = true; sessSet('sl-joined', '1'); page = 'home'; copilotOpen = false; setTimeout(() => toast(`You’re on ${S?.member?.name ?? 'the demo member'}’s phone in the presenter’s demo.`), 600); history.replaceState(null, '', '/'); }
   if (q.get('chat') === 'general') { chatAuto = false; chatCase = 'general'; copilotOpen = true; }
   await poll();
   if (q.get('scene') && S.scenes.some(x => x.id === q.get('scene'))) { await post('scene/' + q.get('scene')); if (q.get('jump') === '1') for (let i = 0; i < 60 && !S.awaiting && !S.ended; i++) await post('control/next');

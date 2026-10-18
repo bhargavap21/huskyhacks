@@ -1,0 +1,8 @@
+{
+  "_note": "Fictional demo identities shown in the simulated Sound app (names and contact details on file). Not kit data. Members not listed get the default. Replace or empty this file for any real deployment.",
+  "default": { "name": "Member", "contact": "phone ending 4471", "on_file_since": "2019", "changed_to": "phone ending 0932" },
+  "M1001": { "name": "Linda" },
+  "M1003": { "name": "Sarah" },
+  "M1037": { "name": "Grandparent helping with housing" },
+  "M1057": { "name": "Home buyer" }
+}
