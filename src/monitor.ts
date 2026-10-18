@@ -106,7 +106,7 @@ export function ruleCheck(subject: string, body: string, extra: string[] = []) {
 //   rules       rules only, no model
 //   classifier  the model's evidence only, no rules: for measuring the classifier on its own
 // Without an API key, or if the call fails, every mode falls back to the rules.
-// gate stays the default until PII redaction (#11) lands: hybrid sends every opted-in message to the model.
+// Every model call is redacted first (#11). gate stays the default until the eval (#10) shows hybrid is better.
 export type Mode = 'gate' | 'hybrid' | 'rules' | 'classifier';
 const MODES: Mode[] = ['gate', 'hybrid', 'rules', 'classifier'];
 export const DETECTION_MODE: Mode = MODES.includes(process.env.DETECTION_MODE as Mode) ? (process.env.DETECTION_MODE as Mode) : 'gate';

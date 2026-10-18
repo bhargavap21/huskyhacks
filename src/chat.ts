@@ -5,9 +5,11 @@ import { db } from './db.ts';
 import { caseForChat } from './sim.ts';
 import { type Attachment, audioText } from './media.ts';
 import { fileReport, normalize, INTAKE_SCHEMA, type Channel } from './reports.ts';
+import { guard } from './redact.ts';
 
 const key = process.env.ANTHROPIC_API_KEY ?? process.env.LLM_API_KEY;
-export const client = key ? new Anthropic({ apiKey: key }) : null;
+// Every module's model calls go through this client, so all of them are redacted first (src/redact.ts, issue #11).
+export const client = key ? guard(new Anthropic({ apiKey: key })) : null;
 export const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
 const FALLBACK_MODELS = new Set(['claude-opus-5-5', 'claude-opus-5', 'claude-fable-5-1', 'claude-sonnet-5-5']);
 
@@ -116,16 +118,17 @@ export async function chat(scene: string, caseId: number, text: string, att: Att
         messages: content(history),
       };
       // Server-side refusal fallback only on models that accept it.
+      const req = { timeout: 45_000, redact: { names: k?.member?.name ? [k.member.name] : [] } };
       const r = FALLBACK_MODELS.has(MODEL)
-        ? await client.beta.messages.create({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } as any, { timeout: 45_000 })
-        : await client.messages.create(params as any, { timeout: 45_000 });
+        ? await client.beta.messages.create({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } as any, req as any)
+        : await client.messages.create(params as any, req as any);
       let final: any = r;
       // The member agreed: file the report, then let Claude tell them it's done.
       const use = r.content.find((b: any) => b.type === 'tool_use' && b.name === 'report_to_sound') as any;
       if (use && r.stop_reason === 'tool_use') {
         const out = await fileReport(scene.split(':')[0], normalize(withEvidence(use.input, opts), opts.channel ?? 'chat', { linked: true }));
         reported = true;
-        final = await client.messages.create({ ...params, messages: [...params.messages, { role: 'assistant', content: r.content }, { role: 'user', content: [{ type: 'tool_result', tool_use_id: use.id, content: `Filed as case ${out.case_id}. In the employee work queue as urgent${out.emailed ? ', and emailed to the fraud team' : ''}. A Sound team member will call the member on the number on file.` }] }] } as any, { timeout: 45_000 });
+        final = await client.messages.create({ ...params, messages: [...params.messages, { role: 'assistant', content: r.content }, { role: 'user', content: [{ type: 'tool_result', tool_use_id: use.id, content: `Filed as case ${out.case_id}. In the employee work queue as urgent${out.emailed ? ', and emailed to the fraud team' : ''}. A Sound team member will call the member on the number on file.` }] }] } as any, req as any);
       }
       if (final.stop_reason !== 'refusal') {
         reply = final.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n').trim();

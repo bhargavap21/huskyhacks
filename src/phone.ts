@@ -13,6 +13,7 @@ import { sidsWhere, settings, assess, record, notifyMember, onCritical, detectio
 import { decide, input as screenInput, logScreened, finishScreened, TOOL_SECRET } from './screening.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { sendEmail } from './email.ts';
+import { scrub } from './redact.ts';
 
 const KEY = process.env.AGENTPHONE_API_KEY;
 const NUMBER_ID = process.env.AGENTPHONE_NUMBER_ID;
@@ -85,7 +86,7 @@ export async function callMe(sid: string, context: string) {
   await api('POST', '/v1/calls', {
     agentId: AGENT, toNumber: l.number,
     initialGreeting: 'Hi, this is Vantis from Sound. You asked me to call. I’m an AI helper, and I can’t move money or ask for codes. Do you have a minute to talk it through?',
-    systemPrompt: `${CALL_RULES}\n\nWhy you are calling: the member tapped "Have Vantis call me" in the Sound app.\n${context}\nStart by asking how they are and what happened. Use the context above; don't read it out word for word.`,
+    systemPrompt: `${CALL_RULES}\n\nWhy you are calling: the member tapped "Have Vantis call me" in the Sound app.\n${scrub(context)}\nStart by asking how they are and what happened. Use the context above; don't read it out word for word.`,
   });
 }
 
@@ -227,7 +228,7 @@ export async function handleScreeningTool(secret: string | undefined, body: any)
     if (caller) lastTransfer.set(key, Date.now());
     void notifyMember(sid, `Putting a call through: ${[i.name, i.organization].filter(Boolean).join(', ')} about ${i.reason}`.slice(0, 160));
   }
-  console.log(`phone: screening decision ${r.decision} (${r.why})`);
+  console.log(`phone: screening decision ${r.decision} (${scrub(r.why)})`);
   return { status: 200, json: { decision: r.decision, say: r.say } };
 }
 
