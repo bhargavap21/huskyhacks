@@ -15,6 +15,7 @@ import { prepare, loadAsr, loadOcr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
+import { setName, profileState } from './profile.ts';
 import { phoneState, link, unlink, callMe, watchCalls, PhoneError, phoneVerified, assignScreeningNumber, handleScreeningTool, connectTarget, syncTransfer, phoneEnabled } from './phone.ts';
 import { screenedCalls } from './screening.ts';
 import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError, reportEmailById, sendLinkCode, verifyLinkCode } from './email.ts';
@@ -106,7 +107,7 @@ function sharedChats(c: any) {
 
 app.get('/api/state', c => {
   const ids = Object.fromEntries([...shared].filter(([k, v]) => v && k.startsWith(chatKey(c) + ':')).map(([k]) => [k.slice(chatKey(c).length + 1), true]));
-  return c.json({ ...snapshot(), world: c.get('demo') ? 'demo' : 'live', shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), email: emailState(c.get('sid')), channels: channelState(c.get('sid'), c.get('demo')), csrf: csrfFor(c.get('sid')) });
+  return c.json({ ...snapshot(), world: c.get('demo') ? 'demo' : 'live', shared: sharedChats(c), share_on: ids, guardian: callState(chatKey(c)), phone: phoneState(c.get('sid')), email: emailState(c.get('sid')), channels: channelState(c.get('sid'), c.get('demo')), me: c.get('demo') ? null : profileState(c.get('sid')), csrf: csrfFor(c.get('sid')) });
 });
 // The audit log for the console in view: live and demo rows are kept apart.
 app.get('/api/audit', c => c.json(auditLog(c.get('demo') ? 'demo' : 'live')));
@@ -127,6 +128,8 @@ app.post('/api/guardian/chunk', bodyLimit({ maxSize: 4 * 1024 * 1024, onError: c
 app.post('/api/guardian/reset', c => { clearCall(chatKey(c)); return c.json({ ok: true }); });
 app.post('/api/guardian/stop', async c => c.json(await stopCall(chatKey(c)) ?? { error: 'No call' }));
 // Vantis's phone line: link the member's phone, and "Have Vantis call me" (with what the app knows).
+// The member's name, given once in setup: the live member view, Vantis's calls and fraud cases use it.
+app.post('/api/profile', async c => { const b = await c.req.json().catch(() => ({})); try { setName(c.get('sid'), b.name); } catch (e) { return c.json({ error: (e as Error).message }, 400); } return c.json({ ok: true }); });
 app.post('/api/phone/link', async c => { const b = await c.req.json().catch(() => ({})); link(c.get('sid'), b.number, !!b.share); return c.json({ ok: true }); });
 app.post('/api/email/link', async c => { const b = await c.req.json().catch(() => ({})); linkEmail(c.get('sid'), b.address, !!b.share); await sendLinkCode(c.get('sid')); return c.json({ ok: true }); });
 app.post('/api/email/code', async c => { await sendLinkCode(c.get('sid')); return c.json({ ok: true }); });

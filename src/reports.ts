@@ -116,9 +116,10 @@ function missingOf(c: FraudCase): string[] {
 /** Turn what a channel collected (shape of INTAKE_SCHEMA) into a full case. `known` fills in what the channel already knows. */
 export function normalize(raw: any, channel: Channel, known: Partial<FraudCase['member']> = {}): FraudCase {
   raw = raw ?? {};
+  // The member's name from their profile beats a speech-to-text guess at it.
   const c: FraudCase = {
     case_id: '', filed_at: Date.now(), channel, priority: 'standard', priority_reason: '',
-    member: { name: t(raw.member_name, 80) || t(known.name, 80), phone: phone(raw.member_phone) || phone(known.phone), email: t(raw.member_email, 120) || t(known.email, 120), member_id: t(known.member_id, 40), linked: !!known.linked, safe_to_call: t(raw.safe_to_call, 120) },
+    member: { name: t(known.name, 80) || t(raw.member_name, 80), phone: phone(raw.member_phone) || phone(known.phone), email: t(raw.member_email, 120) || t(known.email, 120), member_id: t(known.member_id, 40), linked: !!known.linked, safe_to_call: t(raw.safe_to_call, 120) },
     threat: { type: t(raw.threat_type, 60), claimed_identity: t(raw.claimed_identity, 100), contact_method: t(raw.contact_method, 60), first_contact: t(raw.first_contact, 60), scammer_phone: phone(raw.scammer_phone), scammer_email: t(raw.scammer_email, 120), scammer_website: t(raw.scammer_website, 160), scammer_name: t(raw.scammer_name, 80), asked_for: t(raw.asked_for, 200), amount_requested: t(raw.amount_requested, 40), payment_method: t(raw.payment_method, 60), deadline: t(raw.deadline, 80), tactics: list(raw.tactics, 8, 60) },
     exposure: { money_sent: bool(raw.money_sent), amount_sent: t(raw.amount_sent, 40), sent_method: t(raw.sent_method, 60), sent_when: t(raw.sent_when, 60), sent_to: t(raw.sent_to, 120), info_shared: list(raw.info_shared, 6, 40).filter(x => !/\d{4,}/.test(x) && !/gift/i.test(x)), shared_nothing: raw.shared_nothing === true, remote_access: bool(raw.remote_access), still_in_contact: bool(raw.still_in_contact) },
     summary: t(raw.summary, 700) || 'The member asked Vantis to report a possible scam.',

@@ -58,10 +58,19 @@ async function post(path, body = {}) {
   } finally { busy = false; await poll(); }
 }
 
+// Live: the member view is the person using the app (the profile they set up: name, verified phone and email),
+// never the kit's sample member. The staff console keeps its sample cases, which stay with their own members.
+function youAsMember() {
+  S.kitMember = S.member;
+  S.member = { ...S.member, id: 'you', you: true, name: S.me.name || 'You', current_contact: S.me.phone || 'No phone linked yet', pre_change_contact: S.me.phone || 'No phone linked yet' };
+  S.awaiting = null; S.notifications = []; // the sample wire and its lock-screen notice are the sample member's, not yours
+}
+
 async function poll() {
   const g = pollGen, r = await fetch('/api/state', { headers: WORLD() }), next = await r.json();
   if (g !== pollGen) return; // the view switched between live and demo while this was in flight
   S = next; csrf = S.csrf;
+  if (S.live && S.me) youAsMember();
   if (page === 'audit') auditRows = await getJ('audit');
   const top = S.channels?.detections?.[0]?.id ?? 0;
   if (lastDet !== null && top > lastDet) toast('Vantis: ' + S.channels.detections[0].title);
@@ -134,7 +143,7 @@ function render(force = false) {
   document.querySelectorAll('#acct-menu [data-page], #acct-menu .acct-sep, #acct-sign').forEach(el => (el.hidden = staffAcct));
   $('#acct-initial').textContent = staffAcct ? 'S' : signedIn ? m.name.trim()[0].toUpperCase() : '?';
   $('#acct-label').textContent = staffAcct ? 'Sound staff' : signedIn ? m.name : 'Signed out';
-  $('#acct-name').textContent = staffAcct ? 'Sound staff · fraud operations' : signedIn ? `${m.name} · ${m.id}` : demo ? 'Signed out of the demo' : 'Signed out';
+  $('#acct-name').textContent = staffAcct ? 'Sound staff · fraud operations' : signedIn ? (m.you ? `${m.name} · you` : `${m.name} · ${m.id}`) : demo ? 'Signed out of the demo' : 'Signed out';
   $('#acct-sign').dataset.act = signedIn ? 'sign_out' : 'sign_in';
   $('#acct-sign-lbl').textContent = signedIn ? 'Sign out' : `Sign in as ${m.name}${demo ? ' (demo)' : ''}`;
   $('#acct-btn').classList.toggle('current', ['profile', 'settings'].includes(page));
@@ -180,6 +189,12 @@ function memberView() {
   return homeView();
 }
 
+function nameCard(why) {
+  return `<div class="card"><h3>What’s your name?</h3><p class="small">${why}</p>
+    <label for="myname">Your name</label><input type="text" id="myname" autocomplete="name" maxlength="60" value="${esc(S.me?.name || '')}" data-keep>
+    <div class="row"><button class="primary" data-act="save_name">Save</button></div></div>`;
+}
+
 function homeView() {
   const m = S.member;
   let out = `<div class="card"><div class="muted small">Welcome back</div><h2>${esc(m.name)}</h2>
@@ -192,6 +207,7 @@ function homeView() {
   const recentCard = `<div class="card"><h3>Recent payments</h3>${recent.length ? `<table><tbody>${recent.map(p => `<tr><td>${esc(p.rail === 'P2P' ? 'Payment' : p.rail)} · ${p.row.recipient_status === 'New' ? 'new recipient' : p.rail === 'Cash' ? 'branch' : 'saved recipient'}<div class="muted small">${esc(S.live ? liveDate(p.initiated_at) : p.initiated)}</div></td><td>${usd(p.amount)}<div class="small">${esc(p.status)}</div></td></tr>`).join('')}</tbody></table>` : `<p class="muted">${noPays}</p>`}</div>`;
   // While money is waiting on the member, the home screen is only about that.
   if (active) return out + activePayment(active, caseById(active.case_id)) + det('home-more', 'Everything else', feelsOff + recentCard);
+  if (m.you && !S.me.name) out += nameCard('Vantis uses it when it calls you and when it tells Sound’s fraud team, so it never has to ask.');
   if (!setupDone) out += `<div class="card setup-card"><p class="eyebrow">3 short steps</p><h3>Finish setting up your app</h3><p class="small">Choose scam protection, how often we alert you, and an optional trusted contact.</p><div class="row"><button data-act="onboarding">Start setup</button><button class="quiet" data-act="setup_dismiss">Not now</button></div></div>`;
   out += feelsOff;
   if (S.phone && S.channels && !S.channels.screening) out += `<div class="card"><h3>Let Vantis answer unknown callers</h3><p class="small">Scam calls almost always come from numbers you don’t know. Vantis can pick those up for you, ask who’s calling and why, put ordinary callers through, and hold back the ones that look like a scam. Your contacts still ring as usual.</p><div class="row"><button data-page="guardian" data-anchor="screening">See how it works</button></div></div>`;
@@ -309,6 +325,7 @@ function onboardingView() {
   const m = S.member, t = m.trusted_contact, A = S.alerts;
   const progress = n => `<div class="ob-progress" aria-label="Step ${n} of 3"><span class="small">Step ${n} of 3</span><div class="ob-bar">${[1, 2, 3].map(i => `<span class="${i <= n ? 'on' : ''}"></span>`).join('')}</div></div>`;
   const back = `<button class="quiet" data-act="ob_back">Back</button>`;
+  if (obStep === 0 && m.you && !S.me.name) return `<div class="card ob"><h2>Let’s set up your app</h2>${nameCard('So Vantis knows who you are when it calls you or tells Sound’s fraud team.')}</div>`;
   if (obStep === 0) return `<div class="card ob"><p class="eyebrow">Welcome, ${esc(m.name)}</p><h2>Let’s set up your app</h2>
     <p>Three short steps: scam protection, how often we alert you, and an optional trusted contact. You can change any of it later in Settings.</p>
     <div class="stack"><button class="primary" data-act="ob_next">Get started</button><button class="quiet" data-act="ob_done">Skip setup</button></div></div>`;
@@ -336,8 +353,14 @@ function onboardingView() {
 function profileView() {
   const m = S.member, t = m.trusted_contact, A = S.alerts;
   const initials = m.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  return `<div class="card profile-head"><span class="avatar" aria-hidden="true">${esc(initials)}</span><div><h2>${esc(m.name)}</h2><div class="small muted">Member ${esc(m.id)} · ${demo ? 'synthetic kit member' : 'sample member'}</div></div></div>
-    <div class="card"><h3>Contact and sign-in</h3><dl class="kv"><dt>Phone on file</dt><dd>${esc(m.current_contact)}</dd><dt>Sign-in</dt><dd>Sound app sign-in${demo ? ' (demo)' : ''}</dd></dl></div>
+  const head = m.you
+    ? `<div class="card profile-head"><span class="avatar" aria-hidden="true">${esc(initials)}</span><div><h2>${esc(m.name)}</h2><div class="small muted">Set up by you · Vantis uses this when it calls you or reports for you</div></div></div>
+    ${nameCard('Change it here. Vantis uses it on its calls to you and on fraud cases it files for you.')}
+    <div class="card"><h3>Contact and sign-in</h3><dl class="kv"><dt>Phone</dt><dd>${S.me.phone ? `${esc(S.me.phone)} · verified` : 'Not linked yet'}</dd><dt>Email</dt><dd>${S.me.email ? `${esc(S.me.email)} · verified` : 'Not linked yet'}</dd><dt>Sign-in</dt><dd>Sound app sign-in</dd></dl>
+      <div class="row"><button class="quiet" data-page="channels">Connected channels</button></div></div>`
+    : `<div class="card profile-head"><span class="avatar" aria-hidden="true">${esc(initials)}</span><div><h2>${esc(m.name)}</h2><div class="small muted">Member ${esc(m.id)} · ${demo ? 'synthetic kit member' : 'sample member'}</div></div></div>
+    <div class="card"><h3>Contact and sign-in</h3><dl class="kv"><dt>Phone on file</dt><dd>${esc(m.current_contact)}</dd><dt>Sign-in</dt><dd>Sound app sign-in${demo ? ' (demo)' : ''}</dd></dl></div>`;
+  return `${head}
     <div class="card"><h3>Vantis</h3><dl class="kv"><dt>Status</dt><dd>${m.enrolled ? 'On' : 'Off'}</dd><dt>Alerts</dt><dd>${A.sensitivity[0].toUpperCase() + A.sensitivity.slice(1)}${A.quiet ? ', quiet hours on' : ''}</dd><dt>Trusted contact</dt><dd>${t ? `${esc(t.name)} (${esc(t.relation)})` : 'None'}</dd></dl>
       <div class="row profile-actions"><button data-page="settings">Change settings</button><button class="quiet" data-act="onboarding">Run setup again</button></div></div>
     <div class="card"><button data-act="sign_out">Sign out</button><p class="small muted">Signing out only affects this ${demo ? 'demo ' : ''}tab.</p></div>`;
@@ -856,7 +879,7 @@ function whyShort(c) {
 // Reports Vantis filed (a call, chat, email or WhatsApp) and members asking to talk: who, what, why.
 // A live report names only who the member said they are; with no name, their callback number stands in.
 const last4 = n => String(n || '').replace(/\D/g, '').slice(-4);
-const reporter = x => { const m = x.report?.member; return !x.report ? S.member.name : m?.name || (m?.phone ? `Caller ending ${last4(m.phone)}` : m?.email || 'Name not given'); };
+const reporter = x => { const m = x.report?.member; return !x.report ? (S.members?.[x.member_id]?.name || S.kitMember?.name || S.member.name) : m?.name || (m?.phone ? `Caller ending ${last4(m.phone)}` : m?.email || 'Name not given'); };
 const CHANNEL = { phone: 'Phone call', chat: 'App chat', email: 'Email', whatsapp: 'WhatsApp', app: 'App', 'call guardian': 'Call guardian' };
 const reportPay = x => { const e = x.report?.exposure; return e?.money_sent ? `${e.amount_sent || 'Money'} sent${e.sent_method ? ` by ${e.sent_method}` : ''}` : x.report ? `${CHANNEL[x.report.channel] || x.report.channel} · nothing sent yet` : 'No payment'; };
 const reportWhy = x => { const r = x.report; if (!r) return x.reason; const t = [r.threat?.type, r.threat?.claimed_identity && `claims to be ${r.threat.claimed_identity}`, r.asked_for && `asked for ${r.asked_for}`].filter(Boolean).join(', '); const w = t || r.summary || x.reason; const t2 = w[0].toUpperCase() + w.slice(1); return t2.length > 110 ? t2.slice(0, 107) + '…' : t2; };
@@ -1032,6 +1055,7 @@ document.addEventListener('click', async e => {
     case 'sens': return post('member/alert_settings', { sensitivity: b.dataset.v });
     case 'tc_add': { const j = await post('member/trusted_contact', { name: $('#tcname').value, relation: $('#tcrel').value }); if (j && j.ok && page === 'onboarding') { obStep = 4; render(); } return; }
     case 'tc_remove': return post('member/trusted_contact', { remove: true });
+    case 'save_name': { const j = await post('profile', { name: $('#myname').value }); if (j && j.ok) toast('Saved. Vantis will use your name.'); return; }
     case 'release': return post('member/override_release', { pid, code: $('#code').value });
     case 'looks_fine': case 'cancel': case 'request_code': case 'reconfirm': case 'callback': case 'report': {
       const j = await post('member/' + a, { pid });

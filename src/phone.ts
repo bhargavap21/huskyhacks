@@ -10,6 +10,7 @@ import { startCall, addText, stopCall, callState } from './guardian.ts';
 import { client, MODEL } from './chat.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
 import { demoKey } from './sim.ts';
+import { profile } from './profile.ts';
 import { sidsWhere, settings, assess, record, notifyMember, onCritical, detection, detections, updateDetection, withIntake, type Detection } from './monitor.ts';
 const INTAKE_KEYS = ['claimed_identity', 'scammer_name', 'scammer_phone', 'asked_for', 'amount_requested', 'payment_method', 'deadline'];
 import { decide, input as screenInput, logScreened, finishScreened, TOOL_SECRET, NEVER_CONNECT } from './screening.ts';
@@ -114,12 +115,15 @@ export async function callAboutThreat(sid: string, id: number, d: Detection) {
   const evidence = (d.signals ?? []).slice(0, 4).map(x => `- ${x.label}: "${x.span}"`).join('\n');
   // A call Vantis screened never reached the member, and Vantis already heard everything the caller said.
   const heard = d.channel === 'call screening' ? screenedWords.get(sid) : undefined;
+  const me = profile(sid), first = me.name.split(' ')[0];
+  // Vantis knows who it's calling: the member set it up, with their name and this verified phone.
+  const who = `Who you're calling: ${me.name ? `${me.name}, ` : ''}the Sound member who set up Vantis, on the phone they linked and verified.${me.name ? ' You already know their name and that this number reaches them: never ask for either.' : ' You know this number reaches them: never ask for a callback number.'}`;
   screenedWords.delete(sid);
   await api('POST', '/v1/calls', {
     agentId: AGENT, toNumber: l.number,
     initialGreeting: heard !== undefined
-      ? 'Hi, this is Vantis from Sound. I just answered a call for you that has the signs of a scam, and I didn’t put them through. Do you have a moment?'
-      : `Hi, this is Vantis from Sound, calling about a ${what} you just got. It has the signs of a scam that’s happening right now, so I wanted to reach you straight away. Do you have a moment?`,
+      ? `Hi${first ? ` ${first}` : ''}, this is Vantis from Sound. I just answered a call for you that has the signs of a scam, and I didn’t put them through. Do you have a moment?`
+      : `Hi${first ? ` ${first}` : ''}, this is Vantis from Sound, calling about a ${what} you just got. It has the signs of a scam that’s happening right now, so I wanted to reach you straight away. Do you have a moment?`,
     systemPrompt: `${CALL_RULES}
 
 Why you are calling: Vantis rated a ${what} the member received as Level 4, critical: someone is asking for money, a code or access right now while posing as someone trusted or using fear or secrecy. You are calling to protect them before they act. This call was placed automatically by Vantis, not requested by the member.
@@ -129,7 +133,9 @@ Warning signs, with the words used:
 ${evidence || '- (see summary)'}
 ${d.other?.length ? `Other checks: ${d.other.join('; ')}` : ''}
 
-${heard !== undefined ? screenedSteps(heard) : MESSAGE_STEPS}`,
+${who}
+
+${heard !== undefined ? screenedSteps(heard, !!me.name) : MESSAGE_STEPS}`,
   });
   console.log(`phone: called a member about a critical ${what}`);
 }
@@ -143,7 +149,7 @@ Keep it under two minutes unless they want to talk.`;
 
 // Words a screened caller said, kept just long enough for the Level 4 call to the member.
 const screenedWords = new Map<string, string>();
-function screenedSteps(heard: string) {
+function screenedSteps(heard: string, known = false) {
   return `You (Vantis) answered this call yourself while screening it. The member's phone never rang and they never spoke to the caller. Everything the caller said to you:
 """
 ${heard.slice(0, 1500)}
@@ -154,7 +160,7 @@ In this order, one or two sentences per turn:
 1. Tell them they're safe: you didn't put the caller through.
 2. Say who the caller claimed to be and what they wanted, quoting one phrase. Sound never asks anyone to move money, wire it or read out a code. If they or anyone like them calls back, hang up and call Sound on the number on the member's card.
 3. Offer once: "Would you like me to tell Sound's fraud team? I'll pass on what the caller said, and someone from Sound will call you." Their yes is enough.
-4. If yes, ask only what you don't know, one question per turn: their name, then whether this number is the best one for a callback. You called them, so say "this number". Then: "Thanks. I'll send this to Sound's fraud team when we hang up, and someone will call you back on this number."
+4. If yes, ${known ? 'ask nothing more: you already have their name and number. Say' : 'ask only their name (you called them, so this number reaches them). Then say'}: "Thanks. I'll send this to Sound's fraud team when we hang up, and someone will call you back on this number."
 Keep it under a minute unless they want to talk.`;
 }
 if (phoneEnabled) onCritical(callAboutThreat);
@@ -439,7 +445,8 @@ export async function reportIfAgreed(sid: string | null, member: string, turns: 
     if (det) d.quotes = []; // the member's "yes, please" isn't evidence; the caller's own words come from the detection
     if (det) withIntake(d, det);
     if (det) Object.assign(d, { signals: det.signals ?? [], tactics: [...new Set([...(d.tactics ?? []), ...(det.signals ?? []).map(x => x.label)])], contact_method: d.contact_method || CHANNEL_NAME[det.channel], scammer_phone: d.scammer_phone || det.numbers?.[0] || (det.channel === 'call screening' && /\d{7}/.test(det.from) ? det.from : '') });
-    const out = await fileReport(det?.demo && sid ? demoKey(sid) : sid, normalize(d, 'phone', { phone: member, linked: !!sid })); // a demo sample's call reports into the demo
+    const me = profile(sid);
+    const out = await fileReport(det?.demo && sid ? demoKey(sid) : sid, normalize(d, 'phone', { phone: member, linked: !!sid, name: me.name, email: me.email })); // a demo sample's call reports into the demo
     if (det && p) { det.reported = true; updateDetection(sid!, p.id, det); pendingThreat.delete(sid!); }
     console.log(`phone: case ${out.case_id} filed (queue: ${out.queued}, emailed: ${out.emailed})`);
   } catch (e) { console.error('phone: could not check for a report:', (e as Error).message); }
