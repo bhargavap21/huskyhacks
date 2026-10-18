@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Second Look explainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500&family=Newsreader:opsz,wght@6..72,400&display=swap">
+<style>
+/* Self-contained explainer. Tokens copied from design-system/tokens.css (Instinct, light theme) so this file has no dependencies. */
+:root {
+  --navy: #00205b; --blue: #1f79af; --blue-deep: #1f5589; --ice: #e6f1f4;
+  --surface: #f2fafc; --surface-raised: #ffffff; --surface-band: #e6f1f4;
+  --line: #dfedf0; --line-strong: #707070;
+  --ink: var(--navy); --ink-body: #262e38; --ink-muted: #5f6670;
+  --accent: var(--blue); --accent-hover: var(--blue-deep); --on-accent: #ffffff;
+  --accent-soft: #d6eaf5; --accent-mark: #b9dcef;
+  --radius-sm: 7px; --radius-pill: 999px;
+  --font-serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Instrument Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --ease: cubic-bezier(.22, .8, .24, 1);
+  --t: 700ms;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--surface); color: var(--ink-body); font-family: var(--font-sans); overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; }
+
+/* The stage is a fixed design canvas scaled to fit: 1280x720 on wide screens, 720x1280 on tall ones. */
+#stage { position: absolute; left: 50%; top: 50%; transform-origin: 0 0; background: var(--surface); overflow: hidden; }
+.land #stage { width: 1280px; height: 720px; }
+.port #stage { width: 720px; height: 1280px; }
+.no-anim, .no-anim * { transition: none !important; }
+
+/* Top band */
+.band { position: absolute; left: 0; right: 0; top: 0; height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; border-bottom: 1px solid var(--line); }
+.brand { font-family: var(--font-serif); font-size: 26px; color: var(--ink); }
+.sim { font-size: 15px; font-weight: 500; color: var(--ink-body); background: var(--surface-band); border-radius: var(--radius-pill); padding: 6px 14px; }
+.port .band { padding: 0 28px; }
+
+/* Caption column */
+.cap { position: absolute; }
+.land .cap { left: 56px; top: 116px; width: 430px; }
+.port .cap { left: 44px; right: 44px; top: 100px; height: 300px; }
+.step { font-size: 16px; font-weight: 500; color: var(--accent); letter-spacing: .2px; margin-bottom: 14px; }
+.cap h1 { font-family: var(--font-serif); font-weight: 400; color: var(--ink); font-size: 44px; line-height: 50px; letter-spacing: -.4px; }
+.port .cap h1 { font-size: 50px; line-height: 56px; }
+.cap p.sub { margin-top: 18px; font-size: 21px; line-height: 31px; color: var(--ink-body); }
+.port .cap p.sub { font-size: 25px; line-height: 35px; margin-top: 16px; }
+.cap .fine { margin-top: 14px; font-size: 16px; line-height: 24px; color: var(--ink-muted); }
+.port .cap .fine { font-size: 19px; line-height: 27px; }
+.capin { transition: opacity 500ms var(--ease), transform 600ms var(--ease); }
+.capin.out { opacity: 0; transform: translateY(10px); }
+.tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+
+/* Chips */
+.chip { display: inline-flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 500; line-height: 20px; color: var(--ink); background: var(--surface-raised); border: 1px solid var(--accent-mark); border-radius: var(--radius-pill); padding: 7px 14px 7px 12px; white-space: nowrap; }
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+.chip.plain::before { background: var(--ink-muted); }
+.chip.fill { background: var(--accent-soft); border-color: transparent; }
+.port .chip { font-size: 19px; line-height: 24px; padding: 8px 16px 8px 13px; }
+.pop { opacity: 0; transform: translateY(8px) scale(.97); transition: opacity 500ms var(--ease), transform 600ms var(--ease); }
+.pop.on { opacity: 1; transform: none; }
+
+/* Scene area */
+.scene { position: absolute; }
+.land .scene { left: 530px; top: 64px; right: 0; bottom: 64px; }
+.port .scene { left: 0; right: 0; top: 400px; bottom: 76px; }
+
+/* Phone */
+.phone { position: absolute; width: 300px; height: 584px; border: 1px solid var(--line-strong); border-radius: 38px; background: var(--surface-raised); padding: 10px; transition: transform var(--t) var(--ease), opacity var(--t) var(--ease); }
+.land .phone { left: 24px; top: 4px; }
+.port .phone { left: 50%; top: 20px; transform: translateX(-50%) scale(1.3); transform-origin: 50% 0; }
+.port [data-focus="panel"] .phone { opacity: 0; transform: translateX(-90%) scale(1.2); pointer-events: none; }
+.screen { position: absolute; inset: 10px; border-radius: 29px; background: var(--surface); overflow: hidden; }
+.notch { position: absolute; top: 10px; left: 50%; width: 92px; height: 22px; margin-left: -46px; border-radius: 12px; background: var(--ink-body); z-index: 5; }
+.view { position: absolute; inset: 0; padding: 46px 16px 16px; opacity: 0; transform: translateX(24px); transition: opacity 500ms var(--ease), transform 600ms var(--ease); }
+.view.on { opacity: 1; transform: none; }
+.view.gone { opacity: 0; transform: translateX(-24px); }
+.apphead { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.apphead b { font-family: var(--font-serif); font-weight: 400; font-size: 20px; color: var(--ink); }
+.apphead span { font-size: 12px; color: var(--ink-muted); }
+.who { text-align: center; font-size: 12px; color: var(--ink-muted); margin-bottom: 4px; }
+.whoname { text-align: center; font-size: 15px; font-weight: 500; color: var(--ink); margin-bottom: 14px; }
+.bubble { max-width: 86%; background: var(--surface-band); color: var(--ink-body); font-size: 16px; line-height: 23px; padding: 10px 13px; border-radius: 18px 18px 18px 6px; margin-bottom: 8px; }
+.notif { position: absolute; left: 10px; right: 10px; top: 40px; z-index: 4; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; font-size: 13px; line-height: 18px; transform: translateY(-140%); opacity: 0; transition: transform 600ms var(--ease), opacity 400ms var(--ease); }
+.notif.on { transform: none; opacity: 1; }
+.notif.away { transform: translateY(-140%); opacity: 0; }
+.notif b { font-weight: 500; color: var(--ink); }
+.field { font-size: 13px; line-height: 18px; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--ink-body); }
+.field span { color: var(--ink-muted); }
+.quote { margin-top: 12px; font-size: 14px; line-height: 21px; color: var(--ink-body); border-left: 2px solid var(--line-strong); padding-left: 10px; }
+.note { margin-top: 12px; font-size: 14px; line-height: 21px; }
+.btn { display: inline-block; font: 500 14px/18px var(--font-sans); border-radius: var(--radius-sm); padding: 9px 14px; border: 1px solid var(--line-strong); background: var(--surface-raised); color: var(--ink); transition: transform 200ms var(--ease), background 300ms var(--ease); }
+.btn.pri { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.btn.press { transform: scale(.94); background: var(--accent-hover); }
+.sendrow { display: flex; justify-content: flex-end; margin-top: 14px; }
+.sent { margin-top: 14px; font-size: 13px; color: var(--ink-muted); opacity: 0; transition: opacity 400ms; }
+.sent.on { opacity: 1; }
+.mail h3 { font-family: var(--font-serif); font-weight: 400; font-size: 18px; line-height: 23px; color: var(--ink); margin: 2px 0 10px; }
+.mail p { font-size: 15px; line-height: 22px; margin-bottom: 10px; }
+.mail .from { font-size: 12px; color: var(--ink-muted); }
+.nextstep { background: var(--accent-soft); border-radius: 4px; padding: 10px 12px; }
+.nextstep small { display: block; font-size: 12px; font-weight: 500; color: var(--accent-hover); margin-bottom: 2px; }
+.foot { font-size: 12px !important; line-height: 17px !important; color: var(--ink-muted); }
+.amount { font-family: var(--font-serif); font-size: 40px; line-height: 46px; color: var(--ink); margin: 6px 0 4px; }
+.small { font-size: 13px; line-height: 19px; color: var(--ink-muted); }
+.hold { border-top: 3px solid var(--accent); padding-top: 12px; }
+.badge { display: inline-block; font-size: 12px; font-weight: 500; color: var(--ink); background: var(--surface-band); border-radius: var(--radius-pill); padding: 4px 10px; }
+.hold h2 { font-family: var(--font-serif); font-weight: 400; font-size: 22px; line-height: 27px; color: var(--ink); margin: 10px 0 8px; }
+.hold p { font-size: 14px; line-height: 21px; margin-bottom: 10px; }
+.btncol { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.btncol .btn { text-align: center; }
+.done h2 { font-family: var(--font-serif); font-weight: 400; font-size: 24px; color: var(--ink); margin: 12px 0 8px; }
+
+/* Flying envelope */
+.env { position: absolute; width: 54px; height: 38px; border: 1.5px solid var(--accent); border-radius: 4px; background: var(--surface-raised); opacity: 0; z-index: 10; transition: transform 1300ms var(--ease), opacity 400ms; }
+.env::after { content: ""; position: absolute; left: 6px; right: 6px; top: 3px; height: 16px; border-bottom: 1.5px solid var(--accent); border-right: 1.5px solid var(--accent); transform: skewY(0) rotate(45deg) scale(.55); transform-origin: 50% 0; }
+.land .env { left: 170px; top: 450px; }
+.port .env { left: 333px; top: 560px; }
+.env.go { opacity: 1; }
+.land .env.fly { transform: translate(370px, -380px) scale(.8); opacity: 0; }
+.port .env.fly { transform: translate(0, -520px) scale(.8); opacity: 0; }
+
+/* Panel: Second Look's read, then the employee console */
+.panel { position: absolute; background: var(--surface-raised); border: 1px solid var(--line); opacity: 0; transform: translateY(16px); transition: opacity var(--t) var(--ease), transform var(--t) var(--ease); }
+.panel.on { opacity: 1; transform: none; }
+.land .panel { left: 356px; top: 4px; width: 370px; height: 584px; }
+.port .panel { left: 40px; right: 40px; top: 10px; height: 760px; }
+.port [data-focus="phone"] .panel.on { opacity: 0; transform: translateX(30%); }
+.phead { display: flex; justify-content: space-between; align-items: baseline; padding: 16px 20px 14px; border-bottom: 1px solid var(--line); background: var(--surface-band); }
+.phead b { font-family: var(--font-serif); font-weight: 400; font-size: 20px; color: var(--ink); }
+.phead span { font-size: 12px; color: var(--ink-body); }
+.pbody { position: absolute; top: 56px; left: 0; right: 0; bottom: 0; padding: 18px 20px; }
+.port .phead { padding: 22px 28px 18px; } .port .phead b { font-size: 27px; } .port .phead span { font-size: 16px; }
+.port .pbody { top: 74px; padding: 26px 28px; }
+.pane { position: absolute; inset: 0; padding: inherit; opacity: 0; transition: opacity 500ms var(--ease); }
+.pane.on { opacity: 1; }
+.lbl { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-bottom: 8px; }
+.port .lbl { font-size: 17px; margin-bottom: 12px; }
+.msg { font-size: 18px; line-height: 30px; color: var(--ink-body); }
+.port .msg { font-size: 25px; line-height: 40px; }
+.hl { border-radius: 3px; padding: 1px 2px; margin: 0 -2px; background-image: linear-gradient(var(--accent-mark), var(--accent-mark)); background-repeat: no-repeat; background-size: 0% 100%; transition: background-size 900ms var(--ease); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.hl.on { background-size: 100% 100%; }
+.chips { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 22px; }
+.port .chips { gap: 14px; margin-top: 30px; }
+.caveat { margin-top: 18px; font-size: 14px; color: var(--ink-muted); }
+.port .caveat { font-size: 18px; }
+.case-eyebrow { font-size: 12px; color: var(--ink-muted); }
+.case-amt { font-family: var(--font-serif); font-size: 30px; line-height: 36px; color: var(--ink); margin: 2px 0 2px; }
+.case-title { font-size: 14px; line-height: 20px; margin-bottom: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.sec { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.sec .chip, .land .row .chip { font-size: 13px; padding: 4px 11px 4px 9px; }
+.land .row { gap: 6px; }
+.land .said { margin-bottom: 6px; }
+.land .q { padding-top: 6px; padding-bottom: 6px; } .land .q::before { top: 14px; }
+.said { font-size: 15px; line-height: 22px; font-style: italic; color: var(--ink); margin-bottom: 8px; }
+.q { font-size: 14px; line-height: 21px; padding: 8px 0 8px 22px; position: relative; }
+.q::before { content: ""; position: absolute; left: 4px; top: 16px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-body); }
+.q .badge { margin-right: 6px; background: var(--accent-soft); }
+.port .case-eyebrow { font-size: 16px; } .port .case-amt { font-size: 40px; line-height: 48px; } .port .case-title { font-size: 19px; line-height: 27px; }
+.port .sec .chip { font-size: 18px; padding: 7px 15px 7px 12px; } .port .said { font-size: 20px; line-height: 29px; } .port .q { font-size: 19px; line-height: 28px; padding-left: 26px; } .port .q::before { top: 20px; }
+.port .badge { font-size: 15px; }
+.outcome { display: flex; align-items: center; gap: 10px; font-size: 14px; padding: 7px 0; }
+.radio { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line-strong); position: relative; flex: none; transition: border-color 300ms; }
+.radio::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--accent); transform: scale(0); transition: transform 300ms var(--ease); }
+.outcome.sel .radio { border-color: var(--accent); }
+.outcome.sel .radio::after { transform: scale(1); }
+.port .outcome { font-size: 19px; } .port .btn { font-size: 18px; padding: 11px 18px; }
+.status { display: inline-block; margin-top: 14px; font-size: 14px; font-weight: 500; color: var(--ink); }
+
+/* End card */
+.endcard { position: absolute; inset: 64px 0 64px 0; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 60px; opacity: 0; pointer-events: none; transition: opacity 900ms var(--ease); z-index: 20; }
+.port .endcard { bottom: 76px; }
+.endcard.on { opacity: 1; }
+.endcard h1 { font-family: var(--font-serif); font-weight: 400; color: var(--ink); font-size: 64px; line-height: 70px; letter-spacing: -.6px; }
+.endcard p { margin-top: 18px; font-size: 22px; line-height: 32px; max-width: 760px; }
+.endcard .tags { justify-content: center; margin-top: 30px; }
+.endcard .fine { margin-top: 30px; font-size: 15px; color: var(--ink-muted); }
+.port .endcard h1 { font-size: 66px; line-height: 72px; } .port .endcard p { font-size: 27px; line-height: 38px; }
+
+/* Controls */
+.controls { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; display: flex; align-items: center; gap: 14px; padding: 0 40px; border-top: 1px solid var(--line); z-index: 30; background: var(--surface); }
+.port .controls { height: 76px; padding: 0 28px; }
+.cbtn { font: 500 15px/18px var(--font-sans); color: var(--ink); background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 9px 16px; cursor: pointer; min-width: 92px; }
+.port .cbtn { font-size: 19px; padding: 12px 18px; min-width: 110px; }
+.cbtn:hover { background: var(--surface-band); }
+.cbtn:focus-visible, .dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.track { flex: 1; display: flex; gap: 6px; align-items: center; }
+.dot { flex: 1; height: 24px; display: flex; align-items: center; cursor: pointer; background: none; border: 0; padding: 0; }
+.dot i { display: block; width: 100%; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; position: relative; }
+.dot i b { position: absolute; inset: 0; width: 0; background: var(--accent); }
+.time { font-size: 14px; color: var(--ink-muted); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) { :root { --t: 300ms; } .env { display: none; } }
+</style>
+</head>
+<body>
+<div id="stage" aria-roledescription="animated explainer">
+  <div class="band">
+    <div class="brand">Second Look</div>
+    <div class="sim">Simulated demo · fake data</div>
+  </div>
+
+  <div class="cap" aria-live="polite">
+    <div class="capin" id="capin">
+      <div class="step" id="step"></div>
+      <h1 id="title"></h1>
+      <p class="sub" id="sub"></p>
+      <div class="tags" id="captags"></div>
+      <p class="fine" id="fine"></p>
+    </div>
+  </div>
+
+  <div class="scene" id="scene" data-focus="phone">
+    <div class="phone" aria-hidden="true">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="notif" id="notif"><b>Messages</b> · now<br>Grandma, it’s me. I’m in jail and need…</div>
+
+        <!-- 1. The pressured text -->
+        <div class="view" id="v-msg">
+          <div class="who">Text message</div>
+          <div class="whoname">(253) 555-0142</div>
+          <div class="bubble pop" id="b1">Grandma, it’s me. I’m in jail and need $8,500 for bail.</div>
+          <div class="bubble pop" id="b2">Wire it today. Please don’t tell Mom.</div>
+        </div>
+
+        <!-- 2. Forward by email -->
+        <div class="view" id="v-fwd">
+          <div class="apphead"><b>New email</b><span>Cancel</span></div>
+          <div class="field"><span>To </span>secondlook@agentmail.to</div>
+          <div class="field"><span>Subject </span>Fwd: text from an unknown number</div>
+          <div class="note">Is this real?</div>
+          <div class="quote">Grandma, it’s me. I’m in jail and need $8,500 for bail. Wire it today. Please don’t tell Mom.</div>
+          <div class="sendrow"><span class="btn pri" id="sendbtn">Send</span></div>
+          <div class="sent" id="sentnote">Sent to Second Look</div>
+        </div>
+
+        <!-- 4. The calm reply -->
+        <div class="view mail" id="v-reply">
+          <div class="from">From Second Look · just now</div>
+          <h3>Re: Fwd: text from an unknown number</h3>
+          <p class="pop" id="r1">Thanks for checking with me.</p>
+          <p class="pop" id="r2">I noticed a few things. It asks you to keep it secret, to hurry, and it’s about a family emergency.</p>
+          <p class="pop nextstep" id="r3"><small>One next step</small>Before you send anything, call your grandson on a number you already had.</p>
+          <p class="pop foot" id="r4">Second Look never asks for codes or passwords and never moves money.</p>
+        </div>
+
+        <!-- 5a. Starting the wire -->
+        <div class="view" id="v-pay">
+          <div class="apphead"><b>Sound</b><span>Linda</span></div>
+          <div class="small">Send a wire</div>
+          <div class="amount">$8,500.00</div>
+          <div class="field"><span>To </span>New recipient</div>
+          <div class="field"><span>From </span>Checking</div>
+          <div class="sendrow"><span class="btn pri" id="wirebtn">Send wire</span></div>
+        </div>
+
+        <!-- 5b. The hold -->
+        <div class="view" id="v-hold">
+          <div class="apphead"><b>Sound</b><span>Linda</span></div>
+          <div class="hold">
+            <span class="badge">On hold · nothing has been sent</span>
+            <h2>Your $8,500 wire is paused</h2>
+            <p>A few things look different from usual, so we paused it to check with you. A Sound team member will call you. If it’s right, you can still send it.</p>
+            <p class="small">Paused for up to <b id="cd1">4h 00m</b> more.</p>
+            <div class="btncol"><span class="btn">It’s me, send it now</span><span class="btn">Cancel this payment</span></div>
+          </div>
+        </div>
+
+        <!-- 6a. Home buyer hold -->
+        <div class="view" id="v-hold2">
+          <div class="apphead"><b>Sound</b><span>Home buyer</span></div>
+          <div class="hold">
+            <span class="badge">On hold · nothing has been sent</span>
+            <h2>Your $51,587 wire is paused</h2>
+            <p>A few things look different from usual, so we paused it to check with you. A Sound team member will call you.</p>
+            <p class="small">Paused for up to <b id="cd2">4h 00m</b> more.</p>
+          </div>
+        </div>
+
+        <!-- 6b. Released -->
+        <div class="view done" id="v-sent">
+          <div class="apphead"><b>Sound</b><span>Home buyer</span></div>
+          <span class="badge">Sent</span>
+          <h2>Your $51,587 wire is on its way</h2>
+          <p class="small" id="heldfor">Paused for 3 minutes. Thanks for taking the call.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="env" id="env"></div>
+
+    <div class="panel" id="panel" aria-hidden="true">
+      <div class="phead"><b id="ptitle">Second Look</b><span id="psub">Forwarded by Linda</span></div>
+      <div class="pbody">
+        <!-- 3. The read -->
+        <div class="pane" id="p-read">
+          <div class="lbl">The message she forwarded</div>
+          <div class="msg"><span class="hl" data-k="fam">Grandma, it’s me. I’m in jail</span> and need $8,500 for bail. Wire it <span class="hl" data-k="urg">today</span>. <span class="hl" data-k="sec">Please don’t tell Mom.</span></div>
+          <div class="chips">
+            <span class="chip pop" data-k="sec">Asked to keep it secret</span>
+            <span class="chip pop" data-k="urg">Pressure to hurry</span>
+            <span class="chip pop" data-k="fam">Emergency involving family</span>
+          </div>
+          <p class="caveat pop" id="caveat">Signals to check, not proof.</p>
+        </div>
+
+        <!-- 5. Employee console, Linda -->
+        <div class="pane" id="p-case1">
+          <div class="case-eyebrow">Case 1 · M1001 · On hold</div>
+          <div class="case-amt">$8,500 wire</div>
+          <div class="case-title">First wire in a long time, to a brand-new recipient, well above usual.</div>
+          <div class="row">
+            <span class="chip fill pop" data-c="1">Brand-new recipient</span>
+            <span class="chip fill pop" data-c="2">First wire in 2,411 days</span>
+            <span class="chip fill pop" data-c="3">4.77× her usual</span>
+          </div>
+          <div class="sec pop" id="c1said">
+            <div class="lbl">What the member told Second Look <span class="badge">Shared by Linda</span></div>
+            <div class="said">“Please don’t tell Mom.”</div>
+            <span class="chip">Asked to keep it secret</span>
+          </div>
+          <div class="sec pop" id="c1guide">
+            <div class="lbl">Call the member on the number on file</div>
+            <div class="q"><span class="badge">From the chat</span>Has anyone asked you to keep this quiet, or told you what to say to us?</div>
+            <div class="q">Can you tell me, in your own words, who asked you to make this payment?</div>
+          </div>
+        </div>
+
+        <!-- 6. Employee console, home buyer -->
+        <div class="pane" id="p-case2">
+          <div class="case-eyebrow" id="c2state">Case 2 · M1057 · On hold</div>
+          <div class="case-amt">$51,587 wire</div>
+          <div class="case-title">Same check fires. A closing wire for a home purchase.</div>
+          <div class="row">
+            <span class="chip fill">Brand-new recipient</span>
+            <span class="chip fill">No wire in over a year</span>
+            <span class="chip fill">42.63× usual</span>
+          </div>
+          <div class="sec pop" id="c2out">
+            <div class="lbl">Record the outcome</div>
+            <div class="outcome" id="o1"><span class="radio"></span>Member confirmed by phone: legitimate</div>
+            <div class="outcome"><span class="radio"></span>Verified with a contact the member already had</div>
+            <div class="outcome"><span class="radio"></span>Member chose to cancel</div>
+            <div class="sendrow" style="justify-content:flex-start"><span class="btn pri" id="relbtn">Release the payment</span></div>
+            <span class="status pop" id="c2done">Released · Completed</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="endcard" id="endcard">
+    <h1>A second look, not a wall.</h1>
+    <p>Members check what feels off. Risky payments pause briefly for a person to call. Everything else moves.</p>
+    <div class="tags">
+      <span class="chip">Opt-in inside the Sound app</span>
+      <span class="chip">Never moves money</span>
+      <span class="chip">The member decides</span>
+    </div>
+    <p class="fine">Simulated demo on synthetic data. No real money, member or Sound system involved.</p>
+  </div>
+
+  <div class="controls">
+    <button class="cbtn" id="play" aria-label="Pause">Pause</button>
+    <button class="cbtn" id="restart" aria-label="Restart from the beginning">Restart</button>
+    <div class="track" id="track" role="group" aria-label="Jump to a step"></div>
+    <span class="time" id="time">0:00</span>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), scene = $('scene');
+
+  // Fit the canvas to the window. Tall screens get the portrait layout.
+  function fit() {
+    const vw = innerWidth, vh = innerHeight, port = vh / vw > 1.1;
+    document.body.className = port ? 'port' : 'land';
+    const W = port ? 720 : 1280, H = port ? 1280 : 720;
+    const s = Math.min(vw / W, vh / H);
+    stage.style.transform = `scale(${s}) translate(-50%, -50%)`;
+  }
+  addEventListener('resize', fit); fit();
+
+  // Steps: start time (s), caption.
+  const STEPS = [
+    { at: 0,  title: 'A message pushes Linda to hurry.', sub: 'It says her grandson is in jail, needs $8,500 today, and asks her to keep it secret.' },
+    { at: 10, title: 'She forwards it to Second Look.', sub: 'Just an email to secondlook@agentmail.to from her own linked address.', fine: 'Forwarding by WhatsApp is planned, not built yet.' },
+    { at: 20, title: 'It names the pressure, word for word.', sub: 'Second Look marks the exact words behind each warning sign.' },
+    { at: 32, title: 'She gets a calm reply.', sub: 'What it noticed, in plain words, and one clear next step.', tags: ['No alarms', 'Nothing blocked', 'Her decision'] },
+    { at: 42, title: 'If she sends money anyway, it pauses.', sub: 'The wire waits up to 4 hours. A Sound employee sees why, what she chose to share, and a guide for the call.' },
+    { at: 57, title: 'A real purchase gets through fast.', sub: 'A home buyer trips the same check. One call, a reason logged, and the wire is on its way.' },
+  ];
+  const END = 67, TOTAL = 73;
+
+  // Timeline of [time, action]. Every action is idempotent so seeking can replay them.
+  const cls = (id, c, on = true) => () => $(id).classList.toggle(c, on);
+  const all = (sel, c, on = true) => () => document.querySelectorAll(sel).forEach(e => e.classList.toggle(c, on));
+  const views = ['v-msg', 'v-fwd', 'v-reply', 'v-pay', 'v-hold', 'v-hold2', 'v-sent'];
+  const show = v => () => views.forEach(x => { const e = $(x); const was = e.classList.contains('on'); e.classList.toggle('on', x === v); e.classList.toggle('gone', x !== v && was); });
+  const panes = ['p-read', 'p-case1', 'p-case2'];
+  const pane = (p, title, sub) => () => { panes.forEach(x => $(x).classList.toggle('on', x === p)); $('ptitle').textContent = title; $('psub').textContent = sub; };
+  const focus = f => () => { scene.dataset.focus = f; };
+  const caption = i => () => setCaption(i);
+
+  const T = [
+    [0, caption(0)], [0, focus('phone')], [0, show('v-msg')],
+    [0.8, cls('notif', 'on')], [2.6, cls('notif', 'away')],
+    [2.4, cls('b1', 'on')], [4.4, cls('b2', 'on')],
+
+    [10, caption(1)], [10, show('v-fwd')],
+    [13.2, cls('sendbtn', 'press')], [13.6, cls('sendbtn', 'press', false)],
+    [13.6, cls('env', 'go')], [13.8, cls('env', 'fly')], [14.2, cls('sentnote', 'on')],
+    [15, pane('p-read', 'Second Look', 'Forwarded by Linda')], [15, cls('panel', 'on')], [15.4, focus('panel')],
+
+    [20, caption(2)],
+    [21, all('.hl[data-k="sec"], .chip[data-k="sec"]', 'on')],
+    [23.6, all('.hl[data-k="urg"], .chip[data-k="urg"]', 'on')],
+    [26.2, all('.hl[data-k="fam"], .chip[data-k="fam"]', 'on')],
+    [28.8, cls('caveat', 'on')],
+
+    [32, caption(3)], [32, focus('phone')], [32, show('v-reply')],
+    [33, cls('r1', 'on')], [34.4, cls('r2', 'on')], [36.4, cls('r3', 'on')], [38.6, cls('r4', 'on')],
+
+    [42, caption(4)], [42, show('v-pay')],
+    [43.8, cls('wirebtn', 'press')], [44.2, cls('wirebtn', 'press', false)],
+    [44.6, show('v-hold')],
+    [46, pane('p-case1', 'Employee console', 'Sound staff view')],
+    [47, all('[data-c="1"]', 'on')], [47.5, all('[data-c="2"]', 'on')], [48, all('[data-c="3"]', 'on')],
+    [48.2, focus('panel')],
+    [50, cls('c1said', 'on')], [52.4, cls('c1guide', 'on')],
+
+    [57, caption(5)], [57, focus('phone')], [57, show('v-hold2')],
+    [58, pane('p-case2', 'Employee console', 'Sound staff view')],
+    [59.2, focus('panel')], [59.4, cls('c2out', 'on')],
+    [61, cls('o1', 'sel')],
+    [62.6, cls('relbtn', 'press')], [63, cls('relbtn', 'press', false)],
+    [63.2, cls('c2done', 'on')], [63.2, () => { $('c2state').textContent = 'Case 2 · M1057 · Closed: Completed'; }],
+    [64, focus('phone')], [64, show('v-sent')],
+
+    [END, cls('endcard', 'on')],
+  ];
+
+  function setCaption(i) {
+    const s = STEPS[i], inn = $('capin');
+    const apply = () => {
+      $('step').textContent = `Step ${i + 1} of ${STEPS.length}`;
+      $('title').textContent = s.title;
+      $('sub').textContent = s.sub;
+      $('fine').textContent = s.fine || '';
+      $('captags').innerHTML = (s.tags || []).map(t => `<span class="chip plain">${t}</span>`).join('');
+      inn.classList.remove('out');
+    };
+    if (stage.classList.contains('no-anim') || !$('title').textContent) return apply();
+    inn.classList.add('out');
+    setTimeout(apply, 380);
+  }
+
+  // Reset every animated element to its starting state.
+  function reset() {
+    document.querySelectorAll('.on, .gone, .go, .fly, .press, .sel, .away').forEach(e => e.classList.remove('on', 'gone', 'go', 'fly', 'press', 'sel', 'away'));
+    $('c2state').textContent = 'Case 2 · M1057 · On hold';
+    $('title').textContent = '';
+    scene.dataset.focus = 'phone';
+  }
+
+  // Hold clocks run at 60x, like the app's demo mode: one real second takes one minute off.
+  const hm = ms => { const m = Math.max(0, Math.round(ms / 60000)); return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`; };
+  function clocks(t) {
+    $('cd1').textContent = hm(4 * 3600e3 - Math.max(0, t - 44.6) * 60e3);
+    $('cd2').textContent = hm(4 * 3600e3 - Math.max(0, t - 57) * 60e3);
+  }
+
+  // Progress track: one segment per step, clickable to jump.
+  const segs = STEPS.map((s, i) => {
+    const b = document.createElement('button');
+    b.className = 'dot'; b.setAttribute('aria-label', `Go to step ${i + 1}: ${s.title}`);
+    b.innerHTML = '<i><b></b></i>';
+    b.onclick = () => seek(s.at);
+    $('track').appendChild(b);
+    return b.querySelector('b');
+  });
+
+  let t = 0, last = null, playing = true, idx = 0;
+  function seek(time) {
+    stage.classList.add('no-anim');
+    reset();
+    t = time; idx = 0;
+    while (idx < T.length && T[idx][0] <= t) T[idx++][1]();
+    clocks(t);
+    void stage.offsetWidth;
+    stage.classList.remove('no-anim');
+    last = null;
+  }
+  function frame(now) {
+    if (playing) {
+      if (last !== null) t += Math.min(0.1, (now - last) / 1000);
+      if (t >= TOTAL) seek(0);
+      while (idx < T.length && T[idx][0] <= t) T[idx++][1]();
+      clocks(t);
+    }
+    last = now;
+    STEPS.forEach((s, i) => {
+      const end = i + 1 < STEPS.length ? STEPS[i + 1].at : TOTAL;
+      segs[i].style.width = Math.max(0, Math.min(1, (t - s.at) / (end - s.at))) * 100 + '%';
+    });
+    $('time').textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+    requestAnimationFrame(frame);
+  }
+
+  function toggle() {
+    playing = !playing;
+    $('play').textContent = playing ? 'Pause' : 'Play';
+    $('play').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    stage.style.setProperty('--paused', playing ? '0' : '1');
+  }
+  $('play').onclick = toggle;
+  $('restart').onclick = () => { seek(0); if (!playing) toggle(); };
+  addEventListener('keydown', e => {
+    if (e.key === ' ' && e.target.tagName !== 'BUTTON') { e.preventDefault(); toggle(); }
+    if (e.key === 'r' || e.key === 'R') $('restart').click();
+  });
+
+  seek(0);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
