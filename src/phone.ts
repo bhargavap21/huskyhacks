@@ -205,8 +205,9 @@ export function connectTarget(): { sid: string; number: string } | null {
 export async function syncTransfer() {
   if (!phoneEnabled) return;
   const t = connectTarget();
-  if (!t) return; // nobody to put calls through to: the server answers "hold" to every call anyway
-  await api('PATCH', `/v1/agents/${AGENT}`, { transferNumber: t.number }).catch(e => console.error('phone: could not set the transfer number:', e.message));
+  // Nobody to put calls through to: clear it (AgentPhone takes "" to clear, not null), so the voice model can't
+  // transfer anyone even if it skipped the decision tool.
+  await api('PATCH', `/v1/agents/${AGENT}`, { transferNumber: t?.number ?? '' }).catch(e => console.error('phone: could not set the transfer number:', e.message));
 }
 
 const screening = new Map<string, { sid: string; from: string; started: number }>(); // live screened calls
