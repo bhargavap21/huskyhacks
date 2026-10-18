@@ -31,5 +31,8 @@
     "@types/web-push": "^3.6.4",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "sharp@0.34.5": true
   }
 }
