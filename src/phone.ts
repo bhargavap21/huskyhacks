@@ -9,7 +9,9 @@ import { db } from './db.ts';
 import { startCall, addText, stopCall, callState } from './guardian.ts';
 import { client, MODEL } from './chat.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
-import { sidsWhere, settings, assess, record } from './monitor.ts';
+import { sidsWhere, settings, assess, record, notifyMember } from './monitor.ts';
+import { decide, input as screenInput, logScreened, finishScreened, TOOL_SECRET } from './screening.ts';
+import { timingSafeEqual } from 'node:crypto';
 import { sendEmail } from './email.ts';
 
 const KEY = process.env.AGENTPHONE_API_KEY;
@@ -112,11 +114,13 @@ Rules you never break:
 - Don't repeat yourself. Give each warning or piece of advice once; later turns add something new or stay brief. Don't read the member's words back to them (except the callback number, once, at the end). Offer the report only once; if they decline, don't bring it up again.
 - Calm, warm, plain words. One or two sentences per turn, then one question. The member decides.`;
 
-export const SCREEN_RULES = `Sometimes the caller is not a Sound member but someone trying to reach one: the member turned on call screening and forwarded a call they didn't answer to you.
-- Then say: "Hi, this is Vantis, an AI assistant screening calls for a Sound member. Who's calling, and what is this about?"
-- Ask for their name, the organization they represent, what it's about, and a callback number. One question at a time.
-- Never confirm the member's name, accounts or any details. Never agree to anything, take payment details, or promise a callback time. If they press, say you'll pass the message on.
-- End with: "Thanks, I'll pass this on." Then stop.`;
+export const SCREEN_RULES = `Sometimes the caller is not a Sound member but someone trying to reach one: the member forwarded calls they didn't answer (unknown callers) to you.
+- Then say: "Hi, this call is being screened by Vantis, an AI assistant for a Sound member. Who's calling, and what's it about?"
+- Ask for their name, the organization they're with (if any), what it's about, and a callback number. One short question at a time.
+- Then call the screening_decision tool with what they told you, including their own words. Always call it before putting anyone through.
+- Say the tool's "say" line exactly as given. If its decision is "connect", transfer the call. If it is "hold", never transfer: end the call politely.
+- If the tool fails or gives no answer, never transfer: say "Thanks, I'll pass your message on." and end the call.
+- Never confirm the member's name, accounts or any details. Never agree to anything, take payment details, or promise a callback time.`;
 
 export const LISTEN_RULES = `Sometimes the member adds you to a call that is already happening (a merged three-way call) so you can listen. If you hear the member talking with someone else, or they say they added you:
 - Stay quiet and let them talk. Do not reply to ordinary conversation. If you must produce a reply, make it a single short "Mm-hm." at most.
@@ -130,7 +134,62 @@ export async function configureAgent() {
     systemPrompt: `${CALL_RULES}\n\n${LISTEN_RULES}\n\n${SCREEN_RULES}\n\nIf the member called you directly, ask what happened and help them check it.`,
     beginMessage: 'Hi, this is Vantis from Sound, an AI assistant. If you’re a member, tell me what’s going on. If you’re calling for a Sound member, tell me who you are and what it’s about, and I’ll pass it on.',
     voicemailMessage: 'Hi, this is Vantis from Sound, the scam-protection helper. If something feels off, call me back on this number, and please don’t share any codes or passwords in the meantime.',
+    customTools: [SCREEN_TOOL],
   });
+  await syncTransfer();
+}
+
+// ---- Screen-then-connect (issue #25) ----
+// The agent asks our server (screening.ts) whether to put an unknown caller through. AgentPhone has one
+// transfer number per agent, so on the shared number only one member at a time can have it on.
+const BASE = (process.env.PUBLIC_BASE_URL ?? 'https://second-look-demo.vercel.app').replace(/\/$/, '');
+const SCREEN_TOOL = {
+  name: 'screening_decision',
+  description: 'Ask Vantis whether to put a screened caller through to the member. Call it once you know who is calling and why, before any transfer. Returns {decision: "connect"|"hold", say}.',
+  url: `${BASE}/hooks/screening-decision`, method: 'POST', headers: { 'x-second-look-secret': TOOL_SECRET },
+  parameters: { type: 'object', properties: {
+    name: { type: 'string', description: 'The caller’s name, as they said it' },
+    organization: { type: 'string', description: 'Who they are calling from, if anyone' },
+    reason: { type: 'string', description: 'What the call is about, in a sentence' },
+    callback: { type: 'string', description: 'Callback number, if given' },
+    what_they_said: { type: 'string', description: 'The caller’s own words so far, as close to verbatim as you can' },
+  }, required: ['reason', 'what_they_said'] },
+  timeoutMs: 8000, speakDuringExecution: true, executionMessage: 'One moment, please.',
+};
+/** The member who asked for legitimate unknown callers to be put through (verified phone only). */
+export function connectTarget(): { sid: string; number: string } | null {
+  const on = sidsWhere(x => x.screening && x.screen_connect).map(x => ({ sid: x.sid, l: linkFor(x.sid) })).filter(x => x.l?.verified);
+  return on[0] ? { sid: on[0].sid, number: on[0].l!.number } : null;
+}
+export async function syncTransfer() {
+  if (!phoneEnabled) return;
+  const t = connectTarget();
+  if (!t) return; // nobody to put calls through to: the server answers "hold" to every call anyway
+  await api('PATCH', `/v1/agents/${AGENT}`, { transferNumber: t.number }).catch(e => console.error('phone: could not set the transfer number:', e.message));
+}
+
+const screening = new Map<string, { sid: string; from: string; started: number }>(); // live screened calls
+const lastTransfer = new Map<string, number>(); // `${sid}|${caller}` -> when we last put them through
+/** The agent's custom tool. Checks the secret, then decides; never throws (the agent treats errors as "hold"). */
+export async function handleScreeningTool(secret: string | undefined, body: any) {
+  const a = Buffer.from(secret ?? ''), b = Buffer.from(TOOL_SECRET);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return { status: 401, json: { decision: 'hold', say: 'Thanks, I’ll pass your message on.' } };
+  const i = screenInput(body?.args ?? body?.arguments ?? body?.parameters ?? body);
+  const live = [...screening.entries()].filter(([, v]) => Date.now() - v.started < 15 * 60_000).sort((x, y) => y[1].started - x[1].started)[0];
+  const callId = String(body?.call?.call_id ?? body?.call_id ?? live?.[0] ?? '') || null;
+  const caller = e164(body?.call?.from_number ?? body?.from_number ?? live?.[1].from) ?? '';
+  const t = screeningTarget(), sid = live?.[1].sid ?? (t && t !== 'ambiguous' ? t : null);
+  if (!sid) return { status: 200, json: { decision: 'hold', say: 'Thanks, I’ll pass your message on.' } };
+  const ct = connectTarget();
+  const key = `${sid}|${caller}`;
+  const r = await decide(i, { target: ct && ct.sid === sid ? ct.number : null, lastTransfer: caller ? lastTransfer.get(key) : undefined });
+  logScreened(sid, callId, caller, i, r);
+  if (r.decision === 'connect') {
+    if (caller) lastTransfer.set(key, Date.now());
+    void notifyMember(sid, `Putting a call through: ${[i.name, i.organization].filter(Boolean).join(', ')} about ${i.reason}`.slice(0, 160));
+  }
+  console.log(`phone: screening decision ${r.decision} (${r.why})`);
+  return { status: 200, json: { decision: r.decision, say: r.say } };
 }
 
 // ---- Watching live calls ----
@@ -178,7 +237,9 @@ export async function follow(call: any, keyFor: KeyFor) {
   if (who) startCall(key, !!who.share, call.direction === 'outbound' ? 'phone-out' : 'phone-in');
   const turns: { role: string; content: string }[] = [];
   const screenFor = !who && call.direction === 'inbound' ? screeningTarget(call.toNumber) : null;
+  if (screenFor && screenFor !== 'ambiguous') screening.set(call.id, { sid: screenFor, from: member, started: Date.now() });
   const done = async () => {
+    screening.delete(call.id); finishScreened(call.id);
     if (who && callState(key)?.live) await stopCall(key);
     if (screenFor === 'ambiguous') console.log('phone: screened call, but more than one member has screening on; not routed');
     else if (screenFor) await screened(screenFor, member, turns);

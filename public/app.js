@@ -397,15 +397,33 @@ function channelsView() {
       <div class="row">${ch.push ? '<span class="in-badge in-badge--safe">On</span><button class="quiet" data-act="push_off">Turn off</button>' : `<button class="primary" data-act="push_on" ${ch.push_key ? '' : 'disabled'}>Turn on alerts</button>`}<button data-act="push_test">Send a sample alert</button></div>
       <p class="small muted">On iPhone, first add this page to your Home Screen (Share, then Add to Home Screen). Without notifications, alerts come by email to your linked address.</p></div>
     ${emailWatchCard('Email')}
-    <div class="card g-way"><h3>Calls</h3>
-      ${sw('screening', ch.screening, 'Screen calls I don’t answer')}${needPhone}
-      <p class="small">Vantis answers calls you miss, asks who’s calling and why, and alerts you if it sounds like a scam. Forward unanswered calls to <b>${fmtPhone(SCREEN_NUMBER())}</b>:</p>
-      <ul class="em-links"><li>AT&amp;T or T-Mobile: dial <code>**61*1${esc(SCREEN_NUMBER().replace(/\D/g, '').slice(-10))}#</code> and press call. To stop: <code>##61#</code>.</li><li>Verizon: dial <code>*71${esc(SCREEN_NUMBER().replace(/\D/g, '').slice(-10))}</code>. To stop: <code>*73</code>.</li></ul></div>
+    ${callsCard(sw, needPhone)}
     <div class="card g-way"><h3>Texts</h3>
       ${sw('texts', ch.texts, 'Check texts I forward')}${needPhone}
       <p class="small">iPhones don’t let apps read your texts, so forward the ones that feel off to <b>${SL_NUMBER()}</b> from your linked phone. Vantis checks them and alerts you here.</p></div>
     ${waCard()}
     <div class="card"><h3>Recent alerts</h3>${ch.detections.length ? `<ul class="em-list">${ch.detections.map(detCard).join('')}</ul>` : '<p class="small muted">Nothing yet. When Vantis spots something on a connected channel, it shows up here.</p>'}</div>`;
+}
+// Calls: unknown callers reach Vantis first (Silence Unknown Callers + forward unanswered calls). It asks who's
+// calling and why, then puts legitimate callers through or holds back the ones that look like a scam (issue #25).
+function screenedRow(c) {
+  const held = c.outcome === 'held back';
+  return `<li class="em-report"><div class="g-head"><span class="in-badge in-badge--${held ? 'risk' : 'safe'}">${held ? 'Held back' : c.outcome === 'connecting' ? 'Putting through' : 'Put through'}</span><span class="small muted">${esc(c.caller)} · ${emAgo(c.ts)}</span></div>
+    <b>${esc([c.name || 'Caller gave no name', c.organization].filter(Boolean).join(', '))}</b>${c.reason ? `<p class="small">${esc(c.reason)}</p>` : ''}
+    ${held ? `<p class="small"><b>Why:</b> ${esc(c.why)}.</p>${c.evidence?.length ? `<ul class="sig-list">${c.evidence.map(e => `<li><div class="sig-head"><b>${esc(e.label)}</b></div><blockquote class="small">“${esc(e.quote)}”</blockquote></li>`).join('')}</ul>` : ''}${c.callback ? `<p class="small muted">They left a callback number. If it might be real, call the organization on a number you already have, not this one.</p>` : ''}` : ''}</li>`;
+}
+function callsCard(sw, needPhone) {
+  const ch = S.channels, n = SCREEN_NUMBER(), digits = n.replace(/\D/g, '').slice(-10);
+  return `<div class="card g-way"><h3>Calls</h3>
+      ${sw('screening', ch.screening, 'Screen calls from unknown numbers')}${needPhone}
+      ${sw('screen_connect', ch.screen_connect, 'Put callers who sound legitimate through to me')}
+      <p class="small">Unknown callers reach Vantis first. It asks who’s calling and why. ${ch.screen_connect ? 'Callers like your pharmacy, a doctor’s office or a delivery driver are put through, and you see who it is before your phone rings.' : 'It takes a message and tells you who called.'} Anyone who claims to be a bank or government agency, or brings up codes, payments or secrecy, is held back, and you get an alert with their words.</p>
+      <details ${ch.screening ? '' : 'open'}><summary>Set it up on your phone (2 minutes)</summary><ol class="in-ol g-steps">
+        <li><span>Save <b>${fmtPhone(n)}</b> as a contact named <b>Vantis</b>, so calls it puts through always ring.</span></li>
+        <li><span>Turn on <b>Silence Unknown Callers</b>: on iPhone, Settings → Apps → Phone. On Android, Phone → Settings → Caller ID &amp; spam → filter calls.</span></li>
+        <li><span>Forward unanswered calls to Vantis. AT&amp;T or T-Mobile: dial <code>**61*1${esc(digits)}#</code> and press call (to stop: <code>##61#</code>). Verizon: dial <code>*71${esc(digits)}</code> (to stop: <code>*73</code>).</span></li></ol>
+        <p class="small muted">Contacts still ring as usual. Callers hear that an AI assistant is screening the call; no audio is kept, only the transcript.</p></details>
+      ${ch.screened_calls?.length ? `<h4 class="small">Recent screened calls</h4><ul class="em-list">${ch.screened_calls.map(screenedRow).join('')}</ul>` : ''}</div>`;
 }
 // WhatsApp is end-to-end encrypted, so nothing can watch it: the member forwards what feels off to Vantis's
 // WhatsApp number, and Vantis replies in that chat. It never messages first.

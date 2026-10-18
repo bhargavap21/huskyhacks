@@ -15,7 +15,8 @@ import { prepare, loadAsr, AttachmentError } from './media.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { tacticsIn } from './tactics.ts';
 import { startCall, addChunk, stopCall, callState, clearCall } from './guardian.ts';
-import { phoneState, link, unlink, callMe, watchCalls, PhoneError, phoneVerified, assignScreeningNumber } from './phone.ts';
+import { phoneState, link, unlink, callMe, watchCalls, PhoneError, phoneVerified, assignScreeningNumber, handleScreeningTool, connectTarget, syncTransfer, phoneEnabled } from './phone.ts';
+import { screenedCalls } from './screening.ts';
 import { emailState, linkEmail, unlinkEmail, watchInbox, EmailError, reportEmailById, sendLinkCode, verifyLinkCode } from './email.ts';
 import { fileReport, normalize, extractIntake } from './reports.ts';
 import { settings, saveSettings, detections, pushKey, addPushSub, removePushSubs, reportDetection, record } from './monitor.ts';
@@ -136,17 +137,25 @@ app.post('/api/report', async c => {
 // Connected channels: what the member turned on, recent alerts, and how alerts reach them.
 function channelState(sid: string) {
   const s = settings(sid);
-  return { email_watch: s.email_watch, screening: s.screening, texts: s.texts, whatsapp: s.whatsapp, whatsapp_number: whatsappEnabled ? WA_NUMBER : null, push: s.push, forward_confirm: s.forward_confirm, gmail: s.gmail ? { address: s.gmail.address } : null, gmail_available: gmailEnabled, push_key: pushKey(), detections: detections(sid) };
+  return { email_watch: s.email_watch, screening: s.screening, texts: s.texts, screen_connect: s.screen_connect, screened_calls: screenedCalls(sid), whatsapp: s.whatsapp, whatsapp_number: whatsappEnabled ? WA_NUMBER : null, push: s.push, forward_confirm: s.forward_confirm, gmail: s.gmail ? { address: s.gmail.address } : null, gmail_available: gmailEnabled, push_key: pushKey(), detections: detections(sid) };
 }
 app.post('/api/channels', async c => {
   const b = await c.req.json().catch(() => ({})), sid = c.get('sid'), patch: any = {};
-  for (const k of ['email_watch', 'screening', 'texts', 'whatsapp'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
+  for (const k of ['email_watch', 'screening', 'screen_connect', 'texts', 'whatsapp'] as const) if (typeof b[k] === 'boolean') patch[k] = b[k];
   if (patch.email_watch && !emailState(sid)?.verified) return c.json({ error: 'Confirm your email first on Email check' }, 400);
   if (patch.screening && !phoneVerified(sid)) return c.json({ error: 'Confirm your phone first: link it on Call guardian and call Vantis once from it' }, 400);
+  if (patch.screen_connect) {
+    if (!phoneEnabled || !phoneVerified(sid)) return c.json({ error: 'Confirm your phone first: link it on Call guardian and call Vantis once from it' }, 400);
+    const other = connectTarget();
+    if (other && other.sid !== sid) return c.json({ error: 'Another member is using “put calls through” on this demo number. Vantis will take messages for you instead.' }, 409);
+    patch.screening = true;
+  }
+  if (patch.screening === false) patch.screen_connect = false;
   if (patch.whatsapp && !(whatsappEnabled && phoneState(sid)?.linked)) return c.json({ error: whatsappEnabled ? 'Link your phone first on Call guardian' : 'WhatsApp isn’t set up on this server' }, 400);
   if (b.dismiss_confirm) patch.forward_confirm = null;
   saveSettings(sid, patch);
   if (patch.screening) assignScreeningNumber(sid);
+  if ('screen_connect' in patch || 'screening' in patch) void syncTransfer();
   return c.json({ ok: true });
 });
 app.post('/api/push/subscribe', async c => { const b = await c.req.json().catch(() => ({})); addPushSub(c.get('sid'), b.sub); return c.json({ ok: true }); });
@@ -160,6 +169,12 @@ app.post('/api/push/test', async c => {
   return c.json({ ok: true });
 });
 app.post('/api/detections/:id/report', async c => { const out = await reportDetection(c.get('sid'), Number(c.req.param('id'))); return c.json({ ok: true, case_id: out.case_id }); });
+// Screen-then-connect: the phone agent's custom tool asks whether to put an unknown caller through (issue #25).
+// Outside /api: called by AgentPhone with a shared secret, not by a browser.
+app.post('/hooks/screening-decision', bodyLimit({ maxSize: 64 * 1024, onError: c => c.json({ decision: 'hold' }, 413) }), async c => {
+  const r = await handleScreeningTool(c.req.header('x-second-look-secret'), await c.req.json().catch(() => ({})));
+  return c.json(r.json, r.status as 401 | 200);
+});
 // WhatsApp Cloud API webhook. GET: Meta's subscription handshake. POST: messages, signature-checked on the raw
 // bytes before anything is parsed; answered 200 right away and handled in the background.
 app.get('/webhooks/whatsapp', c => {

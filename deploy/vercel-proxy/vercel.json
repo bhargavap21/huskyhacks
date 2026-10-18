@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "https://select-confidential-ind-ultram.trycloudflare.com/$1" }
+    { "source": "/(.*)", "destination": "https://matrix-upgrades-badge-bridge.trycloudflare.com/$1" }
   ]
 }

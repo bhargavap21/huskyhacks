@@ -16,6 +16,7 @@ This list is the single source of truth for what exists.
 | Chat ("Ask Vantis") | Case-grounded Claude chat with no-action limits; screenshots, PDFs and voice notes (transcribed on the server with local Whisper, audio not kept) | `src/chat.ts`, `src/media.ts` |
 | Call guardian | Listens to a call on speaker (or a sample scam call) and warns as it happens; summary at the end | `src/guardian.ts` |
 | Phone line, (229) 471-5015 | AgentPhone number: members add it to a call, call it, or have it call back; live transcripts feed the call guardian; screens calls a member forwards | `src/phone.ts` |
+| Screen unknown callers | With Silence Unknown Callers plus forward-unanswered, unknown callers reach Vantis first. It asks who's calling and why; our server decides (`/hooks/screening-decision`, agent custom tool): ordinary callers are put through (member opts in, verified phone), anyone claiming to be a bank or agency or raising codes, payments or secrecy is held back with quoted evidence. Fails closed; loop guard on unanswered transfers | `src/screening.ts`, `src/phone.ts` |
 | Email, secondlook@agentmail.to | AgentMail inbox: members forward a message (or ask a question) and get a reply; look-alike domains flagged | `src/email.ts` |
 | Connected channels | Opt-in watching: mail the member's Gmail auto-forwards (or read-only Gmail sign-in), screened calls, forwarded texts. Ordinary messages are discarded after the check; alerts by web push, in app, or email | `src/monitor.ts`, `src/gmail.ts`, `public/sw.js` |
 | Per-signal evidence | Each alert lists signs (urgency, secrecy, impersonation, threats, coaching, payment pressure, code requests) with a 0-1 score and the quoted words; risk (high/medium/low) is computed from them. Schema `signals/v1`; classifier is advisory for payments (DECISIONS.md, ADR 10) | `src/signals.ts`, [docs/signals.md](docs/signals.md) |
@@ -49,6 +50,7 @@ The payment demo needs no keys. Each optional channel turns on when its keys are
 | WhatsApp forwarding (setup below) | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_NUMBER` |
 | Push alerts | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY_PEM` (base64 PEM), optional `VAPID_MAILTO` |
 | Kit data somewhere other than `data/` | `KIT_EVENTS_PATH` |
+| Fixed secret for the screening tool (otherwise a new one each start, pushed to the agent) | `SCREENING_TOOL_SECRET` |
 | Server | `PORT` (8787), `DB_PATH`, `SESSION_SECRET`, `ALLOWED_ORIGIN_HOSTS` (a proxy in front, e.g. Vercel), `WHISPER_MODEL` |
 
 ### WhatsApp setup (Meta WhatsApp Cloud API)

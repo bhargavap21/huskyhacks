@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS detections (id INTEGER PRIMARY KEY, sid TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS push_subs (endpoint TEXT PRIMARY KEY, sid TEXT NOT NULL, json TEXT NOT NULL);
 `);
 
-export type Settings = { email_watch: boolean; screening: boolean; texts: boolean; whatsapp: boolean; push: boolean; gmail: { address: string; refresh: string; since: number } | null; forward_confirm: { code: string; link: string; from: string; ts: number } | null };
-const DEFAULTS: Settings = { email_watch: false, screening: false, texts: false, whatsapp: false, push: false, gmail: null, forward_confirm: null };
+export type Settings = { email_watch: boolean; screening: boolean; screen_connect: boolean; texts: boolean; whatsapp: boolean; push: boolean; gmail: { address: string; refresh: string; since: number } | null; forward_confirm: { code: string; link: string; from: string; ts: number } | null };
+const DEFAULTS: Settings = { email_watch: false, screening: false, screen_connect: false, texts: false, whatsapp: false, push: false, gmail: null, forward_confirm: null };
 
 export function settings(sid: string): Settings {
   const r = db.prepare('SELECT json FROM channels WHERE sid = ?').get(sid) as { json: string } | undefined;
@@ -168,6 +168,17 @@ export function addPushSub(sid: string, sub: any) {
   saveSettings(sid, { push: true });
 }
 export function removePushSubs(sid: string) { db.prepare('DELETE FROM push_subs WHERE sid = ?').run(sid); saveSettings(sid, { push: false }); }
+
+/** A heads-up that isn't a warning ("Vantis is connecting Dr. Lee's office"): push if on, otherwise in the app only. */
+export async function notifyMember(sid: string, body: string, url = '/?page=channels') {
+  if (!pushReady) return false;
+  let sent = false;
+  for (const s of db.prepare('SELECT endpoint, json FROM push_subs WHERE sid = ?').all(sid) as { endpoint: string; json: string }[]) {
+    try { await webpush.sendNotification(JSON.parse(s.json), JSON.stringify({ title: 'Vantis', body, tag: `info-${Date.now()}`, url }), { TTL: 120 }); sent = true; }
+    catch (e: any) { if (e?.statusCode === 404 || e?.statusCode === 410) db.prepare('DELETE FROM push_subs WHERE endpoint = ?').run(s.endpoint); }
+  }
+  return sent;
+}
 
 const lastAlert = new Map<string, number>();
 async function alertMember(sid: string, id: number, d: Detection, emailTo: string | null, sendEmail: (to: string, subject: string, text: string) => Promise<void>) {
